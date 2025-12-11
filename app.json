@@ -17,10 +17,6 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ],
       "package": "xyz.create.CreateExpoEnvironment"
     },
     "plugins": [
@@ -38,18 +34,17 @@
           "resizeMode": "contain"
         }
       ],
-      "expo-audio",
       [
         "expo-build-properties",
         {
           "ios": {
             "useFrameworks": "static"
+          },
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
           }
         }
-      ],
-      [
-        "expo-video",
-        { "supportsBackgroundPlayback": true, "supportsPictureInPicture": true }
       ],
       "expo-font",
       "expo-secure-store",
@@ -64,11 +59,16 @@
     },
     "extra": {
       "router": {
-        "origin": false
+        "origin": false,
+        "sitemap": false
+      },
+      "eas": {
+        "projectId": "f72911ff-f5bd-4867-bffb-8ba892e332a8"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "owner": "nimo123"
   }
 }

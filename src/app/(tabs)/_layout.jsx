@@ -1,37 +1,85 @@
 import { Tabs } from "expo-router";
+import { View, StyleSheet, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Home,
-  Users,
-  Activity,
-  MessageCircle,
-  User,
+  Stethoscope,
+  Heart,
+  MessageSquare,
+  UserCircle,
 } from "lucide-react-native";
-import { colors, fontSize, fontWeight } from "../../utils/theme";
+import { colors, fontWeight } from "../../utils/theme";
+import { LinearGradient } from "expo-linear-gradient";
+
+// Custom Tab Bar Icon with indicator (no Reanimated)
+const TabIcon = ({ icon: Icon, focused, color }) => {
+  return (
+    <View style={styles.iconContainer}>
+      {focused && (
+        <LinearGradient
+          colors={[colors.primary, colors.primaryLight]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.activeIndicator}
+        />
+      )}
+      <View style={focused ? styles.iconFocused : styles.iconNormal}>
+        <Icon
+          color={focused ? colors.primary : color}
+          size={22}
+          strokeWidth={focused ? 2.5 : 1.8}
+        />
+      </View>
+    </View>
+  );
+};
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
+  // Calculate bottom padding based on device type
+  const hasGestureNavigation = insets.bottom > 20;
+  const bottomPadding = hasGestureNavigation ? insets.bottom - 10 : Math.max(insets.bottom, 8);
+  const tabBarHeight = 60 + bottomPadding;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.cardBackground,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "rgba(255, 255, 255, 0.98)",
+          borderTopWidth: 0,
+          height: tabBarHeight,
           paddingTop: 8,
-          paddingBottom: 8,
-          height: 65,
-          elevation: 10,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
+          paddingBottom: bottomPadding,
+          paddingHorizontal: 8,
+          ...Platform.select({
+            ios: {
+              shadowColor: colors.primary,
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 20,
+            },
+            android: {
+              elevation: 20,
+              shadowColor: "#000",
+            },
+          }),
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textLight,
         tabBarLabelStyle: {
-          fontSize: fontSize.xs,
-          fontWeight: fontWeight.medium,
-          marginTop: 4,
+          fontSize: 10,
+          fontWeight: fontWeight.semibold,
+          marginTop: 2,
+          letterSpacing: 0.3,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
         },
       }}
     >
@@ -40,11 +88,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <Home
-              color={color}
-              size={24}
-              strokeWidth={focused ? 2.5 : 2}
-            />
+            <TabIcon icon={Home} color={color} focused={focused} />
           ),
         }}
       />
@@ -53,11 +97,7 @@ export default function TabLayout() {
         options={{
           title: "Doctors",
           tabBarIcon: ({ color, focused }) => (
-            <Users
-              color={color}
-              size={24}
-              strokeWidth={focused ? 2.5 : 2}
-            />
+            <TabIcon icon={Stethoscope} color={color} focused={focused} />
           ),
         }}
       />
@@ -70,13 +110,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="mood/index"
         options={{
-          title: "Mood",
+          title: "Wellness",
           tabBarIcon: ({ color, focused }) => (
-            <Activity
-              color={color}
-              size={24}
-              strokeWidth={focused ? 2.5 : 2}
-            />
+            <TabIcon icon={Heart} color={color} focused={focused} />
           ),
         }}
       />
@@ -97,11 +133,7 @@ export default function TabLayout() {
         options={{
           title: "Chat",
           tabBarIcon: ({ color, focused }) => (
-            <MessageCircle
-              color={color}
-              size={24}
-              strokeWidth={focused ? 2.5 : 2}
-            />
+            <TabIcon icon={MessageSquare} color={color} focused={focused} />
           ),
         }}
       />
@@ -110,11 +142,7 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <User
-              color={color}
-              size={24}
-              strokeWidth={focused ? 2.5 : 2}
-            />
+            <TabIcon icon={UserCircle} color={color} focused={focused} />
           ),
         }}
       />
@@ -133,3 +161,26 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 32,
+  },
+  activeIndicator: {
+    position: "absolute",
+    top: -2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.8,
+  },
+  iconFocused: {
+    transform: [{ scale: 1.1 }],
+  },
+  iconNormal: {
+    transform: [{ scale: 1 }],
+  },
+});
