@@ -2,47 +2,57 @@ import { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { Redirect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "../utils/theme";
 
 export default function Index() {
   const [isChecking, setIsChecking] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [destination, setDestination] = useState(null);
 
   useEffect(() => {
-    checkLoginStatus();
+    checkAppStatus();
   }, []);
 
-  const checkLoginStatus = async () => {
+  const checkAppStatus = async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
-      // Basic token validation (JWT has 3 parts)
-      if (token && token.split(".").length === 3) {
-        setIsLoggedIn(true);
+      // TEMPORARY: Reset onboarding for testing - REMOVE THIS LINE AFTER TESTING
+      await AsyncStorage.removeItem("hasSeenOnboarding");
+
+      // Check if onboarding was completed
+      const hasSeenOnboarding = await AsyncStorage.getItem("hasSeenOnboarding");
+
+      if (!hasSeenOnboarding) {
+        // First time user - show onboarding
+        setDestination("/onboarding");
       } else {
-        setIsLoggedIn(false);
+        // Check if logged in
+        const token = await AsyncStorage.getItem("token");
+        if (token && token.split(".").length === 3) {
+          setDestination("/(tabs)/home");
+        } else {
+          setDestination("/auth/login");
+        }
       }
     } catch (error) {
-      console.error("Error checking login status:", error);
-      setIsLoggedIn(false);
+      console.error("Error checking app status:", error);
+      setDestination("/auth/login");
     } finally {
       setIsChecking(false);
     }
   };
 
-  if (isChecking) {
+  if (isChecking || !destination) {
     return (
       <View
         style={{
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: colors.background,
+          backgroundColor: "#F8FAFC",
         }}
       >
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color="#4A9B7F" />
       </View>
     );
   }
 
-  return <Redirect href={isLoggedIn ? "/(tabs)/home" : "/auth/login"} />;
+  return <Redirect href={destination} />;
 }

@@ -10,12 +10,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, UserPlus } from "lucide-react-native";
+import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight } from "lucide-react-native";
 import api from "../../utils/api";
 import { useAuthStore } from "../../utils/auth/store";
 
@@ -74,7 +75,7 @@ export default function RegisterScreen() {
           console.error("[Register] Error getting profile:", profileError);
         }
 
-        Alert.alert("Success", "Registration successful! 🎉", [
+        Alert.alert("Welcome! 🎉", "Your account has been created successfully.", [
           { text: "Let's Go!", onPress: () => router.replace("/(tabs)/home") },
         ]);
       } else {
@@ -104,34 +105,32 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Back Button & Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <ArrowLeft color="#1F2937" size={24} />
-            </TouchableOpacity>
-          </View>
+          {/* Back Button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <ArrowLeft color="#1F2937" size={24} />
+          </TouchableOpacity>
 
           {/* Logo & Title */}
           <View style={styles.headerSection}>
-            <View style={styles.logoContainer}>
-              <UserPlus size={32} color="#4A9B7F" />
-            </View>
+            <Image
+              source={require("../../../assets/images/splash-icon.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Start your wellness journey today</Text>
+            <Text style={styles.subtitle}>Join us on your wellness journey</Text>
           </View>
 
-          {/* Form Card */}
-          <View style={styles.formCard}>
+          {/* Form */}
+          <View style={styles.formSection}>
             {/* Name Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <View style={styles.inputWrapper}>
-                <View style={styles.inputIconContainer}>
-                  <User color="#9CA3AF" size={20} />
-                </View>
+                <User color="#9CA3AF" size={20} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your full name"
@@ -145,11 +144,9 @@ export default function RegisterScreen() {
 
             {/* Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email Address</Text>
+              <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputWrapper}>
-                <View style={styles.inputIconContainer}>
-                  <Mail color="#9CA3AF" size={20} />
-                </View>
+                <Mail color="#9CA3AF" size={20} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -168,12 +165,10 @@ export default function RegisterScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.inputWrapper}>
-                <View style={styles.inputIconContainer}>
-                  <Lock color="#9CA3AF" size={20} />
-                </View>
+                <Lock color="#9CA3AF" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Create a password (min 6 chars)"
+                  placeholder="Min 6 characters"
                   placeholderTextColor="#9CA3AF"
                   value={password}
                   onChangeText={setPassword}
@@ -197,9 +192,7 @@ export default function RegisterScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Confirm Password</Text>
               <View style={styles.inputWrapper}>
-                <View style={styles.inputIconContainer}>
-                  <Lock color="#9CA3AF" size={20} />
-                </View>
+                <Lock color="#9CA3AF" size={20} />
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm your password"
@@ -222,13 +215,6 @@ export default function RegisterScreen() {
               </View>
             </View>
 
-            {/* Password Requirements */}
-            <View style={styles.passwordHint}>
-              <Text style={styles.passwordHintText}>
-                ✓ At least 6 characters
-              </Text>
-            </View>
-
             {/* Register Button */}
             <TouchableOpacity
               style={[styles.registerButton, loading && styles.registerButtonDisabled]}
@@ -245,23 +231,20 @@ export default function RegisterScreen() {
                 </>
               )}
             </TouchableOpacity>
+          </View>
 
-            {/* Login Link */}
-            <View style={styles.loginLinkContainer}>
-              <Text style={styles.loginLinkText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.back()} disabled={loading}>
-                <Text style={styles.loginLink}>Login</Text>
-              </TouchableOpacity>
-            </View>
+          {/* Login Link */}
+          <View style={styles.loginSection}>
+            <Text style={styles.loginText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.back()} disabled={loading}>
+              <Text style={styles.loginLink}>Sign In</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              By signing up, you agree to our{" "}
-              <Text style={styles.footerLink}>Terms of Service</Text>
-              {" "}and{" "}
-              <Text style={styles.footerLink}>Privacy Policy</Text>
+              By signing up, you agree to our Terms & Privacy Policy
             </Text>
           </View>
         </ScrollView>
@@ -273,14 +256,11 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#E8F5F0",
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-  },
-  header: {
-    marginBottom: 16,
+    paddingHorizontal: 28,
   },
   backButton: {
     width: 44,
@@ -289,50 +269,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
   },
   headerSection: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 32,
   },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: "#E6F4F0",
-    justifyContent: "center",
-    alignItems: "center",
+  logo: {
+    width: 80,
+    height: 80,
     marginBottom: 16,
-    shadowColor: "#4A9B7F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
     color: "#1F2937",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
     color: "#6B7280",
-    fontWeight: "500",
   },
-  formCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+  formSection: {
     marginBottom: 24,
   },
   inputGroup: {
@@ -342,86 +305,74 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#374151",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-  },
-  inputIconContainer: {
-    paddingLeft: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    marginLeft: 12,
     fontSize: 16,
     color: "#1F2937",
   },
   eyeButton: {
-    padding: 14,
-  },
-  passwordHint: {
-    marginBottom: 24,
-  },
-  passwordHintText: {
-    fontSize: 13,
-    color: "#10B981",
-    fontWeight: "500",
+    padding: 4,
   },
   registerButton: {
-    backgroundColor: "#4A9B7F",
-    borderRadius: 14,
-    paddingVertical: 16,
+    backgroundColor: "#1F2937",
+    borderRadius: 16,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#4A9B7F",
+    marginTop: 8,
+    shadowColor: "#1F2937",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
-    marginBottom: 20,
   },
   registerButtonDisabled: {
     opacity: 0.7,
   },
   registerButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
-  loginLinkContainer: {
+  loginSection: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 24,
   },
-  loginLinkText: {
+  loginText: {
     color: "#6B7280",
-    fontSize: 14,
+    fontSize: 15,
   },
   loginLink: {
     color: "#4A9B7F",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
   },
   footer: {
     alignItems: "center",
-    paddingHorizontal: 16,
   },
   footerText: {
     color: "#9CA3AF",
     fontSize: 13,
     textAlign: "center",
-    lineHeight: 20,
-  },
-  footerLink: {
-    color: "#4A9B7F",
-    fontWeight: "600",
   },
 });

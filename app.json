@@ -1,6 +1,7 @@
 {
   "expo": {
-    "name": "Anything mobile app",
+    "name": "Raskamon",
+    "slug": "raskamon",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
