@@ -7,16 +7,17 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { User, Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react-native";
+import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, UserPlus } from "lucide-react-native";
 import api from "../../utils/api";
 import { useAuthStore } from "../../utils/auth/store";
-import { colors, spacing, borderRadius, fontSize, fontWeight, shadow } from "../../utils/theme";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -73,8 +74,8 @@ export default function RegisterScreen() {
           console.error("[Register] Error getting profile:", profileError);
         }
 
-        Alert.alert("Success", "Registration successful!", [
-          { text: "OK", onPress: () => router.replace("/(tabs)/home") },
+        Alert.alert("Success", "Registration successful! 🎉", [
+          { text: "Let's Go!", onPress: () => router.replace("/(tabs)/home") },
         ]);
       } else {
         Alert.alert("Error", response.message || "Registration failed");
@@ -88,290 +89,339 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar style="light" />
+    <View style={styles.container}>
+      <StatusBar style="dark" />
 
-      {/* Header with gradient */}
-      <LinearGradient
-        colors={[colors.primary, colors.primaryDark]}
-        style={{
-          paddingTop: insets.top + spacing.md,
-          paddingBottom: spacing.xl,
-          paddingHorizontal: spacing.lg,
-          borderBottomLeftRadius: borderRadius.xl,
-          borderBottomRightRadius: borderRadius.xl,
-        }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        {/* Back Button */}
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ marginBottom: spacing.md }}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ArrowLeft color={colors.textWhite} size={24} />
-        </TouchableOpacity>
-
-        <View style={{ alignItems: "center" }}>
-          <Text
-            style={{
-              fontSize: fontSize.xxl,
-              fontWeight: fontWeight.bold,
-              color: colors.textWhite,
-              marginBottom: spacing.xs,
-            }}
-          >
-            Create Account
-          </Text>
-          <Text
-            style={{
-              fontSize: fontSize.md,
-              color: colors.textWhite,
-              opacity: 0.9,
-            }}
-          >
-            Start your wellness journey today
-          </Text>
-        </View>
-      </LinearGradient>
-
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.xl,
-          paddingBottom: insets.bottom + spacing.lg,
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Name Input */}
-        <View style={{ marginBottom: spacing.md }}>
-          <Text
-            style={{
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.semibold,
-              color: colors.textDark,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Full Name
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.cardBackground,
-              borderRadius: borderRadius.md,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: spacing.md,
-              ...shadow.sm,
-            }}
-          >
-            <User color={colors.textLight} size={20} />
-            <TextInput
-              style={{
-                flex: 1,
-                paddingVertical: spacing.md,
-                paddingHorizontal: spacing.sm,
-                fontSize: fontSize.md,
-                color: colors.textDark,
-              }}
-              placeholder="Enter your full name"
-              placeholderTextColor={colors.textLight}
-              value={name}
-              onChangeText={setName}
-              editable={!loading}
-            />
-          </View>
-        </View>
-
-        {/* Email Input */}
-        <View style={{ marginBottom: spacing.md }}>
-          <Text
-            style={{
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.semibold,
-              color: colors.textDark,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Email Address
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.cardBackground,
-              borderRadius: borderRadius.md,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: spacing.md,
-              ...shadow.sm,
-            }}
-          >
-            <Mail color={colors.textLight} size={20} />
-            <TextInput
-              style={{
-                flex: 1,
-                paddingVertical: spacing.md,
-                paddingHorizontal: spacing.sm,
-                fontSize: fontSize.md,
-                color: colors.textDark,
-              }}
-              placeholder="Enter your email"
-              placeholderTextColor={colors.textLight}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-          </View>
-        </View>
-
-        {/* Password Input */}
-        <View style={{ marginBottom: spacing.md }}>
-          <Text
-            style={{
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.semibold,
-              color: colors.textDark,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Password
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.cardBackground,
-              borderRadius: borderRadius.md,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: spacing.md,
-              ...shadow.sm,
-            }}
-          >
-            <Lock color={colors.textLight} size={20} />
-            <TextInput
-              style={{
-                flex: 1,
-                paddingVertical: spacing.md,
-                paddingHorizontal: spacing.sm,
-                fontSize: fontSize.md,
-                color: colors.textDark,
-              }}
-              placeholder="Create a password"
-              placeholderTextColor={colors.textLight}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              editable={!loading}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? (
-                <EyeOff color={colors.textLight} size={20} />
-              ) : (
-                <Eye color={colors.textLight} size={20} />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Confirm Password Input */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.semibold,
-              color: colors.textDark,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Confirm Password
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.cardBackground,
-              borderRadius: borderRadius.md,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: spacing.md,
-              ...shadow.sm,
-            }}
-          >
-            <Lock color={colors.textLight} size={20} />
-            <TextInput
-              style={{
-                flex: 1,
-                paddingVertical: spacing.md,
-                paddingHorizontal: spacing.sm,
-                fontSize: fontSize.md,
-                color: colors.textDark,
-              }}
-              placeholder="Confirm your password"
-              placeholderTextColor={colors.textLight}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry={!showConfirmPassword}
-              editable={!loading}
-            />
-            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-              {showConfirmPassword ? (
-                <EyeOff color={colors.textLight} size={20} />
-              ) : (
-                <Eye color={colors.textLight} size={20} />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Register Button */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: colors.primary,
-            borderRadius: borderRadius.md,
-            paddingVertical: spacing.md,
-            alignItems: "center",
-            marginBottom: spacing.lg,
-            opacity: loading ? 0.7 : 1,
-            ...shadow.md,
-          }}
-          onPress={handleRegister}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.textWhite} />
-          ) : (
-            <Text
-              style={{
-                color: colors.textWhite,
-                fontSize: fontSize.md,
-                fontWeight: fontWeight.semibold,
-              }}
+          {/* Back Button & Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
             >
-              Create Account
-            </Text>
-          )}
-        </TouchableOpacity>
+              <ArrowLeft color="#1F2937" size={24} />
+            </TouchableOpacity>
+          </View>
 
-        {/* Login Link */}
-        <View style={{ alignItems: "center" }}>
-          <TouchableOpacity onPress={() => router.back()} disabled={loading}>
-            <Text style={{ color: colors.textMedium, fontSize: fontSize.sm }}>
-              Already have an account?{" "}
-              <Text style={{ color: colors.primary, fontWeight: fontWeight.semibold }}>
-                Login
+          {/* Logo & Title */}
+          <View style={styles.headerSection}>
+            <View style={styles.logoContainer}>
+              <UserPlus size={32} color="#4A9B7F" />
+            </View>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Start your wellness journey today</Text>
+          </View>
+
+          {/* Form Card */}
+          <View style={styles.formCard}>
+            {/* Name Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <User color="#9CA3AF" size={20} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#9CA3AF"
+                  value={name}
+                  onChangeText={setName}
+                  editable={!loading}
+                />
+              </View>
+            </View>
+
+            {/* Email Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <Mail color="#9CA3AF" size={20} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#9CA3AF"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+              </View>
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <Lock color="#9CA3AF" size={20} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Create a password (min 6 chars)"
+                  placeholderTextColor="#9CA3AF"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                >
+                  {showPassword ? (
+                    <EyeOff color="#9CA3AF" size={20} />
+                  ) : (
+                    <Eye color="#9CA3AF" size={20} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Confirm Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirm Password</Text>
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputIconContainer}>
+                  <Lock color="#9CA3AF" size={20} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirm your password"
+                  placeholderTextColor="#9CA3AF"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.eyeButton}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff color="#9CA3AF" size={20} />
+                  ) : (
+                    <Eye color="#9CA3AF" size={20} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Password Requirements */}
+            <View style={styles.passwordHint}>
+              <Text style={styles.passwordHintText}>
+                ✓ At least 6 characters
               </Text>
+            </View>
+
+            {/* Register Button */}
+            <TouchableOpacity
+              style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+              onPress={handleRegister}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.registerButtonText}>Create Account</Text>
+                  <ArrowRight color="#FFFFFF" size={20} />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Login Link */}
+            <View style={styles.loginLinkContainer}>
+              <Text style={styles.loginLinkText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => router.back()} disabled={loading}>
+                <Text style={styles.loginLink}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              By signing up, you agree to our{" "}
+              <Text style={styles.footerLink}>Terms of Service</Text>
+              {" "}and{" "}
+              <Text style={styles.footerLink}>Privacy Policy</Text>
             </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+  },
+  header: {
+    marginBottom: 16,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  headerSection: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  logoContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: "#E6F4F0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: "#4A9B7F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  formCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    marginBottom: 24,
+  },
+  inputGroup: {
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+  },
+  inputIconContainer: {
+    paddingLeft: 16,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: "#1F2937",
+  },
+  eyeButton: {
+    padding: 14,
+  },
+  passwordHint: {
+    marginBottom: 24,
+  },
+  passwordHintText: {
+    fontSize: 13,
+    color: "#10B981",
+    fontWeight: "500",
+  },
+  registerButton: {
+    backgroundColor: "#4A9B7F",
+    borderRadius: 14,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#4A9B7F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 20,
+  },
+  registerButtonDisabled: {
+    opacity: 0.7,
+  },
+  registerButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  loginLinkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loginLinkText: {
+    color: "#6B7280",
+    fontSize: 14,
+  },
+  loginLink: {
+    color: "#4A9B7F",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  footer: {
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  footerText: {
+    color: "#9CA3AF",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  footerLink: {
+    color: "#4A9B7F",
+    fontWeight: "600",
+  },
+});

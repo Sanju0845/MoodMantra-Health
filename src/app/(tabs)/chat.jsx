@@ -8,21 +8,29 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Send, Bot, Sparkles } from "lucide-react-native";
+import { Send, Bot, Sparkles, Heart, ArrowLeft } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import api from "../../utils/api";
-import { colors, spacing, borderRadius, fontSize, fontWeight, shadow } from "../../utils/theme";
 
 export default function ChatScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([
+    {
+      id: "1",
+      role: "assistant",
+      content: "Hi, I am Raska your Mental Wellness Assistant. How are you feeling today?",
+    },
+  ]);
   const [inputText, setInputText] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -34,7 +42,7 @@ export default function ChatScreen() {
       const userId = await AsyncStorage.getItem("userId");
       if (userId) {
         const response = await api.getChatHistory(userId);
-        if (response.success && response.messages) {
+        if (response.success && response.messages && response.messages.length > 0) {
           setMessages(response.messages);
         }
       }
@@ -49,22 +57,36 @@ export default function ChatScreen() {
     if (!inputText.trim()) return;
 
     const userMessage = { role: "user", content: inputText.trim() };
+    const messageText = inputText.trim();
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInputText("");
     setSending(true);
 
     try {
-      const response = await api.sendChatMessage(newMessages);
+      // Get userId for the API call
+      const userId = await AsyncStorage.getItem("userId");
+
+      // Send single message with userId (matching web app format)
+      const response = await api.sendChatMessage(messageText, userId);
 
       if (response.success && response.reply) {
         setMessages([
           ...newMessages,
           { role: "assistant", content: response.reply },
         ]);
+      } else {
+        throw new Error(response.message || "Failed to get response");
       }
     } catch (error) {
       console.error("Send message error:", error);
+      setMessages([
+        ...newMessages,
+        {
+          role: "assistant",
+          content: "I'm sorry, I'm experiencing some technical difficulties right now. Please try again in a moment."
+        },
+      ]);
     } finally {
       setSending(false);
     }
@@ -74,189 +96,119 @@ export default function ChatScreen() {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <StatusBar style="light" />
 
       {/* Header */}
       <LinearGradient
-        colors={[colors.primary, colors.primaryDark]}
-        style={{
-          paddingTop: insets.top + spacing.md,
-          paddingBottom: spacing.lg,
-          paddingHorizontal: spacing.lg,
-          borderBottomLeftRadius: borderRadius.xl,
-          borderBottomRightRadius: borderRadius.xl,
-        }}
+        colors={["#4A9B7F", "#3B8068"]}
+        style={[styles.header, { paddingTop: insets.top + 12 }]}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <View
-            style={{
-              backgroundColor: "rgba(255,255,255,0.2)",
-              padding: spacing.sm,
-              borderRadius: borderRadius.full,
-              marginRight: spacing.md,
-            }}
-          >
-            <Bot color={colors.textWhite} size={28} />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <ArrowLeft size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <View style={styles.headerAvatar}>
+            <Bot size={24} color="#4A9B7F" />
           </View>
           <View>
-            <Text style={{ fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textWhite }}>
-              Luna AI
-            </Text>
-            <Text style={{ fontSize: fontSize.sm, color: colors.textWhite, opacity: 0.9 }}>
-              Your Mental Health Companion
-            </Text>
+            <Text style={styles.headerTitle}>Raska</Text>
+            <View style={styles.statusRow}>
+              <View style={styles.statusDot} />
+              <Text style={styles.headerSubtitle}>
+                Here to support you
+              </Text>
+            </View>
           </View>
         </View>
+        <View style={styles.headerSpacer} />
       </LinearGradient>
 
       {/* Messages */}
       <ScrollView
         ref={scrollViewRef}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.lg }}
+        style={styles.messagesContainer}
+        contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
-        {messages.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: spacing.xxl }}>
-            <View
-              style={{
-                backgroundColor: colors.primary + "20",
-                padding: spacing.lg,
-                borderRadius: borderRadius.full,
-                marginBottom: spacing.lg,
-              }}
-            >
-              <Sparkles color={colors.primary} size={48} />
+        {messages.length === 1 && (
+          <View style={styles.welcomeCard}>
+            <View style={styles.welcomeIconContainer}>
+              <Sparkles size={32} color="#4A9B7F" />
             </View>
-            <Text
-              style={{
-                fontSize: fontSize.lg,
-                fontWeight: fontWeight.semibold,
-                color: colors.textDark,
-                textAlign: "center",
-                marginBottom: spacing.sm,
-              }}
-            >
-              Start a Conversation
-            </Text>
-            <Text
-              style={{
-                fontSize: fontSize.md,
-                color: colors.textMedium,
-                textAlign: "center",
-                lineHeight: 24,
-              }}
-            >
-              Share your thoughts, feelings, and concerns with Luna,{"\n"}your AI mental health companion.
+            <Text style={styles.welcomeTitle}>Welcome to Raska</Text>
+            <Text style={styles.welcomeText}>
+              Your AI mental wellness companion. Share your thoughts,
+              feelings, and concerns in a safe space.
             </Text>
           </View>
-        ) : (
-          messages.map((message, index) => (
-            <View
-              key={index}
-              style={{
-                alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "80%",
-                marginBottom: spacing.md,
-              }}
-            >
-              <View
-                style={{
-                  backgroundColor: message.role === "user" ? colors.primary : colors.cardBackground,
-                  borderRadius: borderRadius.lg,
-                  borderBottomRightRadius: message.role === "user" ? spacing.xs : borderRadius.lg,
-                  borderBottomLeftRadius: message.role === "user" ? borderRadius.lg : spacing.xs,
-                  padding: spacing.md,
-                  ...shadow.sm,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: fontSize.md,
-                    color: message.role === "user" ? colors.textWhite : colors.textDark,
-                    lineHeight: 22,
-                  }}
-                >
-                  {message.content}
-                </Text>
-              </View>
-              <Text
-                style={{
-                  fontSize: fontSize.xs,
-                  color: colors.textLight,
-                  marginTop: spacing.xs,
-                  alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-                }}
-              >
-                {message.role === "user" ? "You" : "Luna"}
-              </Text>
-            </View>
-          ))
         )}
 
-        {sending && (
-          <View style={{ alignSelf: "flex-start", maxWidth: "80%", marginBottom: spacing.md }}>
+        {messages.map((message, index) => (
+          <View
+            key={index}
+            style={[
+              styles.messageRow,
+              message.role === "user" ? styles.messageRowUser : styles.messageRowBot,
+            ]}
+          >
+            {message.role !== "user" && (
+              <View style={styles.botAvatar}>
+                <Bot size={16} color="#4A9B7F" />
+              </View>
+            )}
             <View
-              style={{
-                backgroundColor: colors.cardBackground,
-                borderRadius: borderRadius.lg,
-                borderBottomLeftRadius: spacing.xs,
-                padding: spacing.md,
-                ...shadow.sm,
-              }}
+              style={[
+                styles.messageBubble,
+                message.role === "user"
+                  ? styles.userBubble
+                  : styles.botBubble,
+              ]}
             >
-              <ActivityIndicator color={colors.primary} />
+              <Text
+                style={[
+                  styles.messageText,
+                  message.role === "user"
+                    ? styles.userText
+                    : styles.botText,
+                ]}
+              >
+                {message.content}
+              </Text>
+            </View>
+          </View>
+        ))}
+
+        {sending && (
+          <View style={[styles.messageRow, styles.messageRowBot]}>
+            <View style={styles.botAvatar}>
+              <Bot size={16} color="#4A9B7F" />
+            </View>
+            <View style={[styles.messageBubble, styles.botBubble]}>
+              <View style={styles.typingIndicator}>
+                <ActivityIndicator size="small" color="#4A9B7F" />
+                <Text style={styles.typingText}>Thinking...</Text>
+              </View>
             </View>
           </View>
         )}
       </ScrollView>
 
       {/* Input */}
-      <View
-        style={{
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          paddingBottom: insets.bottom + spacing.md,
-          backgroundColor: colors.cardBackground,
-          borderTopWidth: 1,
-          borderColor: colors.border,
-          flexDirection: "row",
-          alignItems: "flex-end",
-          gap: spacing.sm,
-        }}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: colors.background,
-            borderRadius: borderRadius.lg,
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
-            maxHeight: 120,
-          }}
-        >
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 90 }]}>
+        <View style={styles.inputWrapper}>
           <TextInput
-            style={{
-              fontSize: fontSize.md,
-              color: colors.textDark,
-            }}
-            placeholder="Type your message..."
-            placeholderTextColor={colors.textLight}
+            style={styles.input}
+            placeholder="Share what's on your mind..."
+            placeholderTextColor="#9CA3AF"
             value={inputText}
             onChangeText={setInputText}
             multiline
@@ -264,22 +216,220 @@ export default function ChatScreen() {
           />
         </View>
         <TouchableOpacity
-          style={{
-            backgroundColor: !inputText.trim() || sending ? colors.textLight : colors.primary,
-            width: 48,
-            height: 48,
-            borderRadius: borderRadius.full,
-            alignItems: "center",
-            justifyContent: "center",
-            ...shadow.sm,
-          }}
+          style={[
+            styles.sendButton,
+            (!inputText.trim() || sending) && styles.sendButtonDisabled,
+          ]}
           onPress={handleSend}
           disabled={!inputText.trim() || sending}
           activeOpacity={0.7}
         >
-          <Send color={colors.textWhite} size={20} />
+          <Send size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 12,
+  },
+  headerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#A7F3D0",
+    marginRight: 6,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.9)",
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  welcomeCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E6F4F0",
+  },
+  welcomeIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#E6F4F0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  welcomeTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  messageRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+    alignItems: "flex-end",
+  },
+  messageRowUser: {
+    justifyContent: "flex-end",
+  },
+  messageRowBot: {
+    justifyContent: "flex-start",
+  },
+  botAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#E6F4F0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  messageBubble: {
+    maxWidth: "75%",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+  },
+  userBubble: {
+    backgroundColor: "#4A9B7F",
+    borderBottomRightRadius: 4,
+  },
+  botBubble: {
+    backgroundColor: "#FFFFFF",
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E6F4F0",
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  userText: {
+    color: "#FFFFFF",
+  },
+  botText: {
+    color: "#1F2937",
+  },
+  typingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  typingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E6F4F0",
+    gap: 10,
+  },
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxHeight: 100,
+  },
+  input: {
+    fontSize: 15,
+    color: "#1F2937",
+    maxHeight: 80,
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#4A9B7F",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sendButtonDisabled: {
+    backgroundColor: "#D1D5DB",
+  },
+  privacyFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  privacyText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+});

@@ -21,7 +21,7 @@ export default function AppointmentsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState([]);
-  const [activeTab, setActiveTab] = useState("upcoming");
+  const [activeTab, setActiveTab] = useState("pending");
 
   useEffect(() => {
     loadAppointments();
@@ -30,8 +30,14 @@ export default function AppointmentsScreen() {
   const loadAppointments = async () => {
     try {
       const response = await api.getUserAppointments();
+      console.log("[Appointments] Response:", JSON.stringify(response, null, 2));
       if (response.success) {
-        setAppointments(response.appointments || []);
+        const appts = response.appointments || [];
+        console.log("[Appointments] Count:", appts.length);
+        appts.forEach((apt, i) => {
+          console.log(`[Appointments] #${i}: payment=${apt.payment}, cancelled=${apt.cancelled}, isCompleted=${apt.isCompleted}`);
+        });
+        setAppointments(appts);
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
@@ -72,12 +78,21 @@ export default function AppointmentsScreen() {
   };
 
   const filteredAppointments = appointments.filter((apt) => {
-    if (activeTab === "upcoming") {
-      return !apt.cancelled && !apt.isCompleted;
-    } else if (activeTab === "past") {
-      return apt.isCompleted;
-    } else {
-      return apt.cancelled;
+    // Pending: Not cancelled, not completed, and payment not done
+    if (activeTab === "pending") {
+      return !apt.cancelled && !apt.isCompleted && apt.payment !== true;
+    }
+    // Upcoming: Not cancelled, not completed, and payment done
+    else if (activeTab === "upcoming") {
+      return !apt.cancelled && !apt.isCompleted && apt.payment === true;
+    }
+    // Past: Completed appointments
+    else if (activeTab === "past") {
+      return apt.isCompleted === true;
+    }
+    // Cancelled: Cancelled appointments
+    else {
+      return apt.cancelled === true;
     }
   });
 
@@ -119,8 +134,8 @@ export default function AppointmentsScreen() {
         </TouchableOpacity>
 
         {/* Tabs */}
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {["upcoming", "past", "cancelled"].map((tab) => (
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {["pending", "upcoming", "past", "cancelled"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={{
@@ -300,29 +315,118 @@ export default function AppointmentsScreen() {
               )}
 
               {!appointment.cancelled && !appointment.isCompleted && (
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: "#FEE2E2",
-                    borderRadius: 8,
-                    padding: 12,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  onPress={() => handleCancelAppointment(appointment._id)}
-                >
-                  <X color="#EF4444" size={20} />
-                  <Text
+                <>
+                  {/* Pending Status Badge */}
+                  {!appointment.payment && (
+                    <View
+                      style={{
+                        backgroundColor: "#FEF3C7",
+                        borderRadius: 8,
+                        padding: 12,
+                        marginBottom: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 16, marginRight: 8 }}>⏳</Text>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: "#D97706",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Pending Confirmation
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Confirmed Status Badge */}
+                  {appointment.payment && (
+                    <View
+                      style={{
+                        backgroundColor: "#EEF2FF",
+                        borderRadius: 8,
+                        padding: 12,
+                        marginBottom: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 16, marginRight: 8 }}>✅</Text>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: "#6366F1",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Confirmed
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Pay Now Button for pending appointments */}
+                  {!appointment.payment && (
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: "#6366F1",
+                        borderRadius: 8,
+                        padding: 14,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginBottom: 12,
+                      }}
+                      onPress={() => {
+                        router.push({
+                          pathname: "/(tabs)/doctors/payment",
+                          params: {
+                            appointmentId: appointment._id,
+                            amount: appointment.amount,
+                            doctorName: appointment.docData?.name || "Doctor",
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: "600",
+                          color: "#FFFFFF",
+                        }}
+                      >
+                        💳 Pay Now - ₹{appointment.amount}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
                     style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: "#EF4444",
-                      marginLeft: 8,
+                      backgroundColor: "#FEE2E2",
+                      borderRadius: 8,
+                      padding: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
+                    onPress={() => handleCancelAppointment(appointment._id)}
                   >
-                    Cancel Appointment
-                  </Text>
-                </TouchableOpacity>
+                    <X color="#EF4444" size={20} />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: "#EF4444",
+                        marginLeft: 8,
+                      }}
+                    >
+                      Cancel Appointment
+                    </Text>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           ))

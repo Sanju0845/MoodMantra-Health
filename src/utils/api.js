@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
 // Backend URL - same as the webapp
 const API_BASE_URL = "https://backend.raskamon.com";
@@ -67,8 +68,14 @@ class API {
 
             console.log(`[API] Response status: ${response.status}, success: ${data.success}`);
 
-            // Handle errors from API
-            if (!data.success && data.message) {
+            // Handle errors from API - only throw if success is explicitly false
+            // Some endpoints don't have a success field but still succeed (like mood tracking)
+            if (data.success === false && data.message) {
+                throw new Error(data.message);
+            }
+
+            // If response status is 4xx or 5xx and we have a message, throw error
+            if (!response.ok && data.message) {
                 throw new Error(data.message);
             }
 
@@ -135,10 +142,41 @@ class API {
     }
 
     async updateProfile(data) {
-        return this.request("/api/user/update-profile", {
-            method: "POST",
-            body: JSON.stringify(data),
-        });
+        const token = await this.getToken();
+        const url = `${this.baseUrl}/api/user/update-profile`;
+
+        // Backend expects FormData (multipart/form-data) due to upload middleware
+        const formData = new FormData();
+        formData.append("name", data.name || "");
+        formData.append("phone", data.phone || "");
+        formData.append("address", JSON.stringify(data.address || {}));
+        formData.append("gender", data.gender || "");
+        formData.append("dob", data.dob || "");
+
+        // If there's an image, it would be appended here
+        // formData.append("image", imageFile);
+
+        const headers = {};
+        if (token) {
+            headers.token = token;
+        }
+
+        console.log("[API] PUT /api/user/update-profile with FormData");
+
+        try {
+            const response = await fetch(url, {
+                method: "PUT",
+                headers,
+                body: formData,
+            });
+
+            const responseData = await response.json();
+            console.log("[API] Update profile response:", responseData.success);
+            return responseData;
+        } catch (error) {
+            console.error("[API] Update profile error:", error);
+            throw error;
+        }
     }
 
     // ==================== DOCTORS ENDPOINTS ====================
@@ -157,11 +195,215 @@ class API {
         });
     }
 
-    async bookAppointment(docId, slotDate, slotTime) {
-        return this.request("/api/user/book-appointment", {
-            method: "POST",
-            body: JSON.stringify({ docId, slotDate, slotTime }),
+    async bookAppointment(docId, slotDate, slotTime, appointmentDetails = {}) {
+        const {
+            reasonForVisit = "General Consultation",
+            sessionType = "Online",
+            communicationMethod = "Zoom", // Valid values: "Zoom", "Google Meet", "Phone Call"
+            consentGiven = true,
+        } = appointmentDetails;
+
+        const token = await AsyncStorage.getItem("token");
+
+        // Build request body as JSON
+        const requestBody = {
+            docId,
+            slotDate,
+            slotTime,
+            reasonForVisit,
+            sessionType,
+            communicationMethod: sessionType === "Online" ? communicationMethod : undefined,
+            briefNotes: "",
+            consentGiven: consentGiven.toString(),
+            chatSummary: "Mobile app booking",
+            emergencyContact: {
+                name: "",
+                phone: "",
+                relationship: "",
+            }
+        };
+
+        console.log("[API] Booking appointment:", { docId, slotDate, slotTime, reasonForVisit, sessionType });
+
+        try {
+            // Try using fetch with JSON first (simpler and more reliable on mobile)
+            const response = await fetch(`${this.baseUrl}/api/user/book-appointment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'token': token || "",
+                },
+                body: JSON.stringify(requestBody),
+            });
+
+            const responseText = await response.text();
+            console.log("[API] Booking response status:", response.status);
+            console.log("[API] Booking response:", responseText.substring(0, 500));
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("[API] Failed to parse booking response");
+                throw new Error("Invalid server response");
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || `Server error: ${response.status}`);
+            }
+
+            return data;
+        } catch (error) {
+            console.error("[API] Booking error:", error.message);
+
+            // If JSON approach fails, the server might require FormData
+            // This could happen with some backend configurations
+            if (error.message.includes("Required fields") || error.message.includes("multipart")) {
+                console.log("[API] Retrying with FormData...");
+                return this.bookAppointmentWithFormData(docId, slotDate, slotTime, appointmentDetails);
+            }
+
+            throw new Error(error.message || "Failed to book appointment");
+        }
+    }
+
+    // Fallback method using FormData if JSON doesn't work
+    async bookAppointmentWithFormData(docId, slotDate, slotTime, appointmentDetails = {}) {
+        const {
+            reasonForVisit = "General Consultation",
+            sessionType = "Online",
+            communicationMethod = "Zoom",
+            consentGiven = true,
+        } = appointmentDetails;
+
+        const token = await AsyncStorage.getItem("token");
+
+        const formData = new FormData();
+        formData.append("docId", docId);
+        formData.append("slotDate", slotDate);
+        formData.append("slotTime", slotTime);
+        formData.append("reasonForVisit", reasonForVisit);
+        formData.append("sessionType", sessionType);
+
+        if (sessionType === "Online") {
+            formData.append("communicationMethod", communicationMethod);
+        }
+
+        formData.append("briefNotes", "");
+        formData.append("consentGiven", String(consentGiven));
+        formData.append("chatSummary", "Mobile app booking");
+        formData.append("emergencyContact[name]", "");
+        formData.append("emergencyContact[phone]", "");
+        formData.append("emergencyContact[relationship]", "");
+
+        const response = await fetch(`${this.baseUrl}/api/user/book-appointment`, {
+            method: 'POST',
+            headers: {
+                'token': token || "",
+                // Don't set Content-Type for FormData
+            },
+            body: formData,
         });
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            throw new Error(data.message || "Failed to book appointment");
+        }
+
+        return data;
+    }
+
+    // ==================== PAYMENT ENDPOINTS ====================
+
+    async initiatePayment(tempReservationId) {
+        const token = await this.getToken();
+
+        console.log("[API] Initiating payment for reservation:", tempReservationId);
+
+        try {
+            const response = await fetch(`${this.baseUrl}/api/user/payment-razorpay`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'token': token || "",
+                },
+                body: JSON.stringify({ tempReservationId }),
+            });
+
+            const data = await response.json();
+            console.log("[API] Payment initiation response:", data.success);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || "Failed to initiate payment");
+            }
+
+            return data;
+        } catch (error) {
+            console.error("[API] Payment initiation error:", error);
+            throw error;
+        }
+    }
+
+    async verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature) {
+        const token = await this.getToken();
+
+        console.log("[API] Verifying payment:", { razorpay_order_id });
+
+        try {
+            const response = await fetch(`${this.baseUrl}/api/user/verify-razorpay`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'token': token || "",
+                },
+                body: JSON.stringify({
+                    razorpay_order_id,
+                    razorpay_payment_id,
+                    razorpay_signature,
+                }),
+            });
+
+            const data = await response.json();
+            console.log("[API] Payment verification response:", data.success);
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || "Payment verification failed");
+            }
+
+            return data;
+        } catch (error) {
+            console.error("[API] Payment verification error:", error);
+            throw error;
+        }
+    }
+
+    async cancelPayment(tempReservationId) {
+        const token = await this.getToken();
+
+        console.log("[API] Cancelling payment for reservation:", tempReservationId);
+
+        try {
+            const response = await fetch(`${this.baseUrl}/api/user/cancel-payment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'token': token || "",
+                },
+                body: JSON.stringify({ tempReservationId }),
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("[API] Cancel payment error:", error);
+            // Don't throw - this is a cleanup operation
+            return { success: false };
+        }
     }
 
     async cancelAppointment(appointmentId) {
@@ -173,11 +415,51 @@ class API {
 
     // ==================== MOOD TRACKING ENDPOINTS ====================
 
-    async addMoodEntry(userId, moodData) {
-        return this.request(`/api/mood-tracking/users/${userId}/mood-entries`, {
-            method: "POST",
-            body: JSON.stringify(moodData),
+    async enableMoodTracking(userId) {
+        // Enable mood tracking for the user (required before adding entries)
+        const preferences = {
+            enabled: true,
+            frequency: "daily",
+            aiAnalysisConsent: false,
+            aiAnalysisLevel: "basic",
+            privacySettings: {
+                shareWithTherapist: false,
+                shareWithFamily: false,
+                anonymousDataSharing: false,
+            },
+            notificationPreferences: {
+                moodReminders: true,
+                weeklyInsights: true,
+                crisisAlerts: true,
+                therapistNotifications: false,
+            },
+        };
+
+        return this.request(`/api/mood-tracking/users/${userId}/mood-preferences`, {
+            method: "PUT",
+            body: JSON.stringify(preferences),
         });
+    }
+
+    async addMoodEntry(userId, moodData) {
+        try {
+            return await this.request(`/api/mood-tracking/users/${userId}/mood-entries`, {
+                method: "POST",
+                body: JSON.stringify(moodData),
+            });
+        } catch (error) {
+            // If mood tracking is not enabled, enable it and retry
+            if (error.message.includes("not enabled")) {
+                console.log("[API] Mood tracking not enabled, enabling now...");
+                await this.enableMoodTracking(userId);
+                // Retry the mood entry
+                return await this.request(`/api/mood-tracking/users/${userId}/mood-entries`, {
+                    method: "POST",
+                    body: JSON.stringify(moodData),
+                });
+            }
+            throw error;
+        }
     }
 
     async getMoodEntries(userId, page = 1, limit = 10) {
@@ -201,10 +483,24 @@ class API {
         );
     }
 
+    async getMoodCalendar(userId, year, month) {
+        // Get all mood entries for a specific month
+        return this.request(
+            `/api/mood-tracking/users/${userId}/mood-entries?year=${year}&month=${month}&limit=100`,
+            { method: "GET" }
+        );
+    }
+
     // ==================== ASSESSMENTS ENDPOINTS ====================
 
-    async getAssessments() {
-        return this.request("/api/assessments", {
+    async getAssessments(therapyType = "individual") {
+        return this.request(`/api/assessments?therapyType=${therapyType}`, {
+            method: "GET",
+        });
+    }
+
+    async getAssessmentById(assessmentId) {
+        return this.request(`/api/assessments/${assessmentId}`, {
             method: "GET",
         });
     }
@@ -215,26 +511,99 @@ class API {
         });
     }
 
-    async submitAssessment(assessmentId, userId, answers) {
+    async submitAssessment(assessmentData) {
+        const {
+            userId,
+            assessmentId,
+            title,
+            answers,
+            therapyType = "individual",
+            startTime,
+        } = assessmentData;
+
         return this.request("/api/assessments/submit", {
             method: "POST",
-            body: JSON.stringify({ assessmentId, userId, answers }),
+            body: JSON.stringify({
+                userId,
+                assessmentId,
+                title,
+                answers,
+                therapyType,
+                startTime,
+            }),
         });
     }
 
     // ==================== AI CHAT ENDPOINTS ====================
 
-    async sendChatMessage(messages) {
-        return this.request("/api/chat/send", {
-            method: "POST",
-            body: JSON.stringify({ messages }),
-        });
+    async sendChatMessage(message, userId) {
+        const token = await this.getToken();
+        const url = `${this.baseUrl}/api/chat/send`;
+
+        const headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        };
+
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+
+        // Match web app's payload format
+        const payload = userId
+            ? { message, userId }
+            : { message };
+
+        console.log("[API] POST /api/chat/send", payload);
+
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json();
+            console.log("[API] Chat response:", data.success);
+            return data;
+        } catch (error) {
+            console.error("[API] Chat error:", error);
+            throw error;
+        }
     }
 
     async getChatHistory(userId) {
-        return this.request(`/api/chat/history/${userId}`, {
-            method: "GET",
-        });
+        if (!userId) {
+            return { success: false, messages: [] };
+        }
+
+        const token = await this.getToken();
+        const url = `${this.baseUrl}/api/chat?userId=${userId}`;
+
+        const headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        };
+
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers,
+            });
+
+            const data = await response.json();
+            return {
+                success: true,
+                messages: data.chat?.messages || []
+            };
+        } catch (error) {
+            console.error("[API] Get chat history error:", error);
+            return { success: false, messages: [] };
+        }
     }
 
     // ==================== NOTIFICATIONS ENDPOINTS ====================

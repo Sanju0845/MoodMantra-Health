@@ -1,35 +1,28 @@
 import { Tabs } from "expo-router";
 import { View, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Home,
+  ClipboardList,
   Stethoscope,
-  Heart,
-  MessageSquare,
+  BookOpen,
   UserCircle,
 } from "lucide-react-native";
-import { colors, fontWeight } from "../../utils/theme";
-import { LinearGradient } from "expo-linear-gradient";
 
-// Custom Tab Bar Icon with indicator (no Reanimated)
-const TabIcon = ({ icon: Icon, focused, color }) => {
+// Tab colors matching the design
+const ACTIVE_COLOR = "#4A9B7F"; // Green to match app theme
+const INACTIVE_COLOR = "#9CA3AF"; // Gray for inactive
+
+// Custom Tab Bar Icon
+const TabIcon = ({ icon: Icon, focused }) => {
   return (
     <View style={styles.iconContainer}>
-      {focused && (
-        <LinearGradient
-          colors={[colors.primary, colors.primaryLight]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.activeIndicator}
-        />
-      )}
-      <View style={focused ? styles.iconFocused : styles.iconNormal}>
-        <Icon
-          color={focused ? colors.primary : color}
-          size={22}
-          strokeWidth={focused ? 2.5 : 1.8}
-        />
-      </View>
+      <Icon
+        color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+        size={22}
+        strokeWidth={focused ? 2.2 : 1.8}
+      />
     </View>
   );
 };
@@ -39,8 +32,8 @@ export default function TabLayout() {
 
   // Calculate bottom padding based on device type
   const hasGestureNavigation = insets.bottom > 20;
-  const bottomPadding = hasGestureNavigation ? insets.bottom - 10 : Math.max(insets.bottom, 8);
-  const tabBarHeight = 60 + bottomPadding;
+  const bottomPadding = hasGestureNavigation ? insets.bottom - 5 : Math.max(insets.bottom, 10);
+  const tabBarHeight = 70 + bottomPadding;
 
   return (
     <Tabs
@@ -51,31 +44,30 @@ export default function TabLayout() {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: "rgba(255, 255, 255, 0.98)",
+          backgroundColor: "#FFFFFF",
           borderTopWidth: 0,
           height: tabBarHeight,
-          paddingTop: 8,
+          paddingTop: 12,
           paddingBottom: bottomPadding,
           paddingHorizontal: 8,
           ...Platform.select({
             ios: {
-              shadowColor: colors.primary,
+              shadowColor: "#000",
               shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 20,
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
             },
             android: {
               elevation: 20,
-              shadowColor: "#000",
             },
           }),
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textLight,
+        tabBarActiveTintColor: ACTIVE_COLOR,
+        tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: fontWeight.semibold,
-          marginTop: 2,
+          fontWeight: "600",
+          marginTop: 6,
           letterSpacing: 0.3,
         },
         tabBarItemStyle: {
@@ -83,21 +75,47 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Home Tab */}
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={Home} color={color} focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={Home} focused={focused} />
+          ),
+        }}
+      />
+
+      {/* Assessment Tab */}
+      <Tabs.Screen
+        name="assessment/index"
+        options={{
+          title: "Assessment",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={ClipboardList} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
+        name="assessment/take"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="assessment/result"
+        options={{
+          href: null,
+        }}
+      />
+
+      {/* Doctor Tab */}
+      <Tabs.Screen
         name="doctors/index"
         options={{
           title: "Doctors",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={Stethoscope} color={color} focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={Stethoscope} focused={focused} />
           ),
         }}
       />
@@ -108,12 +126,34 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="doctors/payment"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="doctors/nearme"
+        options={{
+          href: null,
+        }}
+      />
+
+      {/* Journal Tab - with mood tracking */}
+      <Tabs.Screen
+        name="journal"
+        options={{
+          title: "Journal",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={BookOpen} focused={focused} />
+          ),
+        }}
+      />
+
+      {/* Hidden mood routes */}
+      <Tabs.Screen
         name="mood/index"
         options={{
-          title: "Wellness",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={Heart} color={color} focused={focused} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -129,20 +169,35 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat"
+        name="mood/calendar"
         options={{
-          title: "Chat",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={MessageSquare} color={color} focused={focused} />
-          ),
+          href: null,
         }}
       />
+
+      {/* Hidden chat route */}
+      <Tabs.Screen
+        name="chat"
+        options={{
+          href: null,
+        }}
+      />
+
+      {/* Hidden goals route */}
+      <Tabs.Screen
+        name="goals"
+        options={{
+          href: null,
+        }}
+      />
+
+      {/* Profile Tab */}
       <Tabs.Screen
         name="profile/index"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={UserCircle} color={color} focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={UserCircle} focused={focused} />
           ),
         }}
       />
@@ -158,6 +213,12 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="profile/settings"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
@@ -168,19 +229,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 44,
     height: 32,
-  },
-  activeIndicator: {
-    position: "absolute",
-    top: -2,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    opacity: 0.8,
-  },
-  iconFocused: {
-    transform: [{ scale: 1.1 }],
-  },
-  iconNormal: {
-    transform: [{ scale: 1 }],
   },
 });

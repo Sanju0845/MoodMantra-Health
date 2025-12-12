@@ -7,36 +7,92 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  TextInput,
+  StyleSheet,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, MapPin, Calendar } from "lucide-react-native";
+import {
+  ArrowLeft,
+  MapPin,
+  Star,
+  Clock,
+  Video,
+  Building,
+  Phone,
+  User,
+  AlertCircle,
+  CheckCircle,
+  MessageSquare,
+} from "lucide-react-native";
 import api from "../../../utils/api";
+
+// Session types
+const SESSION_TYPES = [
+  { id: "Online", label: "Online", icon: Video },
+  { id: "In-person", label: "In-Person", icon: Building },
+];
+
+// Communication methods for online sessions
+const COMMUNICATION_METHODS = [
+  { id: "Zoom", label: "Zoom", icon: Video },
+  { id: "Google Meet", label: "Google Meet", icon: Video },
+  { id: "Phone Call", label: "Phone Call", icon: Phone },
+];
+
+// Reasons for visit
+const REASONS_FOR_VISIT = [
+  "Anxiety",
+  "Depression",
+  "Relationship Issues",
+  "Stress Management",
+  "Trauma/PTSD",
+  "General Consultation",
+  "Other",
+];
 
 export default function DoctorDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  // States
   const [loading, setLoading] = useState(true);
   const [doctor, setDoctor] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedTime, setSelectedTime] = useState(null);
   const [booking, setBooking] = useState(false);
 
+  // Booking form states
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [sessionType, setSessionType] = useState("Online");
+  const [communicationMethod, setCommunicationMethod] = useState("Zoom");
+  const [reasonForVisit, setReasonForVisit] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [briefNotes, setBriefNotes] = useState("");
+  const [consentGiven, setConsentGiven] = useState(false);
+
+  // Emergency contact
+  const [emergencyName, setEmergencyName] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [emergencyRelationship, setEmergencyRelationship] = useState("");
+
   useEffect(() => {
+    console.log("[DoctorDetail] Loading doctor with ID:", id);
     loadDoctor();
-  }, []);
+  }, [id]);
 
   const loadDoctor = async () => {
     try {
       const response = await api.getDoctors();
-      if (response.success) {
+      if (response.success && response.doctors) {
+        console.log("[DoctorDetail] Searching for doctor ID:", id);
         const foundDoctor = response.doctors.find((d) => d._id === id);
-        setDoctor(foundDoctor);
+        console.log("[DoctorDetail] Found doctor:", foundDoctor?.name || "NOT FOUND");
+        setDoctor(foundDoctor || null);
       }
     } catch (error) {
-      console.error("Error loading doctor:", error);
+      console.error("[DoctorDetail] Error loading doctor:", error);
     } finally {
       setLoading(false);
     }
@@ -48,25 +104,85 @@ export default function DoctorDetailScreen() {
       return;
     }
 
+    if (!reasonForVisit) {
+      Alert.alert("Error", "Please select a reason for visit");
+      return;
+    }
+
+    if (reasonForVisit === "Other" && !otherReason.trim()) {
+      Alert.alert("Error", "Please specify your reason for visit");
+      return;
+    }
+
+    if (!consentGiven) {
+      Alert.alert("Error", "Please agree to the cancellation policy and consent to telehealth");
+      return;
+    }
+
+    if (sessionType === "Online" && !communicationMethod) {
+      Alert.alert("Error", "Please select a communication method for online sessions");
+      return;
+    }
+
     setBooking(true);
     try {
+      const appointmentDetails = {
+        reasonForVisit: reasonForVisit === "Other" ? otherReason.trim() : reasonForVisit,
+        sessionType: sessionType,
+        communicationMethod: sessionType === "Online" ? communicationMethod : undefined,
+        briefNotes: briefNotes.trim(),
+        emergencyContact: {
+          name: emergencyName.trim(),
+          phone: emergencyPhone.trim(),
+          relationship: emergencyRelationship.trim(),
+        },
+        consentGiven: true,
+      };
+
       const response = await api.bookAppointment(
         doctor._id,
         selectedDate,
         selectedTime,
+        appointmentDetails
       );
+
       if (response.success) {
-        Alert.alert("Success", "Appointment booked successfully!", [
-          {
-            text: "OK",
-            onPress: () => router.push("/(tabs)/profile/appointments"),
-          },
-        ]);
+        const reservationId = response.tempReservationId || response.appointmentId;
+        console.log("[DoctorDetail] Booking successful, reservationId:", reservationId);
+
+        Alert.alert(
+          "Appointment Reserved! 🎉",
+          "Your slot has been reserved. Complete payment to confirm your appointment.",
+          [
+            {
+              text: "Pay Later",
+              style: "cancel",
+              onPress: () => router.push("/(tabs)/profile/appointments"),
+            },
+            {
+              text: "Pay Now",
+              onPress: () => {
+                if (reservationId) {
+                  router.push({
+                    pathname: "/doctors/payment",
+                    params: {
+                      appointmentId: reservationId,
+                      amount: String(doctor.fees),
+                      doctorName: doctor.name,
+                    },
+                  });
+                } else {
+                  router.push("/(tabs)/profile/appointments");
+                }
+              },
+            },
+          ]
+        );
       } else {
         Alert.alert("Error", response.message || "Failed to book appointment");
       }
     } catch (error) {
-      console.error("Booking error:", error);
+      console.error("[DoctorDetail] Booking error:", error);
       Alert.alert("Error", error.message || "Failed to book appointment");
     } finally {
       setBooking(false);
@@ -75,30 +191,26 @@ export default function DoctorDetailScreen() {
 
   // Generate time slots
   const timeSlots = [
-    "09:00 AM",
-    "09:30 AM",
-    "10:00 AM",
-    "10:30 AM",
-    "11:00 AM",
-    "11:30 AM",
-    "02:00 PM",
-    "02:30 PM",
-    "03:00 PM",
-    "03:30 PM",
-    "04:00 PM",
-    "04:30 PM",
+    "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM",
+    "11:00 AM", "11:30 AM", "02:00 PM", "02:30 PM",
+    "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM",
   ];
 
   // Generate next 7 days
   const generateDates = () => {
     const dates = [];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     for (let i = 0; i < 7; i++) {
       const date = new Date();
       date.setDate(date.getDate() + i);
       const day = String(date.getDate()).padStart(2, "0");
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const year = date.getFullYear();
-      dates.push(`${day}_${month}_${year}`);
+      dates.push({
+        value: `${day}_${month}_${year}`,
+        day: days[date.getDay()],
+        date: day,
+      });
     }
     return dates;
   };
@@ -107,197 +219,105 @@ export default function DoctorDetailScreen() {
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#F8FAFC",
-        }}
-      >
-        <ActivityIndicator size="large" color="#6366F1" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#F59E0B" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   if (!doctor) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#F8FAFC",
-        }}
-      >
-        <Text style={{ color: "#64748B" }}>Doctor not found</Text>
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <ArrowLeft color="#1F2937" size={24} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Doctor not found</Text>
+          <TouchableOpacity style={styles.goBackBtn} onPress={() => router.back()}>
+            <Text style={styles.goBackBtnText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View
-        style={{
-          paddingTop: insets.top + 16,
-          paddingHorizontal: 24,
-          paddingBottom: 16,
-          backgroundColor: "#fff",
-          borderBottomWidth: 1,
-          borderColor: "#E2E8F0",
-        }}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ marginBottom: 16 }}
-        >
-          <ArrowLeft color="#1E293B" size={24} />
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <ArrowLeft color="#1F2937" size={24} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Book Appointment</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Doctor Info */}
-        <View
-          style={{ backgroundColor: "#fff", padding: 24, marginBottom: 16 }}
-        >
-          <View style={{ flexDirection: "row", marginBottom: 16 }}>
+        {/* Doctor Info Card */}
+        <View style={styles.doctorCard}>
+          <View style={styles.doctorRow}>
             <Image
-              source={{
-                uri: doctor.image || "https://via.placeholder.com/100",
-              }}
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: 16,
-                marginRight: 16,
-              }}
+              source={{ uri: doctor.image || "https://via.placeholder.com/100" }}
+              style={styles.doctorImage}
             />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: "bold",
-                  color: "#1E293B",
-                  marginBottom: 4,
-                }}
-              >
-                {doctor.name}
-              </Text>
-              <Text style={{ fontSize: 14, color: "#64748B", marginBottom: 4 }}>
-                {doctor.speciality}
-              </Text>
-              <Text style={{ fontSize: 14, color: "#64748B", marginBottom: 8 }}>
-                {doctor.degree}
-              </Text>
-              <Text style={{ fontSize: 12, color: "#94A3B8" }}>
-                {doctor.experience}
-              </Text>
+            <View style={styles.doctorInfo}>
+              <Text style={styles.doctorName}>{doctor.name}</Text>
+              <Text style={styles.doctorSpecialty}>{doctor.speciality}</Text>
+              <Text style={styles.doctorDegree}>{doctor.degree}</Text>
+              <View style={styles.experienceRow}>
+                <Clock size={14} color="#6B7280" />
+                <Text style={styles.experienceText}>{doctor.experience}</Text>
+              </View>
             </View>
           </View>
 
-          {doctor.address && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <MapPin color="#64748B" size={16} />
-              <Text style={{ fontSize: 14, color: "#64748B", marginLeft: 8 }}>
-                {doctor.address.line1}, {doctor.address.line2}
-              </Text>
+          {/* Rating & Availability */}
+          <View style={styles.ratingRow}>
+            <View style={styles.ratingContainer}>
+              <Star color="#F59E0B" size={16} fill="#F59E0B" />
+              <Text style={styles.ratingText}>4.8</Text>
+              <Text style={styles.reviewsText}>(200+ reviews)</Text>
             </View>
-          )}
-
-          <View
-            style={{
-              backgroundColor: "#F1F5F9",
-              padding: 16,
-              borderRadius: 12,
-              marginBottom: 16,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 24,
-                fontWeight: "bold",
-                color: "#6366F1",
-                marginBottom: 4,
-              }}
-            >
-              ₹{doctor.fees}
-            </Text>
-            <Text style={{ fontSize: 14, color: "#64748B" }}>
-              Consultation Fee
-            </Text>
+            {doctor.available && (
+              <View style={styles.availableBadge}>
+                <Text style={styles.availableText}>Available</Text>
+              </View>
+            )}
           </View>
 
-          {doctor.about && (
-            <View>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: "#1E293B",
-                  marginBottom: 8,
-                }}
-              >
-                About
-              </Text>
-              <Text style={{ fontSize: 14, color: "#64748B", lineHeight: 20 }}>
-                {doctor.about}
-              </Text>
-            </View>
-          )}
+          {/* Fee */}
+          <View style={styles.feeCard}>
+            <Text style={styles.feeLabel}>Consultation Fee</Text>
+            <Text style={styles.feeAmount}>₹{doctor.fees}</Text>
+          </View>
         </View>
 
         {/* Date Selection */}
-        <View
-          style={{ backgroundColor: "#fff", padding: 24, marginBottom: 16 }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: "#1E293B",
-              marginBottom: 16,
-            }}
-          >
-            Select Date
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12 }}
-          >
-            {dates.map((date) => (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
+            {dates.map((dateObj) => (
               <TouchableOpacity
-                key={date}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  backgroundColor:
-                    selectedDate === date ? "#6366F1" : "#F1F5F9",
-                  minWidth: 80,
-                  alignItems: "center",
-                }}
-                onPress={() => setSelectedDate(date)}
+                key={dateObj.value}
+                style={[
+                  styles.dateItem,
+                  selectedDate === dateObj.value && styles.dateItemSelected,
+                ]}
+                onPress={() => setSelectedDate(dateObj.value)}
               >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: selectedDate === date ? "#fff" : "#64748B",
-                  }}
-                >
-                  {date.split("_")[0]}/{date.split("_")[1]}
+                <Text style={[styles.dateDay, selectedDate === dateObj.value && styles.dateDaySelected]}>
+                  {dateObj.day}
+                </Text>
+                <Text style={[styles.dateNum, selectedDate === dateObj.value && styles.dateNumSelected]}>
+                  {dateObj.date}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -306,39 +326,19 @@ export default function DoctorDetailScreen() {
 
         {/* Time Selection */}
         {selectedDate && (
-          <View style={{ backgroundColor: "#fff", padding: 24 }}>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: "#1E293B",
-                marginBottom: 16,
-              }}
-            >
-              Select Time
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Select Time</Text>
+            <View style={styles.timeGrid}>
               {timeSlots.map((time) => (
                 <TouchableOpacity
                   key={time}
-                  style={{
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    backgroundColor:
-                      selectedTime === time ? "#6366F1" : "#F1F5F9",
-                    minWidth: "30%",
-                    alignItems: "center",
-                  }}
+                  style={[
+                    styles.timeItem,
+                    selectedTime === time && styles.timeItemSelected,
+                  ]}
                   onPress={() => setSelectedTime(time)}
                 >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: selectedTime === time ? "#fff" : "#64748B",
-                    }}
-                  >
+                  <Text style={[styles.timeText, selectedTime === time && styles.timeTextSelected]}>
                     {time}
                   </Text>
                 </TouchableOpacity>
@@ -346,42 +346,552 @@ export default function DoctorDetailScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
 
-      {/* Book Button */}
-      <View
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: 24,
-          paddingBottom: insets.bottom + 24,
-          backgroundColor: "#fff",
-          borderTopWidth: 1,
-          borderColor: "#E2E8F0",
-        }}
-      >
-        <TouchableOpacity
-          style={{
-            backgroundColor: "#6366F1",
-            borderRadius: 12,
-            padding: 16,
-            alignItems: "center",
-            opacity: booking ? 0.7 : 1,
-          }}
-          onPress={handleBookAppointment}
-          disabled={booking}
-        >
-          {booking ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
-              Book Appointment
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        {/* Session Type */}
+        {selectedDate && selectedTime && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Session Type</Text>
+            <View style={styles.sessionRow}>
+              {SESSION_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={[
+                    styles.sessionItem,
+                    sessionType === type.id && styles.sessionItemSelected,
+                  ]}
+                  onPress={() => setSessionType(type.id)}
+                >
+                  <type.icon size={20} color={sessionType === type.id ? "#FFFFFF" : "#6B7280"} />
+                  <Text style={[styles.sessionText, sessionType === type.id && styles.sessionTextSelected]}>
+                    {type.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Communication Method (for Online) */}
+        {selectedDate && selectedTime && sessionType === "Online" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Communication Method</Text>
+            <View style={styles.commGrid}>
+              {COMMUNICATION_METHODS.map((method) => (
+                <TouchableOpacity
+                  key={method.id}
+                  style={[
+                    styles.commItem,
+                    communicationMethod === method.id && styles.commItemSelected,
+                  ]}
+                  onPress={() => setCommunicationMethod(method.id)}
+                >
+                  <method.icon size={18} color={communicationMethod === method.id ? "#FFFFFF" : "#6B7280"} />
+                  <Text style={[styles.commText, communicationMethod === method.id && styles.commTextSelected]}>
+                    {method.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Reason for Visit */}
+        {selectedDate && selectedTime && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Reason for Visit *</Text>
+            <View style={styles.reasonGrid}>
+              {REASONS_FOR_VISIT.map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  style={[
+                    styles.reasonItem,
+                    reasonForVisit === reason && styles.reasonItemSelected,
+                  ]}
+                  onPress={() => setReasonForVisit(reason)}
+                >
+                  <Text style={[styles.reasonText, reasonForVisit === reason && styles.reasonTextSelected]}>
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {reasonForVisit === "Other" && (
+              <TextInput
+                style={styles.textInput}
+                placeholder="Please specify your reason..."
+                placeholderTextColor="#9CA3AF"
+                value={otherReason}
+                onChangeText={setOtherReason}
+              />
+            )}
+          </View>
+        )}
+
+        {/* Brief Notes */}
+        {selectedDate && selectedTime && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Brief Notes (Optional)</Text>
+            <TextInput
+              style={[styles.textInput, styles.textArea]}
+              placeholder="Any additional information you'd like to share..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              value={briefNotes}
+              onChangeText={setBriefNotes}
+            />
+          </View>
+        )}
+
+        {/* Emergency Contact */}
+        {selectedDate && selectedTime && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <AlertCircle size={18} color="#F59E0B" />
+              <Text style={styles.sectionTitle}>Emergency Contact (Optional)</Text>
+            </View>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Contact Name"
+              placeholderTextColor="#9CA3AF"
+              value={emergencyName}
+              onChangeText={setEmergencyName}
+            />
+            <TextInput
+              style={styles.textInput}
+              placeholder="Phone Number"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              value={emergencyPhone}
+              onChangeText={setEmergencyPhone}
+            />
+            <TextInput
+              style={styles.textInput}
+              placeholder="Relationship (e.g., Spouse, Parent)"
+              placeholderTextColor="#9CA3AF"
+              value={emergencyRelationship}
+              onChangeText={setEmergencyRelationship}
+            />
+          </View>
+        )}
+
+        {/* Consent */}
+        {selectedDate && selectedTime && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.consentRow}
+              onPress={() => setConsentGiven(!consentGiven)}
+            >
+              <View style={[styles.checkbox, consentGiven && styles.checkboxChecked]}>
+                {consentGiven && <CheckCircle size={16} color="#FFFFFF" />}
+              </View>
+              <Text style={styles.consentText}>
+                I agree to the cancellation policy and consent to telehealth consultation
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Book Button */}
+        {selectedDate && selectedTime && (
+          <View style={styles.bookBtnContainer}>
+            <TouchableOpacity
+              style={[
+                styles.bookBtn,
+                (!reasonForVisit || !consentGiven) && styles.bookBtnDisabled,
+              ]}
+              onPress={handleBookAppointment}
+              disabled={booking || !reasonForVisit || !consentGiven}
+            >
+              {booking ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.bookBtnText}>Book Appointment - ₹{doctor.fees}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  loadingText: {
+    marginTop: 16,
+    color: "#6B7280",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#6B7280",
+    fontSize: 16,
+  },
+  goBackBtn: {
+    marginTop: 16,
+    backgroundColor: "#F59E0B",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  goBackBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  doctorCard: {
+    margin: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  doctorRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  doctorImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 16,
+    marginRight: 16,
+  },
+  doctorInfo: {
+    flex: 1,
+  },
+  doctorName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  doctorSpecialty: {
+    fontSize: 15,
+    color: "#F59E0B",
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  doctorDegree: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  experienceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  experienceText: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginLeft: 4,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ratingText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  reviewsText: {
+    marginLeft: 4,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  availableBadge: {
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  availableText: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "600",
+  },
+  feeCard: {
+    backgroundColor: "#FEF3C7",
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  feeLabel: {
+    fontSize: 14,
+    color: "#92400E",
+    fontWeight: "500",
+  },
+  feeAmount: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 16,
+  },
+  dateList: {
+    gap: 12,
+  },
+  dateItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: "#F9FAFB",
+    minWidth: 70,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  dateItemSelected: {
+    backgroundColor: "#F59E0B",
+    borderColor: "#F59E0B",
+  },
+  dateDay: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  dateDaySelected: {
+    color: "#FFFFFF",
+  },
+  dateNum: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  dateNumSelected: {
+    color: "#FFFFFF",
+  },
+  timeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  timeItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    minWidth: "30%",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  timeItemSelected: {
+    backgroundColor: "#F59E0B",
+    borderColor: "#F59E0B",
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  timeTextSelected: {
+    color: "#FFFFFF",
+  },
+  sessionRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  sessionItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
+  },
+  sessionItemSelected: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  sessionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  sessionTextSelected: {
+    color: "#FFFFFF",
+  },
+  commGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  commItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
+  },
+  commItemSelected: {
+    backgroundColor: "#6366F1",
+    borderColor: "#6366F1",
+  },
+  commText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  commTextSelected: {
+    color: "#FFFFFF",
+  },
+  reasonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  reasonItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  reasonItemSelected: {
+    backgroundColor: "#6366F1",
+    borderColor: "#6366F1",
+  },
+  reasonText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  reasonTextSelected: {
+    color: "#FFFFFF",
+  },
+  textInput: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    color: "#1F2937",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginTop: 12,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: "top",
+    marginTop: 0,
+  },
+  consentRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  consentText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
+  bookBtnContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
+  bookBtn: {
+    backgroundColor: "#10B981",
+    borderRadius: 16,
+    padding: 18,
+    alignItems: "center",
+  },
+  bookBtnDisabled: {
+    backgroundColor: "#D1D5DB",
+  },
+  bookBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+});

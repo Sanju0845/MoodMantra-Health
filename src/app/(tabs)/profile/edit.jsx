@@ -325,7 +325,7 @@ export default function EditProfileScreen() {
           left: 0,
           right: 0,
           padding: 24,
-          paddingBottom: insets.bottom + 24,
+          paddingBottom: insets.bottom + 90,
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderColor: "#E2E8F0",
