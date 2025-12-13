@@ -13,9 +13,6 @@ export default function Index() {
 
   const checkAppStatus = async () => {
     try {
-      // TEMPORARY: Reset onboarding for testing - REMOVE THIS LINE AFTER TESTING
-      await AsyncStorage.removeItem("hasSeenOnboarding");
-
       // Check if onboarding was completed
       const hasSeenOnboarding = await AsyncStorage.getItem("hasSeenOnboarding");
 

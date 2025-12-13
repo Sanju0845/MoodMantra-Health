@@ -34,6 +34,11 @@ import {
   ClipboardList,
   Stethoscope,
   MapPin,
+  Wind,
+  Flame,
+  Droplets,
+  Moon,
+  CheckSquare,
 } from "lucide-react-native";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -99,6 +104,8 @@ export default function HomeScreen() {
   const [appointments, setAppointments] = useState([]);
   const [userAssessments, setUserAssessments] = useState([]);
   const [moodDashboard, setMoodDashboard] = useState(null);
+  const [moodEntries, setMoodEntries] = useState([]);
+  const [loggingStreak, setLoggingStreak] = useState(0);
   const [dailyQuote, setDailyQuote] = useState(DAILY_QUOTES[0]);
   const [showChatTooltip, setShowChatTooltip] = useState(true);
 
@@ -273,6 +280,48 @@ export default function HomeScreen() {
         } catch (e) {
           console.log("[Home] No mood dashboard data");
         }
+
+        // Get mood entries for streak calculation
+        try {
+          const entriesData = await api.getMoodEntries(userId, 1, 30);
+          if (entriesData?.moodEntries) {
+            setMoodEntries(entriesData.moodEntries);
+            // Calculate streak
+            const entries = entriesData.moodEntries;
+            if (entries.length > 0) {
+              let streak = 0;
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const sorted = [...entries].sort((a, b) =>
+                new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt)
+              );
+
+              const lastEntry = new Date(sorted[0]?.timestamp || sorted[0]?.createdAt);
+              lastEntry.setHours(0, 0, 0, 0);
+              const daysDiff = Math.floor((today - lastEntry) / (1000 * 60 * 60 * 24));
+
+              if (daysDiff <= 1) {
+                let checkDate = new Date(today);
+                if (daysDiff === 1) checkDate.setDate(checkDate.getDate() - 1);
+
+                for (const entry of sorted) {
+                  const entryDate = new Date(entry.timestamp || entry.createdAt);
+                  entryDate.setHours(0, 0, 0, 0);
+                  if (entryDate.getTime() === checkDate.getTime()) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                  } else if (entryDate < checkDate) {
+                    break;
+                  }
+                }
+              }
+              setLoggingStreak(streak);
+            }
+          }
+        } catch (e) {
+          console.log("[Home] No mood entries");
+        }
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -379,11 +428,19 @@ export default function HomeScreen() {
               <Text style={styles.moodCardTitle}>How are you{"\n"}feeling today?</Text>
               <Text style={styles.moodCardSubtitle}>Slide to log your mood</Text>
             </View>
-            <View style={styles.moodEmojisRow}>
-              <Text style={styles.moodEmoji}>😊</Text>
-              <Text style={styles.moodEmoji}>😌</Text>
-              <Text style={styles.moodEmoji}>😢</Text>
-              <Text style={styles.moodEmoji}>😤</Text>
+            <View style={styles.moodCardRight}>
+              {loggingStreak > 0 && (
+                <View style={styles.streakBadge}>
+                  <Flame size={14} color="#F59E0B" />
+                  <Text style={styles.streakBadgeText}>{loggingStreak}</Text>
+                </View>
+              )}
+              <View style={styles.moodEmojisRow}>
+                <Text style={styles.moodEmoji}>😊</Text>
+                <Text style={styles.moodEmoji}>😌</Text>
+                <Text style={styles.moodEmoji}>😢</Text>
+                <Text style={styles.moodEmoji}>😤</Text>
+              </View>
             </View>
           </View>
 
@@ -428,47 +485,18 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
-        {/* Daily Quote - Bigger & Better */}
-        <View style={styles.quoteCard}>
-          <View style={styles.quoteIconContainer}>
-            <Text style={styles.quoteIcon}>✨</Text>
-          </View>
-          <Text style={styles.quoteLabel}>Daily Inspiration</Text>
-          <Text style={styles.quoteText}>"{dailyQuote}"</Text>
-        </View>
-
-        {/* Quick Actions */}
+        {/* Quick Actions - Now includes Breathing */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActionsGrid}>
             <AnimatedButton
               style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/assessment")}
+              onPress={() => router.push("/(tabs)/wellness/breathing")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#E0F2FE" }]}>
-                <ClipboardList size={28} color="#0EA5E9" />
+              <View style={[styles.quickActionIcon, { backgroundColor: "#E6F4F0" }]}>
+                <Wind size={28} color="#4A9B7F" />
               </View>
-              <Text style={styles.quickActionText}>Assessments</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/doctors")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FCE7F3" }]}>
-                <Stethoscope size={28} color="#EC4899" />
-              </View>
-              <Text style={styles.quickActionText}>Doctors</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/goals")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FEE2E2" }]}>
-                <Target size={28} color="#EF4444" />
-              </View>
-              <Text style={styles.quickActionText}>Goals</Text>
+              <Text style={styles.quickActionText}>Breathing</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -483,55 +511,96 @@ export default function HomeScreen() {
 
             <AnimatedButton
               style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/assessment")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: "#E0F2FE" }]}>
+                <ClipboardList size={28} color="#0EA5E9" />
+              </View>
+              <Text style={styles.quickActionText}>Assessment</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.quickActionCard}
               onPress={() => router.push("/(tabs)/chat")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#E6F4F0" }]}>
-                <MessageCircle size={28} color="#4A9B7F" />
+              <View style={[styles.quickActionIcon, { backgroundColor: "#FCE7F3" }]}>
+                <MessageCircle size={28} color="#EC4899" />
               </View>
               <Text style={styles.quickActionText}>Raska AI</Text>
             </AnimatedButton>
 
             <AnimatedButton
               style={styles.quickActionCard}
-              onPress={() => router.push("/doctors/nearme")}
+              onPress={() => router.push("/(tabs)/doctors")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#DBEAFE" }]}>
-                <MapPin size={28} color="#3B82F6" />
+                <Stethoscope size={28} color="#3B82F6" />
               </View>
-              <Text style={styles.quickActionText}>Near Me</Text>
+              <Text style={styles.quickActionText}>Doctors</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/goals")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: "#FEE2E2" }]}>
+                <Target size={28} color="#EF4444" />
+              </View>
+              <Text style={styles.quickActionText}>Goals</Text>
             </AnimatedButton>
           </View>
         </View>
 
-        {/* Wellness Tips */}
+        {/* Daily Inspiration - Compact inline */}
+        <View style={styles.quoteCardCompact}>
+          <Text style={styles.quoteEmoji}>✨</Text>
+          <Text style={styles.quoteTextCompact}>"{dailyQuote}"</Text>
+        </View>
+
+        {/* Wellness Tools Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wellness Tips</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tipsContainer}
-          >
-            <View style={[styles.tipCard, { backgroundColor: "#E6F4F0" }]}>
-              <Heart size={24} color="#4A9B7F" />
-              <Text style={styles.tipTitle}>Practice Gratitude</Text>
-              <Text style={styles.tipText}>Write down 3 things you're grateful for today</Text>
-            </View>
-            <View style={[styles.tipCard, { backgroundColor: "#FEF3C7" }]}>
-              <Zap size={24} color="#F59E0B" />
-              <Text style={styles.tipTitle}>Stay Active</Text>
-              <Text style={styles.tipText}>Take a 10-minute walk to boost your energy</Text>
-            </View>
-            <View style={[styles.tipCard, { backgroundColor: "#FCE7F3" }]}>
-              <Target size={24} color="#EC4899" />
-              <Text style={styles.tipTitle}>Set Goals</Text>
-              <Text style={styles.tipText}>Focus on one small achievable goal today</Text>
-            </View>
-            <View style={[styles.tipCard, { backgroundColor: "#E0F2FE" }]}>
-              <Users size={24} color="#0EA5E9" />
-              <Text style={styles.tipTitle}>Stay Connected</Text>
-              <Text style={styles.tipText}>Reach out to a friend or loved one</Text>
-            </View>
-          </ScrollView>
+          <Text style={styles.sectionTitle}>Wellness Tools</Text>
+          <View style={styles.wellnessGrid}>
+            <AnimatedButton
+              style={styles.wellnessCard}
+              onPress={() => router.push("/(tabs)/wellness/water")}
+            >
+              <View style={[styles.wellnessIcon, { backgroundColor: "#DBEAFE" }]}>
+                <Droplets size={24} color="#3B82F6" />
+              </View>
+              <Text style={styles.wellnessLabel}>Water</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.wellnessCard}
+              onPress={() => router.push("/(tabs)/wellness/sleep")}
+            >
+              <View style={[styles.wellnessIcon, { backgroundColor: "#F3E8FF" }]}>
+                <Moon size={24} color="#8B5CF6" />
+              </View>
+              <Text style={styles.wellnessLabel}>Sleep</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.wellnessCard}
+              onPress={() => router.push("/(tabs)/wellness/habits")}
+            >
+              <View style={[styles.wellnessIcon, { backgroundColor: "#DCFCE7" }]}>
+                <CheckSquare size={24} color="#22C55E" />
+              </View>
+              <Text style={styles.wellnessLabel}>Habits</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.wellnessCard}
+              onPress={() => router.push("/(tabs)/mood/calendar")}
+            >
+              <View style={[styles.wellnessIcon, { backgroundColor: "#FEF3C7" }]}>
+                <Calendar size={24} color="#F59E0B" />
+              </View>
+              <Text style={styles.wellnessLabel}>Calendar</Text>
+            </AnimatedButton>
+          </View>
         </View>
 
         {/* Mood Analytics - from server */}
@@ -831,6 +900,24 @@ const styles = StyleSheet.create({
   moodEmoji: {
     fontSize: 24,
   },
+  moodCardRight: {
+    alignItems: "flex-end",
+  },
+  streakBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 8,
+    gap: 4,
+  },
+  streakBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#D97706",
+  },
   logMoodButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -979,6 +1066,59 @@ const styles = StyleSheet.create({
     color: "#78350F",
     lineHeight: 26,
     textAlign: "center",
+  },
+  // Compact Quote
+  quoteCardCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    gap: 10,
+  },
+  quoteEmoji: {
+    fontSize: 20,
+  },
+  quoteTextCompact: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#78350F",
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+  // Wellness Grid
+  wellnessGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  wellnessCard: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  wellnessIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  wellnessLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#4B5563",
   },
   section: {
     marginBottom: 24,
@@ -1247,6 +1387,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     lineHeight: 18,
+  },
+  // Wellness Tools
+  wellnessToolsGrid: {
+    gap: 12,
+  },
+  wellnessToolCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  wellnessToolIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  wellnessToolEmoji: {
+    fontSize: 24,
+  },
+  wellnessToolInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  wellnessToolTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 2,
+  },
+  wellnessToolDesc: {
+    fontSize: 12,
+    color: "#6B7280",
   },
   // Chat tooltip
   chatTooltip: {

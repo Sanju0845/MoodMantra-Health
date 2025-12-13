@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Raskamon",
-    "slug": "raskamon",
+    "slug": "anything-mobile-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -16,9 +16,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#E8F5F0",
+        "monochromeImage": "./assets/images/adaptive-icon.png"
       },
-      "package": "xyz.create.CreateExpoEnvironment"
+      "package": "com.raskamon.app"
     },
     "plugins": [
       [

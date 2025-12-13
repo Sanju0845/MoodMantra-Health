@@ -219,6 +219,32 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      {/* Wellness Routes - Local Features */}
+      <Tabs.Screen
+        name="wellness/breathing"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="wellness/water"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="wellness/sleep"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="wellness/habits"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
