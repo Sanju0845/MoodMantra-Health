@@ -337,9 +337,63 @@ class API {
     // ==================== APPOINTMENTS ENDPOINTS ====================
 
     async getUserAppointments() {
-        return this.request("/api/user/appointments", {
-            method: "GET",
-        });
+        try {
+            const { supabase } = require('./supabaseClient');
+            const profile = await this.getProfile();
+
+            if (!profile.success || !profile.userData) {
+                return this.request("/api/user/appointments", { method: "GET" });
+            }
+
+            const userId = profile.userData._id || profile.userData.id;
+            console.log("[API] Fetching appointments for User ID:", userId);
+
+            const { data, error } = await supabase
+                .from('appointments')
+                .select('*')
+                .eq('user_id', userId)
+                .order('appointment_date', { ascending: false });
+
+            if (error) {
+                console.error("[API] Supabase appointments fetch error:", error.message);
+                // Fallback to backend if Supabase fails (though unlikely if table exists)
+                return this.request("/api/user/appointments", { method: "GET" });
+            }
+
+            // Enrich with doctor details (Fetch all to match UUID or External ID)
+            const { data: doctors } = await supabase
+                .from('doctors_sync')
+                .select('*');
+
+            let enrichedData = data;
+
+            if (doctors) {
+                const docMap = {};
+                doctors.forEach(d => {
+                    if (d.id) docMap[d.id] = d;
+                    if (d.external_id) docMap[d.external_id] = d;
+                });
+
+                enrichedData = data.map(apt => {
+                    const doc = docMap[apt.doctor_id];
+                    return {
+                        ...apt,
+                        doctor_name: doc?.name || apt.doctor_name,
+                        doctor_specialty: doc?.speciality || doc?.specialization || doc?.specialty || apt.doctor_specialty,
+                        doctor_image: doc?.image,
+                        docData: doc
+                    };
+                });
+            }
+
+            console.log(`[API] Found ${enrichedData.length} appointments in Supabase.`);
+            return { success: true, appointments: enrichedData };
+
+        } catch (error) {
+            console.error("[API] getUserAppointments error:", error);
+            // Fallback
+            return this.request("/api/user/appointments", { method: "GET" });
+        }
     }
 
     async checkAvailability(docId, date, time) {
@@ -493,7 +547,8 @@ class API {
                     const pseudoId = 'res_' + Date.now(); // Temp ID for now
                     await this.syncAppointmentToSupabase({
                         docId, slotDate, slotTime, reasonForVisit,
-                        doctorName: appointmentDetails.doctorName
+                        doctorName: appointmentDetails.doctorName || "Doctor",
+                        ...appointmentDetails
                     }, {});
 
                     return { success: true, appointmentId: pseudoId, message: "Appointment confirmed via Raska Secure" };
@@ -505,7 +560,8 @@ class API {
             // Sync to Supabase for Admin Panel & Availability Checks (if backend succeeded)
             this.syncAppointmentToSupabase({
                 docId, slotDate, slotTime, reasonForVisit,
-                doctorName: appointmentDetails.doctorName
+                doctorName: appointmentDetails.doctorName || "Doctor",
+                ...appointmentDetails
             }, data);
 
             return data;
@@ -516,7 +572,8 @@ class API {
             if (docId.length > 24) {
                 await this.syncAppointmentToSupabase({
                     docId, slotDate, slotTime, reasonForVisit,
-                    doctorName: appointmentDetails.doctorName
+                    doctorName: appointmentDetails.doctorName || "Doctor",
+                    ...appointmentDetails
                 }, {});
                 return { success: true, appointmentId: 'offline_' + Date.now(), message: "Appointment synced successfully" };
             }
@@ -576,6 +633,52 @@ class API {
         }
 
         return data;
+    }
+
+    async cancelAppointment(appointmentId, reason = "User cancelled") {
+        try {
+            console.log("[API] Cancelling appointment:", appointmentId);
+
+            // 1. Try Backend First (using native fetch to avoid wrapper issues)
+            const token = await this.getToken();
+            const response = await fetch(`${this.baseUrl}/api/user/cancel-appointment`, {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json',
+                    'token': token || ""
+                },
+                body: JSON.stringify({ appointmentId, reason }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) return data;
+            }
+            throw new Error("Backend cancellation failed");
+        } catch (error) {
+            console.error("[API] Backend cancellation failed, trying Supabase fallback...", error.message);
+
+            // 2. Supabase Fallback (Direct DB Update)
+            try {
+                const { supabase } = require('./supabaseClient');
+                // Try matching by both UUID (id) and integer ID (id) just in case, though usually UUID
+                // If appointmentId is a mongo ID (24 chars), this might fail on UUID column, but 'appointments' table uses UUID or Int usually.
+                // Mobile app usually has the Supabase ID if fetched from getUserAppointments()
+
+                const { error: sbError } = await supabase
+                    .from('appointments')
+                    .update({ status: 'cancelled', cancelled: true })
+                    .eq('id', appointmentId);
+
+                if (sbError) throw sbError;
+
+                console.log("[API] Cancelled via Supabase fallback ✅");
+                return { success: true, message: "Appointment cancelled" };
+            } catch (fallbackError) {
+                console.error("[API] Supabase fallback failed:", fallbackError);
+                return { success: false, message: "Could not cancel appointment" };
+            }
+        }
     }
 
     // ==================== PAYMENT ENDPOINTS ====================
@@ -693,12 +796,8 @@ class API {
         }
     }
 
-    async cancelAppointment(appointmentId) {
-        return this.request("/api/user/cancel-appointment", {
-            method: "POST",
-            body: JSON.stringify({ appointmentId }),
-        });
-    }
+    // Duplicate cancelAppointment removed
+
 
     // ==================== MOOD TRACKING ENDPOINTS ====================
 

@@ -44,6 +44,11 @@ import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AnimatedButton, { AnimatedCard } from "../../components/AnimatedButton";
 import Svg, { Circle } from "react-native-svg";
+import "../../i18n"; // Init i18n
+import { useTranslation } from "react-i18next";
+import { Modal } from "react-native";
+import { Globe } from "lucide-react-native";
+
 
 // Daily inspirational quotes
 const DAILY_QUOTES = [
@@ -108,6 +113,21 @@ export default function HomeScreen() {
   const [loggingStreak, setLoggingStreak] = useState(0);
   const [dailyQuote, setDailyQuote] = useState(DAILY_QUOTES[0]);
   const [showChatTooltip, setShowChatTooltip] = useState(true);
+  const { t, i18n } = useTranslation();
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+
+  const LANGUAGES = [
+    { code: 'en', label: 'English', native: 'English' },
+    { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
+    { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
+    { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+  ];
+
+  const changeLanguage = async (langCode) => {
+    await i18n.changeLanguage(langCode);
+    await AsyncStorage.setItem('language', langCode);
+    setShowLanguageModal(false);
+  };
 
   // Chat tooltip animation
   const tooltipScale = useRef(new Animated.Value(0)).current;
@@ -404,17 +424,76 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>
-            Hi {user?.name?.split(" ")[0] || "there"}!
+            {t('greeting')} {user?.name?.split(" ")[0] || t('greeting_placeholder')}!
           </Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/profile")}>
-            <Image
-              source={{
-                uri: user?.image || "https://via.placeholder.com/50",
-              }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 8, borderRadius: 20 }}
+              onPress={() => setShowLanguageModal(true)}
+            >
+              <Globe size={18} color="#475569" />
+              <Text style={{ fontSize: 12, color: "#475569", fontWeight: "600", marginLeft: 4 }}>
+                {LANGUAGES.find(l => l.code === i18n.language)?.code?.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => router.push("/(tabs)/profile")}>
+              <Image
+                source={{
+                  uri: user?.image || "https://via.placeholder.com/50",
+                }}
+                style={styles.profileImage}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Language Modal */}
+        <Modal
+          visible={showLanguageModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowLanguageModal(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 20, width: '100%', maxWidth: 300 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center', color: '#1E293B' }}>
+                Select Language
+              </Text>
+              {LANGUAGES.map((lang) => (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={{
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#F1F5F9',
+                    backgroundColor: i18n.language === lang.code ? '#F0FDF4' : 'transparent',
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    marginBottom: 4
+                  }}
+                  onPress={() => changeLanguage(lang.code)}
+                >
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: i18n.language === lang.code ? 'bold' : 'normal',
+                    color: i18n.language === lang.code ? '#166534' : '#334155'
+                  }}>
+                    {lang.native} ({lang.label})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={{ marginTop: 16, padding: 12, alignItems: 'center' }}
+                onPress={() => setShowLanguageModal(false)}
+              >
+                <Text style={{ color: '#64748B', fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
 
         {/* Mood Card - Slide to Log */}
         <LinearGradient
@@ -425,8 +504,8 @@ export default function HomeScreen() {
         >
           <View style={styles.moodCardContent}>
             <View style={styles.moodCardLeft}>
-              <Text style={styles.moodCardTitle}>How are you{"\n"}feeling today?</Text>
-              <Text style={styles.moodCardSubtitle}>Slide to log your mood</Text>
+              <Text style={styles.moodCardTitle}>{t('how_are_you')}</Text>
+              <Text style={styles.moodCardSubtitle}>{t('slide_to_log')}</Text>
             </View>
             <View style={styles.moodCardRight}>
               {loggingStreak > 0 && (
@@ -449,7 +528,7 @@ export default function HomeScreen() {
             <View style={styles.sliderTrack}>
               {/* Background text with animated arrow */}
               <View style={styles.sliderTextContainer}>
-                <Text style={styles.sliderText}>Slide to log mood</Text>
+                <Text style={styles.sliderText}>{t('slide_to_log')}</Text>
                 <Animated.Text
                   style={[
                     styles.sliderArrow,
@@ -487,7 +566,7 @@ export default function HomeScreen() {
 
         {/* Quick Actions - Now includes Breathing */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
           <View style={styles.quickActionsGrid}>
             <AnimatedButton
               style={styles.quickActionCard}
@@ -496,7 +575,7 @@ export default function HomeScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#E6F4F0" }]}>
                 <Wind size={28} color="#4A9B7F" />
               </View>
-              <Text style={styles.quickActionText}>Breathing</Text>
+              <Text style={styles.quickActionText}>{t('breathing')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -506,7 +585,7 @@ export default function HomeScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#FEF3C7" }]}>
                 <BookOpen size={28} color="#F59E0B" />
               </View>
-              <Text style={styles.quickActionText}>Journal</Text>
+              <Text style={styles.quickActionText}>{t('journal')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -516,7 +595,7 @@ export default function HomeScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#E0F2FE" }]}>
                 <ClipboardList size={28} color="#0EA5E9" />
               </View>
-              <Text style={styles.quickActionText}>Assessment</Text>
+              <Text style={styles.quickActionText}>{t('assessment')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -526,7 +605,7 @@ export default function HomeScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#FCE7F3" }]}>
                 <MessageCircle size={28} color="#EC4899" />
               </View>
-              <Text style={styles.quickActionText}>Raska AI</Text>
+              <Text style={styles.quickActionText}>{t('raska_ai')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -536,7 +615,7 @@ export default function HomeScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#DBEAFE" }]}>
                 <Stethoscope size={28} color="#3B82F6" />
               </View>
-              <Text style={styles.quickActionText}>Doctors</Text>
+              <Text style={styles.quickActionText}>{t('doctors')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -546,7 +625,7 @@ export default function HomeScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#FEE2E2" }]}>
                 <Target size={28} color="#EF4444" />
               </View>
-              <Text style={styles.quickActionText}>Goals</Text>
+              <Text style={styles.quickActionText}>{t('goals')}</Text>
             </AnimatedButton>
           </View>
         </View>
@@ -559,7 +638,7 @@ export default function HomeScreen() {
 
         {/* Wellness Tools Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wellness Tools</Text>
+          <Text style={styles.sectionTitle}>{t('wellness_tools')}</Text>
           <View style={styles.wellnessGrid}>
             <AnimatedButton
               style={styles.wellnessCard}
@@ -568,7 +647,7 @@ export default function HomeScreen() {
               <View style={[styles.wellnessIcon, { backgroundColor: "#DBEAFE" }]}>
                 <Droplets size={24} color="#3B82F6" />
               </View>
-              <Text style={styles.wellnessLabel}>Water</Text>
+              <Text style={styles.wellnessLabel}>{t('water')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -578,7 +657,7 @@ export default function HomeScreen() {
               <View style={[styles.wellnessIcon, { backgroundColor: "#F3E8FF" }]}>
                 <Moon size={24} color="#8B5CF6" />
               </View>
-              <Text style={styles.wellnessLabel}>Sleep</Text>
+              <Text style={styles.wellnessLabel}>{t('sleep')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -588,7 +667,7 @@ export default function HomeScreen() {
               <View style={[styles.wellnessIcon, { backgroundColor: "#DCFCE7" }]}>
                 <CheckSquare size={24} color="#22C55E" />
               </View>
-              <Text style={styles.wellnessLabel}>Habits</Text>
+              <Text style={styles.wellnessLabel}>{t('habits')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
@@ -598,7 +677,7 @@ export default function HomeScreen() {
               <View style={[styles.wellnessIcon, { backgroundColor: "#FEF3C7" }]}>
                 <Calendar size={24} color="#F59E0B" />
               </View>
-              <Text style={styles.wellnessLabel}>Calendar</Text>
+              <Text style={styles.wellnessLabel}>{t('calendar')}</Text>
             </AnimatedButton>
           </View>
         </View>
@@ -607,8 +686,8 @@ export default function HomeScreen() {
         {analytics && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Mood Analytics</Text>
-              <Text style={styles.sectionSubtitle}>Last 30 Days</Text>
+              <Text style={styles.sectionTitle}>{t('mood_analytics')}</Text>
+              <Text style={styles.sectionSubtitle}>{t('last_30_days')}</Text>
             </View>
             <View style={styles.analyticsGrid}>
               {/* Average Mood - Circle Progress (Scale 1-5) */}
@@ -625,7 +704,7 @@ export default function HomeScreen() {
                   </Text>
                   <Text style={styles.circleLabel}>/ 5</Text>
                 </CircleProgress>
-                <Text style={styles.analyticsLabel}>Avg Mood</Text>
+                <Text style={styles.analyticsLabel}>{t('avg_mood')}</Text>
               </View>
 
               {/* Total Entries - Circle Progress */}
@@ -640,9 +719,9 @@ export default function HomeScreen() {
                   <Text style={[styles.circleValue, { color: "#F59E0B" }]}>
                     {analytics.basicStats?.totalEntries || 0}
                   </Text>
-                  <Text style={styles.circleLabel}>logs</Text>
+                  <Text style={styles.circleLabel}>{t('logs')}</Text>
                 </CircleProgress>
-                <Text style={styles.analyticsLabel}>Entries</Text>
+                <Text style={styles.analyticsLabel}>{t('entries')}</Text>
               </View>
 
               {/* Trend Indicator */}
@@ -661,8 +740,8 @@ export default function HomeScreen() {
                   />
                 </CircleProgress>
                 <Text style={styles.analyticsLabel}>
-                  {analytics.trend === "improving" ? "Improving" :
-                    analytics.trend === "declining" ? "Declining" : "Stable"}
+                  {analytics.trend === "improving" ? t('improving') :
+                    analytics.trend === "declining" ? t('declining') : t('stable')}
                 </Text>
               </View>
             </View>
@@ -670,7 +749,7 @@ export default function HomeScreen() {
             {/* Mood Distribution Bar */}
             {analytics.moodDistribution && (
               <View style={styles.distributionCard}>
-                <Text style={styles.distributionTitle}>30-Day Mood Distribution</Text>
+                <Text style={styles.distributionTitle}>{t('mood_distribution')}</Text>
                 <View style={styles.distributionBar}>
                   {Object.entries(analytics.moodDistribution).map(([mood, count], index) => {
                     const total = Object.values(analytics.moodDistribution).reduce((a, b) => a + b, 0);
@@ -722,7 +801,7 @@ export default function HomeScreen() {
 
         {/* Upcoming Appointments - from server */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
+          <Text style={styles.sectionTitle}>{t('upcoming_appointments')}</Text>
           {appointments.length > 0 ? (
             appointments.map((apt) => (
               <TouchableOpacity
@@ -746,17 +825,17 @@ export default function HomeScreen() {
                     {formatAppointmentDate(apt.slotDate, apt.slotTime)}
                   </Text>
                 </View>
-                <Text style={styles.detailsLink}>Details</Text>
+                <Text style={styles.detailsLink}>{t('details')}</Text>
               </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No upcoming appointments</Text>
+              <Text style={styles.emptyText}>{t('no_appointments')}</Text>
               <TouchableOpacity
                 style={styles.bookButton}
                 onPress={() => router.push("/(tabs)/doctors")}
               >
-                <Text style={styles.bookButtonText}>Book Now</Text>
+                <Text style={styles.bookButtonText}>{t('book_now')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -764,7 +843,7 @@ export default function HomeScreen() {
 
         {/* Recent Assessments - from server */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Assessments</Text>
+          <Text style={styles.sectionTitle}>{t('recent_assessments')}</Text>
           {userAssessments.length > 0 ? (
             userAssessments.map((assessment) => (
               <TouchableOpacity
@@ -784,18 +863,18 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.progressText}>
                   100%{"\n"}
-                  <Text style={styles.progressLabel}>Completed</Text>
+                  <Text style={styles.progressLabel}>{t('completed')}</Text>
                 </Text>
               </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No assessments yet</Text>
+              <Text style={styles.emptyText}>{t('no_assessments')}</Text>
               <TouchableOpacity
                 style={styles.bookButton}
                 onPress={() => router.push("/(tabs)/assessment")}
               >
-                <Text style={styles.bookButtonText}>Take Assessment</Text>
+                <Text style={styles.bookButtonText}>{t('take_assessment')}</Text>
               </TouchableOpacity>
             </View>
           )}

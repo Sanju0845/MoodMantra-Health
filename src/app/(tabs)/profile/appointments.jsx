@@ -201,7 +201,7 @@ export default function AppointmentsScreen() {
         ) : (
           filteredAppointments.map((appointment) => (
             <View
-              key={appointment._id}
+              key={appointment.id || appointment._id}
               style={{
                 backgroundColor: "#fff",
                 borderRadius: 16,
@@ -217,9 +217,7 @@ export default function AppointmentsScreen() {
               <View style={{ flexDirection: "row", marginBottom: 12 }}>
                 <Image
                   source={{
-                    uri:
-                      appointment.docData?.image ||
-                      "https://via.placeholder.com/60",
+                    uri: appointment.doctor_image || appointment.docData?.image || "https://via.placeholder.com/60",
                   }}
                   style={{
                     width: 60,
@@ -237,15 +235,15 @@ export default function AppointmentsScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    {appointment.docData?.name}
+                    {appointment.doctor_name || appointment.docData?.name || "Doctor"}
                   </Text>
                   <Text
                     style={{ fontSize: 14, color: "#64748B", marginBottom: 2 }}
                   >
-                    {appointment.docData?.speciality}
+                    {appointment.doctor_specialty || appointment.docData?.speciality || "Specialist"}
                   </Text>
                   <Text style={{ fontSize: 12, color: "#94A3B8" }}>
-                    {appointment.docData?.address?.line1}
+                    {appointment.session_type || "Online Session"}
                   </Text>
                 </View>
               </View>
@@ -261,17 +259,24 @@ export default function AppointmentsScreen() {
                 <Text
                   style={{ fontSize: 14, color: "#64748B", marginBottom: 4 }}
                 >
-                  📅 {appointment.slotDate?.replace(/_/g, "/")}
+                  📅 {appointment.appointment_date || appointment.slotDate}
                 </Text>
                 <Text
                   style={{ fontSize: 14, color: "#64748B", marginBottom: 4 }}
                 >
-                  🕐 {appointment.slotTime}
+                  🕐 {appointment.appointment_time || appointment.slotTime}
                 </Text>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#6366F1" }}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: (appointment.status === 'confirmed') ? "#10B981" :
+                      (appointment.status === 'cancelled') ? "#EF4444" :
+                        (appointment.status === 'completed') ? "#3B82F6" :
+                          "#F59E0B" // Pending (Orange)
+                  }}
                 >
-                  ₹{appointment.amount}
+                  Status: {appointment.status ? appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) : "Pending"}
                 </Text>
               </View>
 
