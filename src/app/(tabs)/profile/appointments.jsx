@@ -78,13 +78,16 @@ export default function AppointmentsScreen() {
   };
 
   const filteredAppointments = appointments.filter((apt) => {
-    // Pending: Not cancelled, not completed, and payment not done
+    // Normalize status from Supabase or legacy
+    const status = apt.status || (apt.cancelled ? 'cancelled' : apt.payment ? 'confirmed' : 'pending');
+
+    // Pending: Waiting for doctor approval
     if (activeTab === "pending") {
-      return !apt.cancelled && !apt.isCompleted && apt.payment !== true;
+      return status === 'pending';
     }
-    // Upcoming: Not cancelled, not completed, and payment done
+    // Upcoming: Confirmed by doctor
     else if (activeTab === "upcoming") {
-      return !apt.cancelled && !apt.isCompleted && apt.payment === true;
+      return status === 'confirmed' && !apt.isCompleted;
     }
     // Past: Completed appointments
     else if (activeTab === "past") {
@@ -92,7 +95,7 @@ export default function AppointmentsScreen() {
     }
     // Cancelled: Cancelled appointments
     else {
-      return apt.cancelled === true;
+      return status === 'cancelled';
     }
   });
 
@@ -316,92 +319,31 @@ export default function AppointmentsScreen() {
 
               {!appointment.cancelled && !appointment.isCompleted && (
                 <>
-                  {/* Pending Status Badge */}
-                  {!appointment.payment && (
-                    <View
+                  {/* Status Badge */}
+                  <View
+                    style={{
+                      backgroundColor: appointment.status === 'confirmed' ? "#EEF2FF" : "#FEF3C7",
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, marginRight: 8 }}>
+                      {appointment.status === 'confirmed' ? "✅" : "⏳"}
+                    </Text>
+                    <Text
                       style={{
-                        backgroundColor: "#FEF3C7",
-                        borderRadius: 8,
-                        padding: 12,
-                        marginBottom: 12,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        fontSize: 14,
+                        color: appointment.status === 'confirmed' ? "#6366F1" : "#D97706",
+                        fontWeight: "600",
                       }}
                     >
-                      <Text style={{ fontSize: 16, marginRight: 8 }}>⏳</Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: "#D97706",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Pending Confirmation
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Confirmed Status Badge */}
-                  {appointment.payment && (
-                    <View
-                      style={{
-                        backgroundColor: "#EEF2FF",
-                        borderRadius: 8,
-                        padding: 12,
-                        marginBottom: 12,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text style={{ fontSize: 16, marginRight: 8 }}>✅</Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: "#6366F1",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Confirmed
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Pay Now Button for pending appointments */}
-                  {!appointment.payment && (
-                    <TouchableOpacity
-                      style={{
-                        backgroundColor: "#6366F1",
-                        borderRadius: 8,
-                        padding: 14,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: 12,
-                      }}
-                      onPress={() => {
-                        router.push({
-                          pathname: "/(tabs)/doctors/payment",
-                          params: {
-                            appointmentId: appointment._id,
-                            amount: appointment.amount,
-                            doctorName: appointment.docData?.name || "Doctor",
-                          },
-                        });
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 15,
-                          fontWeight: "600",
-                          color: "#FFFFFF",
-                        }}
-                      >
-                        💳 Pay Now - ₹{appointment.amount}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                      {appointment.status === 'confirmed' ? "Confirmed" : "Pending Doctor Approval"}
+                    </Text>
+                  </View>
 
                   <TouchableOpacity
                     style={{

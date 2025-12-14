@@ -8,6 +8,8 @@ import { ArrowLeft, Moon, Sun, Clock, TrendingUp } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
+import api from "../../../utils/api";
+
 const HOURS = [5, 6, 7, 8, 9, 10, 11, 12];
 
 export default function SleepScreen() {
@@ -24,35 +26,66 @@ export default function SleepScreen() {
 
     const loadData = async () => {
         try {
-            const today = new Date().toDateString();
-            const saved = await AsyncStorage.getItem(`sleep_${today}`);
-            if (saved) {
-                const data = JSON.parse(saved);
-                setBedtime(data.bedtime || "22:00");
-                setWakeTime(data.wakeTime || "06:00");
-                setSleepHours(data.hours || 8);
+            const userId = await AsyncStorage.getItem("userId");
+            if (!userId) return;
+
+            const logs = await api.fetchSleepLogs(userId);
+            if (!logs) return;
+
+            // 1. Set today's data if exists
+            const todayStr = new Date().toDateString();
+            const todayLog = logs.find(l => new Date(l.created_at).toDateString() === todayStr);
+            if (todayLog && todayLog.notes) {
+                const match = todayLog.notes.match(/Duration: (\d+)h/);
+                if (match) setSleepHours(parseInt(match[1]));
+                // Try parse bed/wake
+                const bedMatch = todayLog.notes.match(/Bed: ([\d:]+)/);
+                if (bedMatch) setBedtime(bedMatch[1]);
+                const wakeMatch = todayLog.notes.match(/Wake: ([\d:]+)/);
+                if (wakeMatch) setWakeTime(wakeMatch[1]);
             }
-            // Load week data
+
+            // 2. Build Week Data
             const week = [];
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
-                const dayData = await AsyncStorage.getItem(`sleep_${d.toDateString()}`);
+                const dStr = d.toDateString();
+
+                const log = logs.find(l => new Date(l.created_at).toDateString() === dStr);
+                let hrs = 0;
+                if (log && log.notes) {
+                    const m = log.notes.match(/Duration: (\d+)h/);
+                    if (m) hrs = parseInt(m[1]);
+                }
+
                 week.push({
                     day: d.toLocaleDateString('en', { weekday: 'short' }),
-                    hours: dayData ? JSON.parse(dayData).hours : 0,
+                    hours: hrs,
                 });
             }
             setWeekData(week);
-        } catch (e) { }
+
+        } catch (e) { console.error(e); }
     };
 
     const saveData = async (hours) => {
         try {
-            const today = new Date().toDateString();
-            await AsyncStorage.setItem(`sleep_${today}`, JSON.stringify({
-                bedtime, wakeTime, hours,
-            }));
+            const userId = await AsyncStorage.getItem("userId");
+            if (!userId) return;
+
+            // Update local state
+            setSleepHours(hours);
+
+            // Sync to Supabase
+            let q = 3;
+            if (hours >= 7 && hours <= 9) q = 5;
+            else if (hours < 6) q = 2;
+
+            const now = new Date();
+            await api.syncSleepLog(userId, now, now, q, `Duration: ${hours}h, Bed: ${bedtime}, Wake: ${wakeTime}`);
+
+            // Reload to update graph
             loadData();
         } catch (e) { }
     };

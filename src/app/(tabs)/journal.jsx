@@ -134,7 +134,7 @@ const CircularProgress = ({ percentage, size = 120, strokeWidth = 10, color = "#
                     cx={size / 2}
                     cy={size / 2}
                     r={radius}
-                    stroke={color}
+                    stroke="url(#progressGradient)"
                     strokeWidth={strokeWidth}
                     fill="transparent"
                     strokeDasharray={circumference}
@@ -146,6 +146,114 @@ const CircularProgress = ({ percentage, size = 120, strokeWidth = 10, color = "#
             <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center", alignItems: "center" }}>
                 <Text style={{ fontSize: size * 0.25, fontWeight: "700", color: "#1F2937" }}>{value}</Text>
                 {label && <Text style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{label}</Text>}
+            </View>
+        </View>
+    );
+};
+
+// Semi-Circle Gauge Component (like speedometer)
+const SemiCircleGauge = ({ value, maxValue = 100, size = 160, label, color = "#4A9B7F" }) => {
+    const percentage = Math.min(value / maxValue, 1);
+    const radius = (size - 20) / 2;
+    const circumference = Math.PI * radius; // Half circle
+    const strokeDashoffset = circumference - (percentage * circumference);
+
+    return (
+        <View style={{ alignItems: "center", marginBottom: 10 }}>
+            <Svg width={size} height={size / 2 + 20}>
+                {/* Background arc */}
+                <Path
+                    d={`M ${10} ${size / 2} A ${radius} ${radius} 0 0 1 ${size - 10} ${size / 2}`}
+                    stroke="#E5E7EB"
+                    strokeWidth={12}
+                    fill="transparent"
+                    strokeLinecap="round"
+                />
+                {/* Progress arc */}
+                <Path
+                    d={`M ${10} ${size / 2} A ${radius} ${radius} 0 0 1 ${size - 10} ${size / 2}`}
+                    stroke={color}
+                    strokeWidth={12}
+                    fill="transparent"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                />
+            </Svg>
+            <View style={{ position: "absolute", bottom: 10, alignItems: "center" }}>
+                <Text style={{ fontSize: 32, fontWeight: "800", color: "#1F2937" }}>{value}</Text>
+                <Text style={{ fontSize: 12, color: "#6B7280" }}>{label}</Text>
+            </View>
+        </View>
+    );
+};
+
+// Weekly Line Chart with dots
+const WeeklyLineChart = ({ data = [], height = 120, color = "#4A9B7F" }) => {
+    const width = SCREEN_WIDTH - 64;
+    const padding = 20;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - 40;
+
+    if (!data || data.length === 0) {
+        return (
+            <View style={{ height, justifyContent: "center", alignItems: "center" }}>
+                <Text style={{ color: "#9CA3AF", fontSize: 12 }}>No data available</Text>
+            </View>
+        );
+    }
+
+    const maxValue = Math.max(...data.map(d => d.value), 5);
+    const minValue = Math.min(...data.map(d => d.value), 1);
+    const range = maxValue - minValue || 1;
+
+    const points = data.map((d, i) => {
+        const x = padding + (i / (data.length - 1 || 1)) * chartWidth;
+        const y = chartHeight - ((d.value - minValue) / range) * (chartHeight - 20) + 10;
+        return { x, y, ...d };
+    });
+
+    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+
+    return (
+        <View style={{ height }}>
+            <Svg width={width} height={height}>
+                {/* Grid lines */}
+                {[0, 0.5, 1].map((ratio, i) => (
+                    <Path
+                        key={i}
+                        d={`M ${padding} ${10 + ratio * (chartHeight - 20)} L ${width - padding} ${10 + ratio * (chartHeight - 20)}`}
+                        stroke="#F3F4F6"
+                        strokeWidth={1}
+                    />
+                ))}
+                {/* Line */}
+                <Path
+                    d={pathData}
+                    stroke={color}
+                    strokeWidth={2.5}
+                    fill="transparent"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+                {/* Dots */}
+                {points.map((p, i) => (
+                    <Circle
+                        key={i}
+                        cx={p.x}
+                        cy={p.y}
+                        r={5}
+                        fill="#FFFFFF"
+                        stroke={color}
+                        strokeWidth={2.5}
+                    />
+                ))}
+            </Svg>
+            {/* Labels */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: padding - 10, marginTop: -5 }}>
+                {points.map((p, i) => (
+                    <Text key={i} style={{ fontSize: 10, color: "#9CA3AF", textAlign: "center", width: 30 }}>{p.label}</Text>
+                ))}
             </View>
         </View>
     );
@@ -783,6 +891,47 @@ export default function JournalScreen() {
                             </View>
                         </View>
 
+                        {/* Weekly Line Chart */}
+                        <View style={styles.chartCard}>
+                            <View style={styles.chartHeader}>
+                                <Text style={styles.chartTitle}>Mood Trend Line</Text>
+                                <Text style={styles.chartSubtitle}>With data points</Text>
+                            </View>
+                            <WeeklyLineChart
+                                data={weeklyData.length > 0
+                                    ? weeklyData.map(d => ({
+                                        value: d.score / 20, // Scale to 1-5
+                                        label: d.date.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2)
+                                    }))
+                                    : []
+                                }
+                                height={140}
+                                color="#4A9B7F"
+                            />
+                        </View>
+
+                        {/* Semi-Circle Gauges Row */}
+                        <View style={styles.gaugesRow}>
+                            <View style={styles.gaugeCard}>
+                                <SemiCircleGauge
+                                    value={avgScore}
+                                    maxValue={100}
+                                    size={130}
+                                    label="Mood Score"
+                                    color="#4A9B7F"
+                                />
+                            </View>
+                            <View style={styles.gaugeCard}>
+                                <SemiCircleGauge
+                                    value={Math.round((basicStats.averageEnergy || 3) * 20)}
+                                    maxValue={100}
+                                    size={130}
+                                    label="Energy Level"
+                                    color="#F59E0B"
+                                />
+                            </View>
+                        </View>
+
                         {/* Mood Distribution */}
                         <View style={styles.chartCard}>
                             <Text style={styles.chartTitle}>Mood Distribution</Text>
@@ -991,6 +1140,24 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: "600",
         color: "#4A9B7F",
+    },
+    // Gauges Row
+    gaugesRow: {
+        flexDirection: "row",
+        gap: 12,
+        marginBottom: 16,
+    },
+    gaugeCard: {
+        flex: 1,
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        padding: 12,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
 
     // Sections

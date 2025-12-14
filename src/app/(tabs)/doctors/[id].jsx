@@ -65,6 +65,7 @@ export default function DoctorDetailScreen() {
   // Booking form states
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
+  const [bookedSlots, setBookedSlots] = useState([]); // Array of unavailable times
   const [sessionType, setSessionType] = useState("Online");
   const [communicationMethod, setCommunicationMethod] = useState("Zoom");
   const [reasonForVisit, setReasonForVisit] = useState("");
@@ -81,6 +82,17 @@ export default function DoctorDetailScreen() {
     console.log("[DoctorDetail] Loading doctor with ID:", id);
     loadDoctor();
   }, [id]);
+
+  // Fetch booked slots when date changes
+  useEffect(() => {
+    if (selectedDate && doctor) {
+      console.log("Fetching booked slots for:", selectedDate)
+      api.getBookedSlots(doctor._id, selectedDate).then(slots => {
+        console.log("Booked slots:", slots)
+        setBookedSlots(slots || [])
+      })
+    }
+  }, [selectedDate, doctor]);
 
   const loadDoctor = async () => {
     try {
@@ -139,6 +151,13 @@ export default function DoctorDetailScreen() {
         consentGiven: true,
       };
 
+      // 1. Check Availability (Prevent Overlap)
+      const isAvailable = await api.checkAvailability(doctor._id, selectedDate, selectedTime);
+      if (!isAvailable) {
+        Alert.alert("Slot Unavailable", "This time slot has just been booked by another patient. Please select a different time.");
+        return;
+      }
+
       const response = await api.bookAppointment(
         doctor._id,
         selectedDate,
@@ -151,31 +170,13 @@ export default function DoctorDetailScreen() {
         console.log("[DoctorDetail] Booking successful, reservationId:", reservationId);
 
         Alert.alert(
-          "Appointment Reserved! 🎉",
-          "Your slot has been reserved. Complete payment to confirm your appointment.",
+          "Booking Submitted ✅",
+          "Your appointment request has been sent to the doctor for approval. You can check the status in your appointments.",
           [
             {
-              text: "Pay Later",
-              style: "cancel",
+              text: "View Appointments",
               onPress: () => router.push("/(tabs)/profile/appointments"),
-            },
-            {
-              text: "Pay Now",
-              onPress: () => {
-                if (reservationId) {
-                  router.push({
-                    pathname: "/doctors/payment",
-                    params: {
-                      appointmentId: reservationId,
-                      amount: String(doctor.fees),
-                      doctorName: doctor.name,
-                    },
-                  });
-                } else {
-                  router.push("/(tabs)/profile/appointments");
-                }
-              },
-            },
+            }
           ]
         );
       } else {
@@ -207,7 +208,7 @@ export default function DoctorDetailScreen() {
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const year = date.getFullYear();
       dates.push({
-        value: `${day}_${month}_${year}`,
+        value: `${year}-${month}-${day}`, // Standardize date format YYYY-MM-DD
         day: days[date.getDay()],
         date: day,
       });
@@ -329,20 +330,29 @@ export default function DoctorDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Select Time</Text>
             <View style={styles.timeGrid}>
-              {timeSlots.map((time) => (
-                <TouchableOpacity
-                  key={time}
-                  style={[
-                    styles.timeItem,
-                    selectedTime === time && styles.timeItemSelected,
-                  ]}
-                  onPress={() => setSelectedTime(time)}
-                >
-                  <Text style={[styles.timeText, selectedTime === time && styles.timeTextSelected]}>
-                    {time}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {timeSlots.map((time) => {
+                const isBooked = bookedSlots.includes(time);
+                return (
+                  <TouchableOpacity
+                    key={time}
+                    disabled={isBooked}
+                    style={[
+                      styles.timeItem,
+                      selectedTime === time && styles.timeItemSelected,
+                      isBooked && { backgroundColor: '#E5E7EB', borderColor: '#E5E7EB', opacity: 0.5 }
+                    ]}
+                    onPress={() => setSelectedTime(time)}
+                  >
+                    <Text style={[
+                      styles.timeText,
+                      selectedTime === time && styles.timeTextSelected,
+                      isBooked && { color: '#9CA3AF', textDecorationLine: 'line-through' }
+                    ]}>
+                      {time}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}

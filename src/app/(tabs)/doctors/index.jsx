@@ -267,8 +267,10 @@ export default function DoctorsListScreen() {
                   style={styles.availabilityBar}
                 >
                   <View style={styles.availabilityDot} />
-                  <Text style={styles.availabilityText}>Available Today</Text>
-                  <Calendar size={14} color="#22C55E" />
+                  <Text style={styles.availabilityText}>
+                    {doctor.location ? `In ${doctor.location}` : "Available Today"}
+                  </Text>
+                  <MapPin size={14} color="#22C55E" />
                 </LinearGradient>
               )}
             </TouchableOpacity>

@@ -14,7 +14,7 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { ArrowLeft, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react-native";
+import { ArrowLeft, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus, Grid, Calendar } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../../utils/api";
 
@@ -73,6 +73,7 @@ export default function MoodCalendarScreen() {
     const [selectedDay, setSelectedDay] = useState(null);
     const [userId, setUserId] = useState(null);
     const [analytics, setAnalytics] = useState(null);
+    const [viewMode, setViewMode] = useState("month"); // "month" or "year"
 
     // Reset and reload when screen is focused
     useFocusEffect(
@@ -268,26 +269,139 @@ export default function MoodCalendarScreen() {
                 <TouchableOpacity onPress={goBack} style={styles.backButton}>
                     <ArrowLeft size={22} color="#1F2937" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Mood Calendar</Text>
-                <View style={styles.headerSpacer} />
+                <Text style={styles.headerTitle}>
+                    {viewMode === "year" ? "Year in Pixels" : "Mood Calendar"}
+                </Text>
+                <TouchableOpacity
+                    onPress={() => setViewMode(viewMode === "month" ? "year" : "month")}
+                    style={styles.viewToggle}
+                >
+                    {viewMode === "month" ? (
+                        <Grid size={20} color="#4A9B7F" />
+                    ) : (
+                        <Calendar size={20} color="#4A9B7F" />
+                    )}
+                </TouchableOpacity>
             </View>
 
-            {/* Month Navigation */}
-            <View style={styles.monthNav}>
-                <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
-                    <ChevronLeft size={24} color="#374151" />
-                </TouchableOpacity>
-                <Text style={styles.monthText}>{formatMonth()}</Text>
-                <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
-                    <ChevronRight size={24} color="#374151" />
-                </TouchableOpacity>
-            </View>
+            {/* Month Navigation - only show in month view */}
+            {viewMode === "month" && (
+                <View style={styles.monthNav}>
+                    <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
+                        <ChevronLeft size={24} color="#374151" />
+                    </TouchableOpacity>
+                    <Text style={styles.monthText}>{formatMonth()}</Text>
+                    <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
+                        <ChevronRight size={24} color="#374151" />
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Year Navigation - only show in year view */}
+            {viewMode === "year" && (
+                <View style={styles.monthNav}>
+                    <TouchableOpacity onPress={() => setCurrentDate(new Date(currentDate.getFullYear() - 1, 0, 1))} style={styles.navButton}>
+                        <ChevronLeft size={24} color="#374151" />
+                    </TouchableOpacity>
+                    <Text style={styles.monthText}>{currentDate.getFullYear()}</Text>
+                    <TouchableOpacity onPress={() => setCurrentDate(new Date(currentDate.getFullYear() + 1, 0, 1))} style={styles.navButton}>
+                        <ChevronRight size={24} color="#374151" />
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#4A9B7F" />
                     <Text style={styles.loadingText}>Loading mood data...</Text>
                 </View>
+            ) : viewMode === "year" ? (
+                /* Year in Pixels View */
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.yearPixelsContainer}>
+                        {/* Generate 12 months */}
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((monthIndex) => {
+                            const year = currentDate.getFullYear();
+                            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+                            const monthName = new Date(year, monthIndex, 1).toLocaleDateString('en', { month: 'short' });
+
+                            return (
+                                <View key={monthIndex} style={styles.pixelMonth}>
+                                    <Text style={styles.pixelMonthLabel}>{monthName}</Text>
+                                    <View style={styles.pixelGrid}>
+                                        {Array.from({ length: daysInMonth }, (_, i) => {
+                                            const day = i + 1;
+                                            const entry = moodEntries.find(e => {
+                                                const d = new Date(e.timestamp || e.createdAt);
+                                                return d.getFullYear() === year && d.getMonth() === monthIndex && d.getDate() === day;
+                                            });
+                                            const color = entry ? MOOD_COLORS[entry.moodScore] || "#E5E7EB" : "#F3F4F6";
+                                            const isToday = new Date().getFullYear() === year &&
+                                                new Date().getMonth() === monthIndex &&
+                                                new Date().getDate() === day;
+                                            return (
+                                                <View
+                                                    key={day}
+                                                    style={[
+                                                        styles.pixelDay,
+                                                        { backgroundColor: color },
+                                                        isToday && styles.pixelDayToday,
+                                                    ]}
+                                                />
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </View>
+
+                    {/* Legend */}
+                    <View style={styles.legendContainer}>
+                        <Text style={styles.legendTitle}>Mood Colors</Text>
+                        <View style={styles.legendItems}>
+                            {[5, 4, 3, 2, 1].map((score) => (
+                                <View key={score} style={styles.legendItem}>
+                                    <View style={[styles.legendDot, { backgroundColor: MOOD_COLORS[score] }]} />
+                                    <Text style={styles.legendLabel}>{MOOD_LABELS[score]}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+
+                    {/* Year Stats */}
+                    <View style={styles.statsContainer}>
+                        <Text style={styles.statsTitle}>Year Stats</Text>
+                        <View style={styles.statsRow}>
+                            <View style={styles.statCard}>
+                                <Text style={styles.statValue}>{moodEntries.length}</Text>
+                                <Text style={styles.statLabel}>Total Entries</Text>
+                            </View>
+                            <View style={styles.statCard}>
+                                <Text style={styles.statValue}>
+                                    {moodEntries.length > 0
+                                        ? (moodEntries.reduce((sum, e) => sum + (e.moodScore || 3), 0) / moodEntries.length).toFixed(1)
+                                        : "-"
+                                    }
+                                </Text>
+                                <Text style={styles.statLabel}>Avg Mood</Text>
+                            </View>
+                            <View style={styles.statCard}>
+                                <Text style={styles.statValue}>
+                                    {Math.round((new Set(moodEntries.map(e => {
+                                        const d = new Date(e.timestamp || e.createdAt);
+                                        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                                    })).size / 365) * 100)}%
+                                </Text>
+                                <Text style={styles.statLabel}>Days Tracked</Text>
+                            </View>
+                        </View>
+                    </View>
+                </ScrollView>
             ) : (
                 <ScrollView
                     style={styles.scrollView}
@@ -489,6 +603,50 @@ const styles = StyleSheet.create({
     },
     headerSpacer: {
         width: 40,
+    },
+    viewToggle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#E6F4F0",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    // Year in Pixels
+    yearPixelsContainer: {
+        backgroundColor: "#FFFFFF",
+        marginHorizontal: 16,
+        marginTop: 16,
+        borderRadius: 20,
+        padding: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 3,
+    },
+    pixelMonth: {
+        marginBottom: 12,
+    },
+    pixelMonthLabel: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#6B7280",
+        marginBottom: 6,
+    },
+    pixelGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 2,
+    },
+    pixelDay: {
+        width: 8,
+        height: 8,
+        borderRadius: 2,
+    },
+    pixelDayToday: {
+        borderWidth: 1,
+        borderColor: "#1F2937",
     },
     monthNav: {
         flexDirection: "row",

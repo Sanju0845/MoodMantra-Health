@@ -17,6 +17,9 @@ import { ArrowLeft, Play, Pause, RotateCcw, Check } from "lucide-react-native";
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../../../utils/api";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Breathing Patterns
@@ -122,7 +125,7 @@ export default function BreathingScreen() {
         }, 1000);
     };
 
-    const stop = () => {
+    const stop = async () => {
         setRunning(false);
         clearInterval(timerRef.current);
         clearInterval(sessionRef.current);
@@ -130,6 +133,14 @@ export default function BreathingScreen() {
         if (breaths >= 3) {
             setCompleted(true);
             haptic();
+
+            // Sync to Supabase
+            try {
+                const userId = await AsyncStorage.getItem("userId");
+                if (userId) {
+                    api.syncBreathing(userId, seconds);
+                }
+            } catch (e) { console.error("Sync error", e); }
         }
     };
 

@@ -8,6 +8,8 @@ import { ArrowLeft, Check, Flame, RotateCcw } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
+import api from "../../../utils/api";
+
 const DEFAULT_HABITS = [
     { id: "water", label: "Drink Water", emoji: "💧", color: "#3B82F6" },
     { id: "exercise", label: "Exercise", emoji: "🏃", color: "#22C55E" },
@@ -31,17 +33,37 @@ export default function HabitsScreen() {
 
     const loadData = async () => {
         try {
-            const today = new Date().toDateString();
-            const saved = await AsyncStorage.getItem(`habits_${today}`);
-            if (saved) setCompleted(JSON.parse(saved));
+            const userId = await AsyncStorage.getItem("userId");
+            if (!userId) return;
 
-            // Load week data
+            const habits = await api.fetchHabits(userId);
+            const today = new Date().toISOString().split('T')[0];
+
+            const todayCompletedIds = [];
+            habits.forEach(h => {
+                let dates = h.completed_dates || [];
+                if (typeof dates === 'string') try { dates = JSON.parse(dates); } catch (e) { }
+                if (Array.isArray(dates) && dates.includes(today)) {
+                    const def = DEFAULT_HABITS.find(d => d.label === h.habit_name);
+                    if (def) todayCompletedIds.push(def.id);
+                }
+            });
+            setCompleted(todayCompletedIds);
+
+            // Week Data
             const week = [];
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
-                const dayData = await AsyncStorage.getItem(`habits_${d.toDateString()}`);
-                const count = dayData ? JSON.parse(dayData).length : 0;
+                const dStr = d.toISOString().split('T')[0];
+
+                let count = 0;
+                habits.forEach(h => {
+                    let dates = h.completed_dates || [];
+                    if (typeof dates === 'string') try { dates = JSON.parse(dates); } catch (e) { }
+                    if (Array.isArray(dates) && dates.includes(dStr)) count++;
+                });
+
                 week.push({
                     day: d.toLocaleDateString('en', { weekday: 'short' }),
                     count,
@@ -49,7 +71,8 @@ export default function HabitsScreen() {
                 });
             }
             setWeekData(week);
-        } catch (e) { }
+
+        } catch (e) { console.error(e); }
     };
 
     const toggleHabit = async (id) => {
@@ -59,16 +82,28 @@ export default function HabitsScreen() {
             : [...completed, id];
         setCompleted(newCompleted);
 
-        const today = new Date().toDateString();
-        await AsyncStorage.setItem(`habits_${today}`, JSON.stringify(newCompleted));
-        loadData();
+        // Sync to Supabase
+        const userId = await AsyncStorage.getItem("userId");
+        if (userId) {
+            const habit = DEFAULT_HABITS.find(h => h.id === id);
+            if (habit) {
+                const isDone = newCompleted.includes(id);
+                api.syncHabit(userId, id, habit.label, isDone);
+            }
+        }
     };
 
     const resetToday = async () => {
+        const toReset = [...completed];
         setCompleted([]);
-        const today = new Date().toDateString();
-        await AsyncStorage.setItem(`habits_${today}`, JSON.stringify([]));
-        loadData();
+
+        const userId = await AsyncStorage.getItem("userId");
+        if (userId) {
+            for (const id of toReset) {
+                const habit = DEFAULT_HABITS.find(h => h.id === id);
+                if (habit) api.syncHabit(userId, id, habit.label, false);
+            }
+        }
     };
 
     const progress = completed.length / DEFAULT_HABITS.length;

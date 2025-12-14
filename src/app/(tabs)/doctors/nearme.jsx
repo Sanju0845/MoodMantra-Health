@@ -8,12 +8,14 @@ import {
     StyleSheet,
     Image,
     Dimensions,
+    Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { ArrowLeft, MapPin, Star, Navigation, Phone, Clock } from "lucide-react-native";
+import * as Location from 'expo-location';
 import api from "../../../utils/api";
 
 const { width } = Dimensions.get("window");
@@ -27,23 +29,78 @@ export default function NearMeDoctorsScreen() {
     const [doctors, setDoctors] = useState([]);
     const [selectedDoctor, setSelectedDoctor] = useState(null);
     const [viewMode, setViewMode] = useState("map"); // "map" or "list"
+    const [userLocation, setUserLocation] = useState(null);
+    const [permissionStatus, setPermissionStatus] = useState(null);
 
     useEffect(() => {
-        loadDoctors();
+        // 1. First get location, then load doctors to calculate distance
+        (async () => {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                setPermissionStatus(status);
+
+                let location = null;
+                if (status === 'granted') {
+                    console.log("[NearMe] Getting user location...");
+                    location = await Location.getCurrentPositionAsync({});
+                    setUserLocation(location.coords);
+                } else {
+                    console.log("[NearMe] Location permission denied");
+                    // We don't alert annoyingly, just continue
+                }
+
+                await loadDoctors(location?.coords);
+            } catch (error) {
+                console.error("[NearMe] Init Error:", error);
+                await loadDoctors(null);
+            }
+        })();
     }, []);
 
-    const loadDoctors = async () => {
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return 9999;
+        const R = 6371; // Radius of the earth in km
+        const dLat = deg2rad(lat2 - lat1);
+        const dLon = deg2rad(lon2 - lon1);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c; // Distance in km
+        return parseFloat(d.toFixed(1));
+    };
+
+    const deg2rad = (deg) => {
+        return deg * (Math.PI / 180);
+    };
+
+    const loadDoctors = async (coords) => {
         try {
+            setLoading(true);
             const response = await api.getDoctors();
             if (response.success && response.doctors) {
-                // Add mock coordinates for demo (in real app, use actual coordinates from backend)
-                const doctorsWithLocation = response.doctors.map((doc, index) => ({
-                    ...doc,
-                    // Generate demo coordinates around a central point (e.g., Mumbai)
-                    latitude: 19.076 + (Math.random() - 0.5) * 0.1,
-                    longitude: 72.877 + (Math.random() - 0.5) * 0.1,
-                }));
-                setDoctors(doctorsWithLocation);
+                // Filter doctors that have coordinates from Supabase
+                let validDoctors = response.doctors.filter(d => d.latitude && d.longitude);
+                console.log(`[NearMe] Found ${validDoctors.length} doctors with location.`);
+
+                // Calculate distances if we have user location
+                if (coords) {
+                    validDoctors = validDoctors.map(doc => ({
+                        ...doc,
+                        distance: calculateDistance(
+                            coords.latitude,
+                            coords.longitude,
+                            parseFloat(doc.latitude),
+                            parseFloat(doc.longitude)
+                        )
+                    }));
+
+                    // SORT BY DISTANCE
+                    validDoctors.sort((a, b) => a.distance - b.distance);
+                }
+
+                setDoctors(validDoctors);
             }
         } catch (error) {
             console.error("Error loading doctors:", error);
@@ -52,16 +109,36 @@ export default function NearMeDoctorsScreen() {
         }
     };
 
-    // Generate OpenStreetMap HTML
+    // Generate OpenStreetMap HTML (With User Location Marker)
     const generateMapHTML = () => {
         const markers = doctors.map((doc, index) => `
       L.marker([${doc.latitude}, ${doc.longitude}])
         .addTo(map)
-        .bindPopup('<b>${doc.name}</b><br>${doc.speciality}<br>₹${doc.fees}')
+        .bindPopup('<b>${doc.name}</b><br>${doc.speciality}<br>₹${doc.fees}<br>${doc.distance ? doc.distance + ' km away' : ''}')
         .on('click', function() {
           window.ReactNativeWebView.postMessage(JSON.stringify({type: 'marker_click', id: '${doc._id}'}));
         });
     `).join('\n');
+
+        // User Location Marker (Blue)
+        const userMarker = userLocation ? `
+            var userIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+            L.marker([${userLocation.latitude}, ${userLocation.longitude}], {icon: userIcon})
+             .addTo(map)
+             .bindPopup("<b>You are here</b>")
+             .openPopup();
+        ` : '';
+
+        // Default to Bangalore if no user location, else center on user
+        const initialLat = userLocation ? userLocation.latitude : 12.9716;
+        const initialLng = userLocation ? userLocation.longitude : 77.5946;
 
         return `
       <!DOCTYPE html>
@@ -74,44 +151,36 @@ export default function NearMeDoctorsScreen() {
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body { height: 100%; width: 100%; }
           #map { height: 100%; width: 100%; }
-          .leaflet-popup-content-wrapper {
-            border-radius: 12px;
-          }
+          .leaflet-popup-content-wrapper { border-radius: 12px; }
           .leaflet-popup-content {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
+            font-size: 14px; line-height: 1.5;
           }
         </style>
       </head>
       <body>
         <div id="map"></div>
         <script>
-          // Center on Mumbai (or wherever doctors are located)
-          var map = L.map('map').setView([19.076, 72.877], 12);
+          var map = L.map('map').setView([${initialLat}, ${initialLng}], 12);
           
-          // Use OpenStreetMap tiles
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
           }).addTo(map);
           
-          // Custom marker icon
-          var doctorIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-          });
-          
-          // Add markers
           ${markers}
+          ${userMarker}
           
-          // Fit bounds to show all markers
-          var bounds = L.latLngBounds([${doctors.map(d => `[${d.latitude}, ${d.longitude}]`).join(',')}]);
-          if (bounds.isValid()) {
-            map.fitBounds(bounds, { padding: [50, 50] });
+          // Fit bounds to show doctors AND user
+          var points = [
+              ${doctors.map(d => `[${d.latitude}, ${d.longitude}]`).join(',')}
+              ${userLocation ? `,[${userLocation.latitude}, ${userLocation.longitude}]` : ''}
+          ];
+          
+          if (points.length > 0) {
+              var bounds = L.latLngBounds(points);
+              if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [50, 50] });
+              }
           }
         </script>
       </body>
@@ -135,7 +204,7 @@ export default function NearMeDoctorsScreen() {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#6366F1" />
-                <Text style={styles.loadingText}>Finding doctors near you...</Text>
+                <Text style={styles.loadingText}>Accessing location & finding doctors...</Text>
             </View>
         );
     }
@@ -149,7 +218,10 @@ export default function NearMeDoctorsScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <ArrowLeft color="#1F2937" size={24} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Doctors Near Me</Text>
+                <View>
+                    <Text style={styles.headerTitle}>Doctors Near Me</Text>
+                    {userLocation && <Text style={styles.locationSubtitle}>Using current location</Text>}
+                </View>
                 <View style={styles.viewToggle}>
                     <TouchableOpacity
                         style={[styles.toggleBtn, viewMode === "map" && styles.toggleBtnActive]}
@@ -198,6 +270,9 @@ export default function NearMeDoctorsScreen() {
                                     <Star size={14} color="#F59E0B" fill="#F59E0B" />
                                     <Text style={styles.selectedRating}>4.8</Text>
                                     <Text style={styles.selectedFee}>₹{selectedDoctor.fees}</Text>
+                                    {selectedDoctor.distance && (
+                                        <Text style={styles.distanceBadge}>{selectedDoctor.distance} km</Text>
+                                    )}
                                 </View>
                             </View>
                             <TouchableOpacity
@@ -218,7 +293,7 @@ export default function NearMeDoctorsScreen() {
                     showsVerticalScrollIndicator={false}
                 >
                     <Text style={styles.listTitle}>
-                        {doctors.length} Doctors Found
+                        {doctors.length} Doctors Found {userLocation ? "(Sorted by Distance)" : ""}
                     </Text>
 
                     {doctors.map((doctor) => (
@@ -242,14 +317,16 @@ export default function NearMeDoctorsScreen() {
                                     </View>
                                     <View style={styles.metaItem}>
                                         <Clock size={14} color="#6B7280" />
-                                        <Text style={styles.metaText}>{doctor.experience}</Text>
+                                        <Text style={styles.metaText}>{doctor.experience || "5+ yrs"}</Text>
                                     </View>
                                 </View>
 
                                 <View style={styles.doctorFooter}>
                                     <View style={styles.locationRow}>
                                         <MapPin size={14} color="#10B981" />
-                                        <Text style={styles.locationText}>2.5 km away</Text>
+                                        <Text style={styles.locationText}>
+                                            {doctor.distance ? `${doctor.distance} km away` : (doctor.location || "Nearby")}
+                                        </Text>
                                     </View>
                                     <Text style={styles.doctorFee}>₹{doctor.fees}</Text>
                                 </View>
@@ -305,6 +382,11 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#1F2937",
     },
+    locationSubtitle: {
+        fontSize: 12,
+        color: "#10B981",
+        fontWeight: "500",
+    },
     viewToggle: {
         flexDirection: "row",
         backgroundColor: "#F3F4F6",
@@ -346,7 +428,7 @@ const styles = StyleSheet.create({
     },
     selectedCard: {
         position: "absolute",
-        bottom: 20,
+        bottom: 100,
         left: 20,
         right: 20,
         backgroundColor: "#FFFFFF",
@@ -395,6 +477,15 @@ const styles = StyleSheet.create({
         fontWeight: "700",
         color: "#10B981",
         marginLeft: 8,
+    },
+    distanceBadge: {
+        backgroundColor: "#ECFDF5",
+        color: "#10B981",
+        fontSize: 11,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        fontWeight: "600",
     },
     bookBtn: {
         backgroundColor: "#6366F1",

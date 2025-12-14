@@ -8,6 +8,8 @@ import { ArrowLeft, Droplets, Plus, Minus, RotateCcw } from "lucide-react-native
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
+import api from "../../../utils/api";
+
 const GOAL = 8; // 8 glasses default
 
 export default function WaterScreen() {
@@ -22,38 +24,41 @@ export default function WaterScreen() {
 
     const loadData = async () => {
         try {
-            const today = new Date().toDateString();
-            const saved = await AsyncStorage.getItem(`water_${today}`);
-            if (saved) setGlasses(parseInt(saved));
+            const userId = await AsyncStorage.getItem("userId");
+            if (!userId) return;
+
+            const today = new Date().toISOString().split('T')[0];
+            const amount = await api.fetchWaterLog(userId, today);
+            // Assuming 1 glass = 250ml
+            setGlasses(Math.round(amount / 250));
         } catch (e) { }
     };
 
-    const saveData = async (count) => {
+    const updateWater = async (newGlasses) => {
         try {
-            const today = new Date().toDateString();
-            await AsyncStorage.setItem(`water_${today}`, count.toString());
+            setGlasses(newGlasses);
+            // Sync to Supabase
+            const userId = await AsyncStorage.getItem("userId");
+            if (userId) api.syncWaterLog(userId, newGlasses, goal);
         } catch (e) { }
     };
 
     const addGlass = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
         const newCount = glasses + 1;
-        setGlasses(newCount);
-        saveData(newCount);
+        updateWater(newCount);
     };
 
     const removeGlass = () => {
         if (glasses > 0) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
             const newCount = glasses - 1;
-            setGlasses(newCount);
-            saveData(newCount);
+            updateWater(newCount);
         }
     };
 
     const reset = () => {
-        setGlasses(0);
-        saveData(0);
+        updateWater(0);
     };
 
     const progress = Math.min(glasses / goal, 1);

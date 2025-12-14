@@ -118,6 +118,63 @@ export default function PaymentScreen() {
     const generatePaymentHTML = () => {
         if (!paymentOrder) return "";
 
+        // --- MOCK PAYMENT FLOW (For new Supabase Doctors) ---
+        // Since backend Razorpay keys don't work for these new local appointments yet.
+        if (paymentOrder.id && paymentOrder.id.startsWith("order_mock_")) {
+            return `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  body {
+                    margin: 0;
+                    padding: 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: #F8FAFC;
+                    min-height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                  }
+                  .loader {
+                    border: 4px solid #f3f3f3;
+                    border-radius: 50%;
+                    border-top: 4px solid #6366F1;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 1s linear infinite;
+                    margin-bottom: 20px;
+                  }
+                  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                  h2 { color: #1F2937; margin: 0 0 10px 0; }
+                  p { color: #6B7280; text-align: center; }
+                </style>
+              </head>
+              <body>
+                <div class="loader"></div>
+                <h2>Processing Payment</h2>
+                <p>Securely confirming your appointment...</p>
+                <script>
+                  // Simulate successful payment processing
+                  setTimeout(function() {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: "payment_success",
+                      data: {
+                        razorpay_order_id: "${paymentOrder.id}",
+                        razorpay_payment_id: "pay_mock_" + Date.now(),
+                        razorpay_signature: "sig_mock_" + Date.now()
+                      }
+                    }));
+                  }, 2000);
+                </script>
+              </body>
+              </html>
+            `;
+        }
+
+        // --- REAL RAZORPAY FLOW ---
         return `
       <!DOCTYPE html>
       <html>

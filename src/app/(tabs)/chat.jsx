@@ -67,8 +67,39 @@ export default function ChatScreen() {
       // Get userId for the API call
       const userId = await AsyncStorage.getItem("userId");
 
+      // --- PERSONAL CONTEXT INJECTION ---
+      // Fetch latest stats to give the AI "awareness"
+      let contextStr = "";
+      try {
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Water
+        const waterLogs = await api.fetchWaterLog(userId) || [];
+        const waterToday = waterLogs.find(l => l.date === today);
+        const glasses = waterToday ? Math.round(waterToday.amount_ml / 250) : 0;
+
+        // 2. Sleep
+        const sleepLogs = await api.fetchSleepLogs(userId) || [];
+        const sleepLastNight = sleepLogs[0]; // Assuming sorted desc
+        let sleepHrs = 0;
+        if (sleepLastNight && sleepLastNight.notes) {
+          sleepHrs = parseFloat(sleepLastNight.notes.match(/Duration: (\d+(\.\d+)?)h/)?.[1] || 0);
+        }
+
+        // 3. Mood
+        const moodLogs = await api.getMoodEntries(userId, 1, 1);
+        const latestMood = moodLogs?.entries?.[0]?.mood_label || "Unknown";
+
+        contextStr = `\n\n[System Context: Today's Water: ${glasses} glasses. Last Sleep: ${sleepHrs} hours. Latest Mood: ${latestMood}. Please integrate this into your answer naturally if asked.]`;
+      } catch (e) {
+        console.log("Context fetch error:", e);
+      }
+
+      // Append context hiddenly
+      const fullMessage = messageText + contextStr;
+
       // Send single message with userId (matching web app format)
-      const response = await api.sendChatMessage(messageText, userId);
+      const response = await api.sendChatMessage(fullMessage, userId);
 
       if (response.success && response.reply) {
         setMessages([
