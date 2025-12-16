@@ -12,7 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, X } from "lucide-react-native";
+import { ArrowLeft, X, CheckCircle, Calendar, Clock, MapPin } from "lucide-react-native";
 import api from "../../../utils/api";
 
 export default function AppointmentsScreen() {
@@ -21,7 +21,14 @@ export default function AppointmentsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState([]);
-  const [activeTab, setActiveTab] = useState("pending");
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const slotDateFormat = (slotDate) => {
+    const dateArray = slotDate.split("/");
+    return dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2];
+  };
 
   useEffect(() => {
     loadAppointments();
@@ -29,18 +36,19 @@ export default function AppointmentsScreen() {
 
   const loadAppointments = async () => {
     try {
+      setLoading(true);
       const response = await api.getUserAppointments();
-      console.log("[Appointments] Response:", JSON.stringify(response, null, 2));
+
       if (response.success) {
-        const appts = response.appointments || [];
-        console.log("[Appointments] Count:", appts.length);
-        appts.forEach((apt, i) => {
-          console.log(`[Appointments] #${i}: payment=${apt.payment}, cancelled=${apt.cancelled}, isCompleted=${apt.isCompleted}`);
-        });
-        setAppointments(appts);
+        // Filter to show only paid or cancelled appointments (matching web logic)
+        const validAppointments = (response.appointments || []).filter(
+          (appt) => appt.payment || appt.cancelled
+        );
+        setAppointments(validAppointments.reverse());
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
+      Alert.alert("Error", "Failed to load appointments");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,13 +66,18 @@ export default function AppointmentsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              setCancellingId(appointmentId);
               const response = await api.cancelAppointment(appointmentId);
               if (response.success) {
-                Alert.alert("Success", "Appointment cancelled");
+                Alert.alert("Success", response.message || "Appointment cancelled");
                 loadAppointments();
+              } else {
+                Alert.alert("Error", response.message || "Failed to cancel");
               }
             } catch (error) {
               Alert.alert("Error", "Failed to cancel appointment");
+            } finally {
+              setCancellingId(null);
             }
           },
         },
@@ -77,39 +90,11 @@ export default function AppointmentsScreen() {
     loadAppointments();
   };
 
-  const filteredAppointments = appointments.filter((apt) => {
-    // Normalize status
-    const status = apt.status || (apt.cancelled ? 'cancelled' : apt.payment ? 'confirmed' : 'pending');
-
-    // Pending: Waiting for doctor approval
-    if (activeTab === "pending") {
-      return status === 'pending';
-    }
-    // Upcoming: Confirmed by doctor
-    else if (activeTab === "upcoming") {
-      return status === 'confirmed' && !apt.isCompleted;
-    }
-    // Past: Completed appointments
-    else if (activeTab === "past") {
-      return apt.isCompleted === true;
-    }
-    // Cancelled: Cancelled appointments
-    else {
-      return status === 'cancelled';
-    }
-  });
-
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#F8FAFC",
-        }}
-      >
-        <ActivityIndicator size="large" color="#6366F1" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color="#4A9B7F" />
+        <Text style={{ marginTop: 12, color: "#64748B" }}>Loading appointments...</Text>
       </View>
     );
   }
@@ -129,40 +114,16 @@ export default function AppointmentsScreen() {
           borderColor: "#E2E8F0",
         }}
       >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ marginBottom: 16 }}
-        >
+        <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 16 }}>
           <ArrowLeft color="#1E293B" size={24} />
         </TouchableOpacity>
 
-        {/* Tabs */}
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          {["pending", "upcoming", "past", "cancelled"].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={{
-                flex: 1,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: activeTab === tab ? "#6366F1" : "#F1F5F9",
-                alignItems: "center",
-              }}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: activeTab === tab ? "#fff" : "#64748B",
-                  textTransform: "capitalize",
-                }}
-              >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <Text style={{ fontSize: 24, fontWeight: "bold", color: "#1E293B" }}>
+          My Appointments
+        </Text>
+        <Text style={{ fontSize: 14, color: "#64748B", marginTop: 4 }}>
+          View your confirmed and completed appointments
+        </Text>
       </View>
 
       <ScrollView
@@ -175,33 +136,36 @@ export default function AppointmentsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6366F1"
+            tintColor="#4A9B7F"
           />
         }
       >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "bold",
-            color: "#1E293B",
-            marginBottom: 24,
-          }}
-        >
-          My Appointments
-        </Text>
-
-        {filteredAppointments.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <Text
-              style={{ fontSize: 16, color: "#64748B", textAlign: "center" }}
+        {appointments.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 60 }}>
+            <View
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: "#F1F5F9",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
             >
-              No {activeTab} appointments
+              <Calendar color="#94A3B8" size={40} />
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: "600", color: "#1E293B", marginBottom: 8 }}>
+              No Appointments Found
+            </Text>
+            <Text style={{ fontSize: 14, color: "#64748B", textAlign: "center", paddingHorizontal: 40 }}>
+              You don't have any confirmed appointments yet. Book an appointment to get started!
             </Text>
           </View>
         ) : (
-          filteredAppointments.map((appointment) => (
+          appointments.map((appointment) => (
             <View
-              key={appointment.id || appointment._id}
+              key={appointment._id}
               style={{
                 backgroundColor: "#fff",
                 borderRadius: 16,
@@ -214,40 +178,66 @@ export default function AppointmentsScreen() {
                 elevation: 2,
               }}
             >
-              <View style={{ flexDirection: "row", marginBottom: 12 }}>
+              {/* Doctor Info */}
+              <View style={{ flexDirection: "row", marginBottom: 16 }}>
                 <Image
                   source={{
-                    uri: appointment.doctor?.image || appointment.doctor_image || appointment.docData?.image || "https://via.placeholder.com/60",
+                    uri: appointment.docData?.image || "https://via.placeholder.com/80",
                   }}
                   style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 30,
+                    width: 80,
+                    height: 80,
+                    borderRadius: 12,
                     marginRight: 12,
                   }}
                 />
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      fontSize: 16,
-                      fontWeight: "600",
+                      fontSize: 18,
+                      fontWeight: "700",
                       color: "#1E293B",
                       marginBottom: 4,
                     }}
                   >
-                    {appointment.doctor?.name || appointment.doctor_name || appointment.docData?.name || "Doctor"}
+                    {appointment.docData?.name || "Doctor"}
                   </Text>
-                  <Text
-                    style={{ fontSize: 14, color: "#64748B", marginBottom: 2 }}
+                  <Text style={{ fontSize: 14, color: "#4A9B7F", marginBottom: 8, fontWeight: "600" }}>
+                    {appointment.docData?.speciality || "Specialist"}
+                  </Text>
+
+                  {/* Status Badge */}
+                  <View
+                    style={{
+                      alignSelf: "flex-start",
+                      paddingHorizontal: 12,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      backgroundColor: appointment.cancelled
+                        ? "#FEE2E2"
+                        : appointment.isCompleted
+                          ? "#DCFCE7"
+                          : "#EEF2FF",
+                    }}
                   >
-                    {appointment.doctor?.speciality || appointment.doctor_specialty || appointment.docData?.speciality || "Specialist"}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: "#94A3B8" }}>
-                    {appointment.session_type || "Online Session"}
-                  </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: appointment.cancelled
+                          ? "#EF4444"
+                          : appointment.isCompleted
+                            ? "#16A34A"
+                            : "#4A9B7F",
+                      }}
+                    >
+                      {appointment.cancelled ? "Cancelled" : appointment.isCompleted ? "Completed" : "Paid"}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
+              {/* Appointment Details */}
               <View
                 style={{
                   backgroundColor: "#F8FAFC",
@@ -256,124 +246,141 @@ export default function AppointmentsScreen() {
                   marginBottom: 12,
                 }}
               >
-                <Text
-                  style={{ fontSize: 14, color: "#64748B", marginBottom: 4 }}
-                >
-                  📅 {appointment.appointment_date || appointment.slotDate}
-                </Text>
-                <Text
-                  style={{ fontSize: 14, color: "#64748B", marginBottom: 4 }}
-                >
-                  🕐 {appointment.appointment_time || appointment.slotTime}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: (appointment.status === 'confirmed') ? "#10B981" :
-                      (appointment.status === 'cancelled') ? "#EF4444" :
-                        (appointment.status === 'completed') ? "#3B82F6" :
-                          "#F59E0B" // Pending (Orange)
-                  }}
-                >
-                  Status: {appointment.status ? appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) : "Pending"}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                  <Calendar color="#4A9B7F" size={16} />
+                  <Text style={{ fontSize: 14, color: "#64748B", marginLeft: 8 }}>
+                    {slotDateFormat(appointment.slotDate)}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                  <Clock color="#4A9B7F" size={16} />
+                  <Text style={{ fontSize: 14, color: "#64748B", marginLeft: 8 }}>
+                    {appointment.slotTime}
+                  </Text>
+                </View>
+                {appointment.docData?.address && (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                    <MapPin color="#4A9B7F" size={16} style={{ marginTop: 2 }} />
+                    <View style={{ marginLeft: 8, flex: 1 }}>
+                      <Text style={{ fontSize: 14, color: "#64748B" }}>
+                        {appointment.docData.address.line1}
+                      </Text>
+                      {appointment.docData.address.line2 && (
+                        <Text style={{ fontSize: 12, color: "#94A3B8" }}>
+                          {appointment.docData.address.line2}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
               </View>
 
-              {appointment.cancelled && (
+              {/* Additional Details */}
+              {appointment.reasonForVisit && (
                 <View
                   style={{
-                    backgroundColor: "#FEE2E2",
-                    borderRadius: 8,
+                    backgroundColor: "#F0FDF4",
+                    borderRadius: 12,
                     padding: 12,
+                    marginBottom: 12,
+                    borderWidth: 1,
+                    borderColor: "#BBF7D0",
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: "#EF4444",
-                      fontWeight: "600",
-                      textAlign: "center",
-                    }}
-                  >
-                    Cancelled
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#16A34A", marginBottom: 4 }}>
+                    Reason for Visit
+                  </Text>
+                  <Text style={{ fontSize: 14, color: "#15803D" }}>
+                    {appointment.reasonForVisit}
                   </Text>
                 </View>
               )}
 
-              {appointment.isCompleted && (
+              {appointment.sessionType && (
                 <View
                   style={{
-                    backgroundColor: "#DCFCE7",
-                    borderRadius: 8,
+                    backgroundColor: "#EFF6FF",
+                    borderRadius: 12,
                     padding: 12,
+                    marginBottom: 12,
+                    borderWidth: 1,
+                    borderColor: "#BFDBFE",
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: "#16A34A",
-                      fontWeight: "600",
-                      textAlign: "center",
-                    }}
-                  >
-                    Completed
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#2563EB", marginBottom: 4 }}>
+                    Session Details
+                  </Text>
+                  <Text style={{ fontSize: 14, color: "#1E40AF" }}>
+                    {appointment.sessionType}
+                    {appointment.communicationMethod && ` • ${appointment.communicationMethod}`}
                   </Text>
                 </View>
               )}
 
-              {!appointment.cancelled && !appointment.isCompleted && (
-                <>
-                  {/* Status Badge */}
+              {/* Action Buttons */}
+              {!appointment.cancelled && appointment.payment && !appointment.isCompleted && (
+                <View style={{ flexDirection: "row", gap: 8 }}>
                   <View
                     style={{
-                      backgroundColor: appointment.status === 'confirmed' ? "#EEF2FF" : "#FEF3C7",
-                      borderRadius: 8,
+                      flex: 1,
+                      backgroundColor: "#DCFCE7",
+                      borderRadius: 12,
                       padding: 12,
-                      marginBottom: 12,
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: "#BBF7D0",
                     }}
                   >
-                    <Text style={{ fontSize: 16, marginRight: 8 }}>
-                      {appointment.status === 'confirmed' ? "✅" : "⏳"}
-                    </Text>
+                    <CheckCircle color="#16A34A" size={18} />
                     <Text
                       style={{
                         fontSize: 14,
-                        color: appointment.status === 'confirmed' ? "#6366F1" : "#D97706",
                         fontWeight: "600",
+                        color: "#16A34A",
+                        marginLeft: 8,
                       }}
                     >
-                      {appointment.status === 'confirmed' ? "Confirmed" : "Pending Doctor Approval"}
+                      Paid
                     </Text>
                   </View>
 
                   <TouchableOpacity
                     style={{
+                      flex: 1,
                       backgroundColor: "#FEE2E2",
-                      borderRadius: 8,
+                      borderRadius: 12,
                       padding: 12,
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: "#FECACA",
+                      opacity: cancellingId === appointment._id ? 0.5 : 1,
                     }}
                     onPress={() => handleCancelAppointment(appointment._id)}
+                    disabled={cancellingId === appointment._id}
                   >
-                    <X color="#EF4444" size={20} />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: "#EF4444",
-                        marginLeft: 8,
-                      }}
-                    >
-                      Cancel Appointment
-                    </Text>
+                    {cancellingId === appointment._id ? (
+                      <ActivityIndicator size="small" color="#EF4444" />
+                    ) : (
+                      <>
+                        <X color="#EF4444" size={18} />
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: "#EF4444",
+                            marginLeft: 8,
+                          }}
+                        >
+                          Cancel
+                        </Text>
+                      </>
+                    )}
                   </TouchableOpacity>
-                </>
+                </View>
               )}
             </View>
           ))

@@ -17,11 +17,12 @@ import api from "../../../utils/api";
 import {
   NativePieChart,
   CircularProgress,
-  NativeTestResultsBarChart
+  NativeTestResultsBarChart,
+  NativeWeeklyMoodDistribution
 } from "../../../components/MoodAnalysis/NativeMoodCharts";
 import { NativeMoodCount as MoodCount } from "../../../components/MoodAnalysis/MoodCount";
 import { NativeMoodScoreChart as MoodScoreChart } from "../../../components/MoodAnalysis/MoodScoreChart";
-import { NativeMoodAnalytics, NativeWeeklyMoodDistribution } from "../../../components/MoodAnalysis/NativeMoodAnalytics";
+import { NativeMoodAnalytics } from "../../../components/MoodAnalysis/NativeMoodAnalytics";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -261,38 +262,6 @@ export default function MoodDashboardScreen() {
           ))}
         </ScrollView>
 
-        {/* 1. Analytics Cards */}
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-          <StatsCard
-            title="Overall Wellbeing"
-            value={ad.overallWellbeingCurrent || 0}
-            change={ad.overallWellbeingChange}
-            subtext={`Previous: ${ad.overallWellbeingLast || 0}`}
-            icon={Heart} color="#3B82F6"
-            textStatus={ad.overallWellbeingCurrent >= 25 ? "Excellent 🌟" : ad.overallWellbeingCurrent >= 15 ? "Good 🙂" : "Needs Attention ⚡"}
-          />
-          <StatsCard
-            title="Journaling Consistency"
-            value={`${ad.journalingConsistency || 0}%`}
-            change={ad.journalingChange}
-            subtext="Days with entries"
-            icon={Book} color="#6366F1"
-          />
-          <StatsCard
-            title="Emotional Wellbeing"
-            value={ad.therapyMetric?.current || 0}
-            change={ad.therapyMetric?.change}
-            subtext={`Previous: ${ad.therapyMetric?.last || 0}`}
-            icon={Leaf} color="#10B981"
-          />
-          <StatsCard
-            title="Goal Achievement"
-            value={`${ad.goalAchievement || 0}%`}
-            change={ad.goalChange}
-            subtext="Goals completed"
-            icon={Calendar} color="#A855F7"
-          />
-        </View>
 
         {/* Mood Count - Half Donut + Mood Cards */}
         <MoodCount data={moodEntries} width={SCREEN_WIDTH - 40} />

@@ -9,13 +9,38 @@ import {
     ActivityIndicator
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { ArrowLeft, Calendar, TrendingUp, Award, BarChart3, Target } from "lucide-react-native";
+import { ArrowLeft, Calendar, TrendingUp, Award, BarChart3, Target, Heart, Book, Leaf } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../../utils/api";
 import { NativePieChart, CircularProgress, NativeTestResultsBarChart } from "../../../components/MoodAnalysis/NativeMoodCharts";
 import Svg, { Path } from "react-native-svg";
 
+
 const SCREEN_WIDTH = Dimensions.get("window").width;
+
+// Helper for Stats Cards
+const StatsCard = ({ title, value, subtext, icon: Icon, color, change, textStatus }) => (
+    <View style={{ width: "48%", backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748B", flex: 1 }}>{title}</Text>
+            {Icon && <Icon size={18} color={color} />}
+        </View>
+        <Text style={{ fontSize: 24, fontWeight: "bold", color: "#1E293B", marginBottom: 4 }}>
+            {value} <Text style={{ fontSize: 12, fontWeight: "normal", color: "#000" }}>{textStatus}</Text>
+        </Text>
+
+        {change !== undefined && (
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                {change >= 0 ? <TrendingUp size={14} color="#3B82F6" /> : <TrendingUp size={14} color="#EF4444" style={{ transform: [{ rotate: '180deg' }] }} />}
+                <Text style={{ fontSize: 11, color: change >= 0 ? "#3B82F6" : "#EF4444", marginLeft: 4 }}>
+                    {Math.abs(change)}% from last
+                </Text>
+            </View>
+        )}
+        <Text style={{ fontSize: 11, color: "#94A3B8" }}>{subtext}</Text>
+    </View>
+);
+
 
 export default function AssessmentAnalytics() {
     const router = useRouter();
@@ -138,6 +163,43 @@ export default function AssessmentAnalytics() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
+                </View>
+
+                {/* Analytics Cards */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 }}>
+                    <StatsCard
+                        title="Overall Wellbeing"
+                        value={analyticsData?.overallWellbeingCurrent || 0}
+                        change={analyticsData?.overallWellbeingChange}
+                        subtext={`Previous: ${analyticsData?.overallWellbeingLast || 0}`}
+                        icon={Heart}
+                        color="#3B82F6"
+                        textStatus={analyticsData?.overallWellbeingCurrent >= 25 ? "Excellent 🌟" : analyticsData?.overallWellbeingCurrent >= 15 ? "Good 🙂" : "Needs Attention ⚡"}
+                    />
+                    <StatsCard
+                        title="Journaling Consistency"
+                        value={`${analyticsData?.journalingConsistency || 0}%`}
+                        change={analyticsData?.journalingChange}
+                        subtext="Days with entries"
+                        icon={Book}
+                        color="#6366F1"
+                    />
+                    <StatsCard
+                        title="Emotional Wellbeing"
+                        value={analyticsData?.therapyMetric?.current || 0}
+                        change={analyticsData?.therapyMetric?.change}
+                        subtext={`Previous: ${analyticsData?.therapyMetric?.last || 0}`}
+                        icon={Leaf}
+                        color="#10B981"
+                    />
+                    <StatsCard
+                        title="Goal Achievement"
+                        value={`${analyticsData?.goalAchievement || 0}%`}
+                        change={analyticsData?.goalChange}
+                        subtext="Goals completed"
+                        icon={Calendar}
+                        color="#A855F7"
+                    />
                 </View>
 
                 {/* Activity & Engagement */}

@@ -115,7 +115,12 @@ export default function HomeScreen() {
   const [showChatTooltip, setShowChatTooltip] = useState(true);
   const { t, i18n } = useTranslation();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
 
+  // Wellness data from local storage
+  const [waterToday, setWaterToday] = useState(0);
+  const [sleepToday, setSleepToday] = useState(0);
+  const [breathingToday, setBreathingToday] = useState(0);
   const LANGUAGES = [
     { code: 'en', label: 'English', native: 'English' },
     { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
@@ -137,11 +142,11 @@ export default function HomeScreen() {
   const SLIDER_WIDTH = Dimensions.get("window").width - 80; // Container width minus padding
   const THUMB_SIZE = 60;
   const SLIDE_THRESHOLD = SLIDER_WIDTH - THUMB_SIZE - 20; // How far to slide to trigger
-  const slideX = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const [slideComplete, setSlideComplete] = useState(false);
 
-  // Pulse animation for slider hint
+  // Animation refs
+  const slideX = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -222,6 +227,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
+      loadWellnessData();
     }, [])
   );
   useEffect(() => {
@@ -262,6 +268,38 @@ export default function HomeScreen() {
       }, 5000);
     }, 500);
   }, []);
+
+  const loadWellnessData = async () => {
+    try {
+      const today = new Date().toDateString();
+
+      // Load water data
+      const waterData = await AsyncStorage.getItem("waterData");
+      if (waterData) {
+        const data = JSON.parse(waterData);
+        const todayData = data.find(d => d.date === today);
+        setWaterToday(todayData?.cups || 0);
+      }
+
+      // Load sleep data
+      const sleepData = await AsyncStorage.getItem("sleepData");
+      if (sleepData) {
+        const data = JSON.parse(sleepData);
+        const todayData = data.find(d => d.date === today);
+        setSleepToday(todayData?.hours || 0);
+      }
+
+      // Load breathing data
+      const breathingData = await AsyncStorage.getItem("breathingData");
+      if (breathingData) {
+        const data = JSON.parse(breathingData);
+        const todayData = data.find(d => d.date === today);
+        setBreathingToday(todayData?.sessions || 0);
+      }
+    } catch (error) {
+      console.error("Error loading wellness data:", error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -305,39 +343,32 @@ export default function HomeScreen() {
           console.log("[Home] No mood dashboard data");
         }
 
-        // Get mood entries for streak calculation
+        // Get mood entries for streak calculation (use weekly analytics)
         try {
-          const entriesData = await api.getMoodEntries(userId, 1, 30);
-          if (entriesData?.moodEntries) {
-            setMoodEntries(entriesData.moodEntries);
+          const weeklyData = await api.getWeeklyMoodAnalytics(userId);
+          if (weeklyData?.moodData) {
+            setMoodEntries(weeklyData.moodData);
             // Calculate streak
-            const entries = entriesData.moodEntries;
+            const entries = weeklyData.moodData;
             if (entries.length > 0) {
               let streak = 0;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
 
               const sorted = [...entries].sort((a, b) =>
-                new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt)
+                new Date(b.date || b.timestamp || b.createdAt) - new Date(a.date || a.timestamp || a.createdAt)
               );
 
-              const lastEntry = new Date(sorted[0]?.timestamp || sorted[0]?.createdAt);
-              lastEntry.setHours(0, 0, 0, 0);
-              const daysDiff = Math.floor((today - lastEntry) / (1000 * 60 * 60 * 24));
+              let checkDate = new Date(today);
+              for (const entry of sorted) {
+                const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
+                entryDate.setHours(0, 0, 0, 0);
 
-              if (daysDiff <= 1) {
-                let checkDate = new Date(today);
-                if (daysDiff === 1) checkDate.setDate(checkDate.getDate() - 1);
-
-                for (const entry of sorted) {
-                  const entryDate = new Date(entry.timestamp || entry.createdAt);
-                  entryDate.setHours(0, 0, 0, 0);
-                  if (entryDate.getTime() === checkDate.getTime()) {
-                    streak++;
-                    checkDate.setDate(checkDate.getDate() - 1);
-                  } else if (entryDate < checkDate) {
-                    break;
-                  }
+                if (entryDate.getTime() === checkDate.getTime()) {
+                  streak++;
+                  checkDate.setDate(checkDate.getDate() - 1);
+                } else if (entryDate.getTime() < checkDate.getTime()) {
+                  break;
                 }
               }
               setLoggingStreak(streak);
@@ -358,6 +389,7 @@ export default function HomeScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+    loadWellnessData();
   };
 
   const formatAppointmentDate = (slotDate, slotTime) => {
@@ -406,8 +438,8 @@ export default function HomeScreen() {
     );
   }
 
-  const analytics = moodDashboard?.analytics;
-  const trend = analytics?.trend || "stable";
+  const moodAnalytics = moodDashboard?.analytics || analytics;
+  const trend = moodAnalytics?.trend || "stable";
   const TrendIcon = getTrendIcon(trend);
 
   return (
@@ -634,6 +666,93 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Today's Focus Card */}
+        <LinearGradient
+          colors={["#6366F1", "#8B5CF6"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.focusCard}
+        >
+          <View style={styles.focusCardHeader}>
+            <Text style={styles.focusCardTitle}>Today's Focus</Text>
+            <Zap size={20} color="#FDE68A" />
+          </View>
+          <Text style={styles.focusCardText}>
+            Take 5 minutes for mindful breathing and set your intention for the day
+          </Text>
+          <TouchableOpacity style={styles.focusButton}>
+            <Text style={styles.focusButtonText}>Start Now</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+
+        {/* Wellness Progress */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Wellness Progress</Text>
+            <Text style={styles.sectionSubtitle}>Today's goals</Text>
+          </View>
+          <View style={styles.progressGrid}>
+            {/* Water Intake */}
+            <View style={styles.progressCard}>
+              <CircleProgress
+                size={70}
+                strokeWidth={6}
+                progress={waterToday / 10}
+                color="#3B82F6"
+                bgColor="#DBEAFE"
+              >
+                <Droplets size={24} color="#3B82F6" />
+              </CircleProgress>
+              <Text style={styles.progressLabel}>Water</Text>
+              <Text style={styles.progressValue}>{waterToday}/10 cups</Text>
+            </View>
+
+            {/* Sleep */}
+            <View style={styles.progressCard}>
+              <CircleProgress
+                size={70}
+                strokeWidth={6}
+                progress={sleepToday / 8}
+                color="#4A9B7F"
+                bgColor="#E6F4F0"
+              >
+                <Moon size={24} color="#4A9B7F" />
+              </CircleProgress>
+              <Text style={styles.progressLabel}>Sleep</Text>
+              <Text style={styles.progressValue}>{sleepToday.toFixed(1)} hrs</Text>
+            </View>
+
+            {/* Breathing */}
+            <View style={styles.progressCard}>
+              <CircleProgress
+                size={70}
+                strokeWidth={6}
+                progress={breathingToday / 3}
+                color="#10B981"
+                bgColor="#D1FAE5"
+              >
+                <Wind size={24} color="#10B981" />
+              </CircleProgress>
+              <Text style={styles.progressLabel}>Breathing</Text>
+              <Text style={styles.progressValue}>{breathingToday}/3 sessions</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Mindfulness Moment */}
+        <View style={styles.mindfulnessCard}>
+          <View style={styles.mindfulnessHeader}>
+            <Text style={styles.mindfulnessEmoji}>🧘‍♀️</Text>
+            <View style={styles.mindfulnessTextContainer}>
+              <Text style={styles.mindfulnessTitle}>Mindfulness Moment</Text>
+              <Text style={styles.mindfulnessSubtitle}>Take a deep breath</Text>
+            </View>
+          </View>
+          <Text style={styles.mindfulnessQuote}>
+            "The present moment is filled with joy and happiness. If you are attentive, you will see it."
+          </Text>
+        </View>
+
         {/* Daily Inspiration - Compact inline */}
         <View style={styles.quoteCardCompact}>
           <Text style={styles.quoteEmoji}>✨</Text>
@@ -686,120 +805,44 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Mood Analytics - from server */}
-        {analytics && (
+        {/* Analytics - Navigation Buttons */}
+        {moodAnalytics && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t('mood_analytics')}</Text>
-              <Text style={styles.sectionSubtitle}>{t('last_30_days')}</Text>
+              <Text style={styles.sectionTitle}>Analytics</Text>
+              <Text style={styles.sectionSubtitle}>View detailed insights</Text>
             </View>
             <View style={styles.analyticsGrid}>
-              {/* Average Mood - Circle Progress (Scale 1-5) */}
-              <View style={[styles.analyticsCard, { flex: 1 }]}>
-                <CircleProgress
-                  size={70}
-                  strokeWidth={7}
-                  progress={(analytics.basicStats?.averageScore || 0) / 5}
-                  color="#4A9B7F"
-                  bgColor="#E6F4F0"
-                >
-                  <Text style={styles.circleValue}>
-                    {analytics.basicStats?.averageScore?.toFixed(1) || "—"}
-                  </Text>
-                  <Text style={styles.circleLabel}>/ 5</Text>
-                </CircleProgress>
-                <Text style={styles.analyticsLabel}>{t('avg_mood')}</Text>
-              </View>
-
-              {/* Total Entries - Circle Progress */}
-              <View style={[styles.analyticsCard, { flex: 1 }]}>
-                <CircleProgress
-                  size={70}
-                  strokeWidth={7}
-                  progress={Math.min((analytics.basicStats?.totalEntries || 0) / 30, 1)}
-                  color="#F59E0B"
-                  bgColor="#FEF3C7"
-                >
-                  <Text style={[styles.circleValue, { color: "#F59E0B" }]}>
-                    {analytics.basicStats?.totalEntries || 0}
-                  </Text>
-                  <Text style={styles.circleLabel}>{t('logs')}</Text>
-                </CircleProgress>
-                <Text style={styles.analyticsLabel}>{t('entries')}</Text>
-              </View>
-
-              {/* Trend Indicator */}
-              <View style={[styles.analyticsCard, { flex: 1 }]}>
-                <CircleProgress
-                  size={70}
-                  strokeWidth={7}
-                  progress={analytics.trend === "improving" ? 0.8 : analytics.trend === "declining" ? 0.3 : 0.5}
-                  color={getTrendColor(analytics.trend)}
-                  bgColor={analytics.trend === "improving" ? "#D1FAE5" :
-                    analytics.trend === "declining" ? "#FEE2E2" : "#F3F4F6"}
-                >
-                  <TrendIcon
-                    size={22}
-                    color={getTrendColor(analytics.trend)}
-                  />
-                </CircleProgress>
-                <Text style={styles.analyticsLabel}>
-                  {analytics.trend === "improving" ? t('improving') :
-                    analytics.trend === "declining" ? t('declining') : t('stable')}
+              {/* Mood Analytics Button */}
+              <TouchableOpacity
+                style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
+                onPress={() => router.push("/(tabs)/mood/dashboard")}
+                activeOpacity={0.7}
+              >
+                <Activity size={32} color="#4A9B7F" style={{ marginBottom: 12 }} />
+                <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
+                  Mood Analytics
                 </Text>
-              </View>
-            </View>
+                <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                  View mood trends & insights
+                </Text>
+              </TouchableOpacity>
 
-            {/* Mood Distribution Bar */}
-            {analytics.moodDistribution && (
-              <View style={styles.distributionCard}>
-                <Text style={styles.distributionTitle}>{t('mood_distribution')}</Text>
-                <View style={styles.distributionBar}>
-                  {Object.entries(analytics.moodDistribution).map(([mood, count], index) => {
-                    const total = Object.values(analytics.moodDistribution).reduce((a, b) => a + b, 0);
-                    const percentage = total > 0 ? (count / total) * 100 : 0;
-                    const colors = {
-                      happy: "#10B981",
-                      neutral: "#F59E0B",
-                      sad: "#6B7280",
-                      anxious: "#8B5CF6",
-                      angry: "#EF4444"
-                    };
-                    return percentage > 0 ? (
-                      <View
-                        key={mood}
-                        style={[
-                          styles.distributionSegment,
-                          {
-                            width: `${percentage}%`,
-                            backgroundColor: colors[mood] || "#9CA3AF",
-                            borderTopLeftRadius: index === 0 ? 4 : 0,
-                            borderBottomLeftRadius: index === 0 ? 4 : 0,
-                          }
-                        ]}
-                      />
-                    ) : null;
-                  })}
-                </View>
-                <View style={styles.distributionLegend}>
-                  {Object.entries(analytics.moodDistribution).map(([mood, count]) => {
-                    const colors = {
-                      happy: "#10B981",
-                      neutral: "#F59E0B",
-                      sad: "#6B7280",
-                      anxious: "#8B5CF6",
-                      angry: "#EF4444"
-                    };
-                    return count > 0 ? (
-                      <View key={mood} style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: colors[mood] || "#9CA3AF" }]} />
-                        <Text style={styles.legendText}>{mood}: {count}</Text>
-                      </View>
-                    ) : null;
-                  })}
-                </View>
-              </View>
-            )}
+              {/* Assessment Analytics Button */}
+              <TouchableOpacity
+                style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
+                onPress={() => router.push("/(tabs)/profile/assessmentanalytics")}
+                activeOpacity={0.7}
+              >
+                <ClipboardList size={32} color="#6366F1" style={{ marginBottom: 12 }} />
+                <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
+                  Assessment Analytics
+                </Text>
+                <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                  View assessment results
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -822,7 +865,7 @@ export default function HomeScreen() {
                 <View style={styles.appointmentInfo}>
                   <Text style={styles.appointmentTitle}>
                     {apt.docData?.name
-                      ? `${apt.sessionType || "Therapy"} Session with ${apt.docData.name}`
+                      ? `${apt.sessionType || "Therapy"} Session with ${apt.docData.name} `
                       : "Therapy Session"}
                   </Text>
                   <Text style={styles.appointmentDate}>
@@ -1204,18 +1247,20 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1F2937",
+    letterSpacing: -0.3,
   },
   sectionSubtitle: {
     fontSize: 13,
@@ -1224,40 +1269,51 @@ const styles = StyleSheet.create({
   },
   analyticsGrid: {
     flexDirection: "row",
-    gap: 12,
+    gap: 14,
     marginBottom: 16,
   },
   analyticsCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 16,
+    padding: 18,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
   analyticsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   analyticsValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1F2937",
   },
   analyticsLabel: {
     fontSize: 12,
     color: "#6B7280",
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: "center",
   },
   distributionCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
@@ -1302,29 +1358,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
   appointmentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: "#E6F4F0",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   appointmentInfo: {
     flex: 1,
   },
   appointmentTitle: {
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#1F2937",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   appointmentDate: {
     fontSize: 13,
@@ -1428,6 +1489,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    marginTop: 16,
   },
   quickActionCard: {
     width: "31%",
@@ -1473,43 +1535,44 @@ const styles = StyleSheet.create({
   },
   // Wellness Tools
   wellnessToolsGrid: {
-    gap: 12,
+    gap: 14,
   },
   wellnessToolCard: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 3,
   },
   wellnessToolIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
+    width: 54,
+    height: 54,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
   },
   wellnessToolEmoji: {
-    fontSize: 24,
+    fontSize: 26,
   },
   wellnessToolInfo: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 16,
   },
   wellnessToolTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1F2937",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   wellnessToolDesc: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#6B7280",
+    lineHeight: 18,
   },
   // Chat tooltip
   chatTooltip: {
@@ -1543,5 +1606,121 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
+  },
+  // Today's Focus Card
+  focusCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  focusCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  focusCardTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  focusCardText: {
+    fontSize: 15,
+    color: "#E0E7FF",
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  focusButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  focusButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Wellness Progress
+  progressGrid: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  progressCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  progressLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginTop: 10,
+  },
+  progressValue: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  // Mindfulness Card
+  mindfulnessCard: {
+    backgroundColor: "#FFFBEB",
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    shadowColor: "#F59E0B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  mindfulnessHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  mindfulnessEmoji: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  mindfulnessTextContainer: {
+    flex: 1,
+  },
+  mindfulnessTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#92400E",
+    marginBottom: 2,
+  },
+  mindfulnessSubtitle: {
+    fontSize: 13,
+    color: "#B45309",
+  },
+  mindfulnessQuote: {
+    fontSize: 14,
+    color: "#78350F",
+    lineHeight: 20,
+    fontStyle: "italic",
   },
 });

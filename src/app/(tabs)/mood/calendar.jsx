@@ -23,42 +23,58 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Days of the week
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Mood colors based on moodScore (1-5)
+// Mood colors based on mood labels (matching journal.jsx)
 const MOOD_COLORS = {
-    5: "#22C55E", // Great - green
-    4: "#84CC16", // Good - lime  
-    3: "#F59E0B", // Okay - amber
-    2: "#F97316", // Low - orange
-    1: "#EF4444", // Bad - red
+    // Positive
+    "Joyful": "#4A9B7F",
+    "Happy": "#16A34A",
+    "Calm": "#14B8A6",
+    "Grateful": "#F59E0B",
+    "Motivated": "#10B981",
+    "Loved": "#EC4899",
+    "Inspired": "#6366F1",
+    // Negative
+    "Sad": "#3B82F6",
+    "Angry": "#EF4444",
+    "Anxious": "#F59E0B",
+    "Tired": "#94A3B8",
+    "Overwhelmed": "#F97316",
+    "Awful": "#A855F7",
+    // Neutral
+    "Neutral": "#64748B",
+    "Confused": "#8B5CF6",
+    "Bored": "#6B7280",
+    "Okay": "#22C55E",
+    // Complex
+    "Nostalgic": "#EC4899",
+    "Hopeful": "#10B981",
+    "Guilty": "#F59E0B",
+    "Ashamed": "#EF4444",
 };
 
-// Mood labels mapping
-const MOOD_LABELS = {
-    5: "Great",
-    4: "Good",
-    3: "Okay",
-    2: "Low",
-    1: "Bad",
-};
-
-// Mood emojis
+// Mood emojis (matching journal.jsx)
 const MOOD_EMOJIS = {
-    5: "🤩",
-    4: "😊",
-    3: "😐",
-    2: "😔",
-    1: "😢",
-    // Also handle text labels
-    "very_happy": "🤩",
-    "happy": "😊",
-    "neutral": "😐",
-    "sad": "😔",
-    "very_sad": "😢",
-    "anxious": "😰",
-    "stressed": "😫",
-    "excited": "🎉",
-    "calm": "😌",
-    "angry": "😤",
+    "Joyful": "😁",
+    "Happy": "😊",
+    "Calm": "😌",
+    "Grateful": "🙏",
+    "Motivated": "💪",
+    "Loved": "❤️",
+    "Inspired": "🌟",
+    "Sad": "😢",
+    "Angry": "😡",
+    "Anxious": "😰",
+    "Tired": "😩",
+    "Overwhelmed": "😖",
+    "Awful": "😭",
+    "Neutral": "😐",
+    "Confused": "😕",
+    "Bored": "🥱",
+    "Okay": "🙂",
+    "Nostalgic": "🥹",
+    "Hopeful": "🌈",
+    "Guilty": "😔",
+    "Ashamed": "😳",
 };
 
 export default function MoodCalendarScreen() {
@@ -119,34 +135,39 @@ export default function MoodCalendarScreen() {
     const loadMoodData = async () => {
         setLoading(true);
         try {
-            // Get mood entries
-            const entriesResponse = await api.getMoodEntries(userId, 1, 100);
-            console.log("[Calendar] Entries response:", JSON.stringify(entriesResponse));
+            // Get weekly mood analytics (same as dashboard)
+            const weeklyResponse = await api.getWeeklyMoodAnalytics(userId);
+            console.log("[Calendar] Weekly response:", JSON.stringify(weeklyResponse));
 
-            const entries = entriesResponse?.moodEntries || [];
+            // Extract mood entries from weekly data
+            const entries = weeklyResponse?.moodData || [];
             setMoodEntries(entries);
 
-            // Filter entries for current month and organize by day (store ALL entries per day)
+            // Filter entries for current month and organize by day
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
 
             const byDay = {};
             entries.forEach((entry) => {
-                const entryDate = new Date(entry.timestamp || entry.createdAt);
+                const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
                 if (entryDate.getFullYear() === year && entryDate.getMonth() === month) {
                     const day = entryDate.getDate();
                     if (!byDay[day]) {
                         byDay[day] = [];
                     }
-                    byDay[day].push(entry);
+                    // Map 'mood' field to 'moodLabel' for consistency
+                    byDay[day].push({
+                        ...entry,
+                        moodLabel: entry.mood || entry.moodLabel,
+                    });
                 }
             });
             setEntriesByDay(byDay);
             console.log("[Calendar] Entries for month:", Object.keys(byDay).length);
 
-            // Try to get analytics (optional)
+            // Try to get analytics
             try {
-                const analyticsResponse = await api.getMoodAnalytics(userId, 30);
+                const analyticsResponse = await api.getUserAnalytics(userId, { days: 30 });
                 if (analyticsResponse?.analytics) {
                     setAnalytics(analyticsResponse.analytics);
                 }
@@ -229,14 +250,14 @@ export default function MoodCalendarScreen() {
 
     const getMoodEmoji = (entry) => {
         if (!entry) return null;
-        const score = entry.moodScore;
         const label = entry.moodLabel;
-        return MOOD_EMOJIS[score] || MOOD_EMOJIS[label] || "😊";
+        return MOOD_EMOJIS[label] || "😊";
     };
 
     const getMoodColor = (entry) => {
         if (!entry) return null;
-        return MOOD_COLORS[entry.moodScore] || "#9CA3AF";
+        const label = entry.moodLabel;
+        return MOOD_COLORS[label] || "#9CA3AF";
     };
 
     const getTrendIcon = () => {
@@ -336,10 +357,11 @@ export default function MoodCalendarScreen() {
                                         {Array.from({ length: daysInMonth }, (_, i) => {
                                             const day = i + 1;
                                             const entry = moodEntries.find(e => {
-                                                const d = new Date(e.timestamp || e.createdAt);
+                                                const d = new Date(e.date || e.timestamp || e.createdAt);
                                                 return d.getFullYear() === year && d.getMonth() === monthIndex && d.getDate() === day;
                                             });
-                                            const color = entry ? MOOD_COLORS[entry.moodScore] || "#E5E7EB" : "#F3F4F6";
+                                            const moodLabel = entry?.mood || entry?.moodLabel;
+                                            const color = moodLabel ? MOOD_COLORS[moodLabel] || "#E5E7EB" : "#F3F4F6";
                                             const isToday = new Date().getFullYear() === year &&
                                                 new Date().getMonth() === monthIndex &&
                                                 new Date().getDate() === day;
@@ -364,10 +386,10 @@ export default function MoodCalendarScreen() {
                     <View style={styles.legendContainer}>
                         <Text style={styles.legendTitle}>Mood Colors</Text>
                         <View style={styles.legendItems}>
-                            {[5, 4, 3, 2, 1].map((score) => (
-                                <View key={score} style={styles.legendItem}>
-                                    <View style={[styles.legendDot, { backgroundColor: MOOD_COLORS[score] }]} />
-                                    <Text style={styles.legendLabel}>{MOOD_LABELS[score]}</Text>
+                            {["Joyful", "Happy", "Calm", "Sad", "Anxious", "Tired"].map((mood) => (
+                                <View key={mood} style={styles.legendItem}>
+                                    <View style={[styles.legendDot, { backgroundColor: MOOD_COLORS[mood] }]} />
+                                    <Text style={styles.legendLabel}>{MOOD_EMOJIS[mood]} {mood}</Text>
                                 </View>
                             ))}
                         </View>
@@ -438,7 +460,7 @@ export default function MoodCalendarScreen() {
                                             ]}>
                                                 {item.day}
                                             </Text>
-                                            {item.moodScore && (
+                                            {item.moodLabel && (
                                                 <View
                                                     style={[
                                                         styles.moodDot,
@@ -457,12 +479,12 @@ export default function MoodCalendarScreen() {
                     <View style={styles.legendContainer}>
                         <Text style={styles.legendTitle}>Mood Legend</Text>
                         <View style={styles.legendItems}>
-                            {[5, 4, 3, 2, 1].map((score) => (
-                                <View key={score} style={styles.legendItem}>
+                            {["Joyful", "Happy", "Calm", "Sad", "Anxious", "Tired"].map((mood) => (
+                                <View key={mood} style={styles.legendItem}>
                                     <View
-                                        style={[styles.legendDot, { backgroundColor: MOOD_COLORS[score] }]}
+                                        style={[styles.legendDot, { backgroundColor: MOOD_COLORS[mood] }]}
                                     />
-                                    <Text style={styles.legendLabel}>{MOOD_LABELS[score]}</Text>
+                                    <Text style={styles.legendLabel}>{MOOD_EMOJIS[mood]} {mood}</Text>
                                 </View>
                             ))}
                         </View>
@@ -488,14 +510,14 @@ export default function MoodCalendarScreen() {
                                             </Text>
                                             <View style={styles.entryInfo}>
                                                 <Text style={styles.entryMood}>
-                                                    {entry.moodLabel || MOOD_LABELS[entry.moodScore] || "Recorded"}
+                                                    {entry.moodLabel || "Recorded"}
                                                 </Text>
                                                 <Text style={styles.entryTime}>
                                                     {entryTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                                 </Text>
                                             </View>
-                                            <View style={[styles.entryScoreBadge, { backgroundColor: MOOD_COLORS[entry.moodScore] || '#9CA3AF' }]}>
-                                                <Text style={styles.entryScoreText}>{entry.moodScore}/5</Text>
+                                            <View style={[styles.entryScoreBadge, { backgroundColor: MOOD_COLORS[entry.moodLabel] || '#9CA3AF' }]}>
+                                                <Text style={styles.entryScoreText}>{entry.moodLabel}</Text>
                                             </View>
                                         </View>
                                         {(entry.textFeedback || entry.notes) && (
