@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -24,6 +25,7 @@ import {
   Shield,
   MapPin,
   Bell,
+  BarChart3,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../../utils/api";
@@ -107,6 +109,20 @@ export default function ProfileScreen() {
       color: "#F59E0B",
     },
     {
+      icon: Bell, // Using Bell or BarChart if available, Bell for now as placeholder or import Lucide icon
+      title: "My Analytics",
+      subtitle: "Insights & Mood Tracking",
+      route: "/(tabs)/mood/dashboard",
+      color: "#8B5CF6",
+    },
+    {
+      icon: BarChart3,
+      title: "My Assessment Analytics",
+      subtitle: "View assessment insights",
+      route: "/(tabs)/profile/assessmentanalytics",
+      color: "#10B981",
+    },
+    {
       icon: Settings,
       title: "Settings",
       subtitle: "App preferences & Theme",
@@ -118,6 +134,7 @@ export default function ProfileScreen() {
       title: "Help & Support",
       subtitle: "Get help",
       route: null,
+      link: "https://raskamon.com/contact",
       color: "#EC4899",
     },
     {
@@ -125,6 +142,7 @@ export default function ProfileScreen() {
       title: "Privacy Policy",
       subtitle: "Read our policy",
       route: null,
+      link: "https://raskamon.com/privacy-policy",
       color: "#14B8A6",
     },
   ];
@@ -315,7 +333,13 @@ export default function ProfileScreen() {
                   borderBottomWidth: index < menuItems.length - 1 ? 1 : 0,
                   borderColor: "#F3F4F6",
                 }}
-                onPress={() => item.route && router.push(item.route)}
+                onPress={() => {
+                  if (item.link) {
+                    Linking.openURL(item.link);
+                  } else if (item.route) {
+                    router.push(item.route);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <View style={{ backgroundColor: item.color + "15", padding: 10, borderRadius: 12 }}>
@@ -351,7 +375,7 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </View>
+      </ScrollView >
+    </View >
   );
 }

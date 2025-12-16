@@ -2,7 +2,7 @@ import React, { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { SharedErrorBoundary, Button } from './SharedErrorBoundary';
 import * as Updates from 'expo-updates';
 import { SplashScreen } from 'expo-router/build/exports';
-import { DevSettings, LogBox, Platform, View } from 'react-native';
+import { DevSettings, LogBox, Platform, View, Text, Image } from 'react-native';
 import { serializeError } from 'serialize-error';
 import { reportErrorToRemote } from './report-error-to-remote';
 
@@ -14,7 +14,7 @@ const DeviceErrorBoundary = ({
   sentLogs: boolean;
 }) => {
   useEffect(() => {
-    SplashScreen.hideAsync().catch(() => {});
+    SplashScreen.hideAsync().catch(() => { });
   }, []);
   const handleReload = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -23,24 +23,28 @@ const DeviceErrorBoundary = ({
     }
 
     Updates.reloadAsync().catch((error) => {
-      // no-op, we don't want to show an error here
+      // no-op
     });
   }, []);
+
   return (
-    <SharedErrorBoundary
-      isOpen
-      description={
-        sentLogs
-          ? 'It looks like an error occurred while trying to use your app. This error has been reported to the AI agent and should be visible to the AI soon. If it is not present please see createanything.com/docs for help'
-          : 'It looks like an error occurred while trying to use your app. Please see createanything.com/docs for help'
-      }
-    >
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Button color="primary" onPress={handleReload}>
-          Restart app
-        </Button>
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      {/* Custom Error UI */}
+      <View style={{ marginBottom: 20, width: 200, height: 200, borderRadius: 100, overflow: 'hidden' }}>
+        <Image
+          source={{ uri: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbnZ4bm54bnZ4bnZ4bnZ4bnZ4bnZ4bnZ4bnZ4bnZ4bnZ4bSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKr3nzbh5WgCFxe/giphy.gif" }}
+          style={{ width: '100%', height: '100%' }}
+        />
       </View>
-    </SharedErrorBoundary>
+
+      <Text style={{ fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 30, color: '#1F2937' }}>
+        Maintain your health we will mantain our app and fix this error
+      </Text>
+
+      <Button color="primary" onPress={handleReload}>
+        Go to Homepage
+      </Button>
+    </View>
   );
 };
 

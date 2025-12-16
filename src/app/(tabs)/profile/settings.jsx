@@ -37,26 +37,27 @@ export default function SettingsScreen() {
             const newTheme = !isDarkMode ? "dark" : "light";
             await AsyncStorage.setItem("appTheme", newTheme);
             setIsDarkMode(!isDarkMode);
-            Alert.alert(
-                "Theme Updated",
-                `${newTheme === "dark" ? "Dark" : "Light"} mode preference saved. Full dark mode support coming soon!`,
-                [{ text: "OK" }]
-            );
+            // Alert removed for smoother experience
+            // Alert.alert("Theme Updated", ...);
         } catch (error) {
             console.error("Error saving theme:", error);
         }
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar style="dark" />
+        <View style={[
+            styles.container,
+            { paddingTop: insets.top },
+            isDarkMode && { backgroundColor: "#111827" }
+        ]}>
+            <StatusBar style={isDarkMode ? "light" : "dark"} />
 
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <ArrowLeft size={22} color="#1F2937" />
+            <View style={[styles.header, isDarkMode && { backgroundColor: "#1F2937", borderBottomColor: "#374151" }]}>
+                <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, isDarkMode && { backgroundColor: "#374151" }]}>
+                    <ArrowLeft size={22} color={isDarkMode ? "#F3F4F6" : "#1F2937"} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Settings</Text>
+                <Text style={[styles.headerTitle, isDarkMode && { color: "#F3F4F6" }]}>Settings</Text>
                 <View style={styles.headerSpacer} />
             </View>
 
@@ -67,23 +68,23 @@ export default function SettingsScreen() {
             >
                 {/* Appearance Section */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Appearance</Text>
+                    <Text style={[styles.sectionTitle, isDarkMode && { color: "#9CA3AF" }]}>Appearance</Text>
 
-                    <View style={styles.settingCard}>
+                    <View style={[styles.settingCard, isDarkMode && { backgroundColor: "#1F2937", borderColor: "#374151" }]}>
                         <View style={styles.settingRow}>
                             <View style={styles.settingLeft}>
-                                <View style={[styles.settingIcon, { backgroundColor: "#E0E7FF" }]}>
-                                    <Palette size={20} color="#6366F1" />
+                                <View style={[styles.settingIcon, { backgroundColor: isDarkMode ? "#374151" : "#E0E7FF" }]}>
+                                    <Palette size={20} color={isDarkMode ? "#818CF8" : "#6366F1"} />
                                 </View>
                                 <View>
-                                    <Text style={styles.settingTitle}>Theme</Text>
-                                    <Text style={styles.settingSubtitle}>
+                                    <Text style={[styles.settingTitle, isDarkMode && { color: "#F3F4F6" }]}>Theme</Text>
+                                    <Text style={[styles.settingSubtitle, isDarkMode && { color: "#9CA3AF" }]}>
                                         {isDarkMode ? "Dark mode" : "Light mode"}
                                     </Text>
                                 </View>
                             </View>
                             <View style={styles.themeToggle}>
-                                <Sun size={18} color={isDarkMode ? "#9CA3AF" : "#F59E0B"} />
+                                <Sun size={18} color={isDarkMode ? "#4B5563" : "#F59E0B"} />
                                 <Switch
                                     value={isDarkMode}
                                     onValueChange={toggleTheme}
@@ -124,16 +125,16 @@ export default function SettingsScreen() {
 
                 {/* App Info */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>About</Text>
-                    <View style={styles.infoCard}>
+                    <Text style={[styles.sectionTitle, isDarkMode && { color: "#9CA3AF" }]}>About</Text>
+                    <View style={[styles.infoCard, isDarkMode && { backgroundColor: "#1F2937", borderColor: "#374151" }]}>
                         <View style={styles.infoRow}>
-                            <Text style={styles.infoLabel}>App Version</Text>
-                            <Text style={styles.infoValue}>1.0.0</Text>
+                            <Text style={[styles.infoLabel, isDarkMode && { color: "#D1D5DB" }]}>App Version</Text>
+                            <Text style={[styles.infoValue, isDarkMode && { color: "#F3F4F6" }]}>1.0.0</Text>
                         </View>
-                        <View style={styles.divider} />
+                        <View style={[styles.divider, isDarkMode && { backgroundColor: "#374151" }]} />
                         <View style={styles.infoRow}>
-                            <Text style={styles.infoLabel}>Build</Text>
-                            <Text style={styles.infoValue}>2024.12.11</Text>
+                            <Text style={[styles.infoLabel, isDarkMode && { color: "#D1D5DB" }]}>Build</Text>
+                            <Text style={[styles.infoValue, isDarkMode && { color: "#F3F4F6" }]}>2024.12.11</Text>
                         </View>
                     </View>
                 </View>

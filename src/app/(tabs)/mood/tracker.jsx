@@ -24,16 +24,16 @@ const MOODS = [
 ];
 
 const ACTIVITIES = [
-  "exercise",
-  "work",
-  "social",
-  "meditation",
-  "reading",
-  "music",
-  "nature",
-  "gaming",
-  "cooking",
-  "shopping",
+  { label: "Exercise", backendValue: "exercise" },
+  { label: "Work", backendValue: "work" },
+  { label: "Social", backendValue: "social" },
+  { label: "Meditation", backendValue: "other" }, // Mapped to 'other' or need backend update
+  { label: "Reading", backendValue: "hobby" },
+  { label: "Music", backendValue: "hobby" },
+  { label: "Nature", backendValue: "travel" },
+  { label: "Gaming", backendValue: "hobby" },
+  { label: "Cooking", backendValue: "hobby" },
+  { label: "Shopping", backendValue: "other" },
 ];
 
 export default function MoodTrackerScreen() {
@@ -76,7 +76,7 @@ export default function MoodTrackerScreen() {
         socialInteraction: selectedActivities.includes("social") ? 8 : 3,
       };
 
-      const response = await api.addMoodEntry(userId, moodData);
+      const response = await api.submitMoodEntry(userId, moodData);
 
       if (response.success) {
         Alert.alert("Success", "Mood logged successfully!", [
@@ -209,28 +209,28 @@ export default function MoodTrackerScreen() {
         >
           {ACTIVITIES.map((activity) => (
             <TouchableOpacity
-              key={activity}
+              key={activity.backendValue + activity.label}
               style={{
                 paddingVertical: 8,
                 paddingHorizontal: 16,
                 borderRadius: 20,
-                backgroundColor: selectedActivities.includes(activity)
+                backgroundColor: selectedActivities.includes(activity.backendValue)
                   ? "#6366F1"
                   : "#F1F5F9",
               }}
-              onPress={() => toggleActivity(activity)}
+              onPress={() => toggleActivity(activity.backendValue)}
             >
               <Text
                 style={{
                   fontSize: 14,
                   fontWeight: "600",
-                  color: selectedActivities.includes(activity)
+                  color: selectedActivities.includes(activity.backendValue)
                     ? "#fff"
                     : "#64748B",
                   textTransform: "capitalize",
                 }}
               >
-                {activity}
+                {activity.label}
               </Text>
             </TouchableOpacity>
           ))}

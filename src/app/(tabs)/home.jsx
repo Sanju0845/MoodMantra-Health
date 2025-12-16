@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   PanResponder,
   Dimensions,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -219,8 +219,12 @@ export default function HomeScreen() {
     })
   ).current;
 
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
   useEffect(() => {
-    loadData();
     // Get daily quote based on day of year
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
     setDailyQuote(DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length]);

@@ -166,19 +166,22 @@ export default function DoctorDetailScreen() {
       );
 
       if (response.success) {
-        const reservationId = response.tempReservationId || response.appointmentId;
-        console.log("[DoctorDetail] Booking successful, reservationId:", reservationId);
+        const appointmentId = response.appointment?._id || response.appointmentId || response.tempReservationId;
+        console.log("[DoctorDetail] Booking successful, proceeding to payment. ID:", appointmentId);
 
-        Alert.alert(
-          "Booking Submitted ✅",
-          "Your appointment request has been sent to the doctor for approval. You can check the status in your appointments.",
-          [
-            {
-              text: "View Appointments",
-              onPress: () => router.push("/(tabs)/profile/appointments"),
-            }
-          ]
-        );
+        if (!appointmentId) {
+          Alert.alert("Error", "Booking created but ID is missing. Please check My Appointments.");
+          return;
+        }
+
+        router.push({
+          pathname: "/(tabs)/doctors/payment",
+          params: {
+            appointmentId,
+            amount: doctor.fees,
+            doctorName: doctor.name
+          }
+        });
       } else {
         Alert.alert("Error", response.message || "Failed to book appointment");
       }
@@ -453,37 +456,7 @@ export default function DoctorDetailScreen() {
           </View>
         )}
 
-        {/* Emergency Contact */}
-        {selectedDate && selectedTime && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <AlertCircle size={18} color="#F59E0B" />
-              <Text style={styles.sectionTitle}>Emergency Contact (Optional)</Text>
-            </View>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Contact Name"
-              placeholderTextColor="#9CA3AF"
-              value={emergencyName}
-              onChangeText={setEmergencyName}
-            />
-            <TextInput
-              style={styles.textInput}
-              placeholder="Phone Number"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="phone-pad"
-              value={emergencyPhone}
-              onChangeText={setEmergencyPhone}
-            />
-            <TextInput
-              style={styles.textInput}
-              placeholder="Relationship (e.g., Spouse, Parent)"
-              placeholderTextColor="#9CA3AF"
-              value={emergencyRelationship}
-              onChangeText={setEmergencyRelationship}
-            />
-          </View>
-        )}
+        {/* Emergency Contact - REMOVED to match web simplicity */}
 
         {/* Consent */}
         {selectedDate && selectedTime && (
@@ -516,7 +489,7 @@ export default function DoctorDetailScreen() {
               {booking ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.bookBtnText}>Book Appointment - ₹{doctor.fees}</Text>
+                <Text style={styles.bookBtnText}>Proceed to Payment - ₹{doctor.fees}</Text>
               )}
             </TouchableOpacity>
           </View>

@@ -129,6 +129,7 @@ export default function TabLayout() {
         name="doctors/payment"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
       <Tabs.Screen

@@ -78,7 +78,7 @@ export default function AppointmentsScreen() {
   };
 
   const filteredAppointments = appointments.filter((apt) => {
-    // Normalize status from Supabase or legacy
+    // Normalize status
     const status = apt.status || (apt.cancelled ? 'cancelled' : apt.payment ? 'confirmed' : 'pending');
 
     // Pending: Waiting for doctor approval
@@ -217,7 +217,7 @@ export default function AppointmentsScreen() {
               <View style={{ flexDirection: "row", marginBottom: 12 }}>
                 <Image
                   source={{
-                    uri: appointment.doctor_image || appointment.docData?.image || "https://via.placeholder.com/60",
+                    uri: appointment.doctor?.image || appointment.doctor_image || appointment.docData?.image || "https://via.placeholder.com/60",
                   }}
                   style={{
                     width: 60,
@@ -235,12 +235,12 @@ export default function AppointmentsScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    {appointment.doctor_name || appointment.docData?.name || "Doctor"}
+                    {appointment.doctor?.name || appointment.doctor_name || appointment.docData?.name || "Doctor"}
                   </Text>
                   <Text
                     style={{ fontSize: 14, color: "#64748B", marginBottom: 2 }}
                   >
-                    {appointment.doctor_specialty || appointment.docData?.speciality || "Specialist"}
+                    {appointment.doctor?.speciality || appointment.doctor_specialty || appointment.docData?.speciality || "Specialist"}
                   </Text>
                   <Text style={{ fontSize: 12, color: "#94A3B8" }}>
                     {appointment.session_type || "Online Session"}

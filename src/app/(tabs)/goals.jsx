@@ -25,6 +25,7 @@ import {
     Trophy,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../../utils/api";
 
 const GOAL_CATEGORIES = [
     { id: "wellness", label: "Wellness", color: "#4A9B7F", icon: "🧘" },
@@ -73,13 +74,15 @@ export default function GoalsScreen() {
         }
     };
 
-    const addGoal = () => {
+
+
+    const addGoal = async () => {
         if (!newGoal.title.trim()) {
             Alert.alert("Error", "Please enter a goal title");
             return;
         }
 
-        const goal = {
+        const goalLocal = {
             id: Date.now().toString(),
             title: newGoal.title.trim(),
             category: newGoal.category,
@@ -89,9 +92,27 @@ export default function GoalsScreen() {
             createdAt: new Date().toISOString(),
         };
 
-        saveGoals([...goals, goal]);
+        // UI Update (Optimistic)
+        const updatedGoals = [...goals, goalLocal];
+        saveGoals(updatedGoals);
         setNewGoal({ title: "", category: "wellness", frequency: "daily" });
         setShowAddModal(false);
+
+        // Server Sync
+        try {
+            const userId = await AsyncStorage.getItem("userId");
+            if (userId) {
+                await api.createMoodGoal(userId, {
+                    title: goalLocal.title,
+                    category: goalLocal.category,
+                    frequency: goalLocal.frequency,
+                    description: "Created via Mobile App"
+                });
+            }
+        } catch (e) {
+            console.log("Failed to sync goal to server", e);
+            // We don't block the UI for this, it's just a sync failure
+        }
     };
 
     const toggleGoalComplete = (goalId) => {

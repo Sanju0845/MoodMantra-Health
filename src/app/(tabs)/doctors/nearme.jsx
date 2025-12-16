@@ -80,7 +80,7 @@ export default function NearMeDoctorsScreen() {
             setLoading(true);
             const response = await api.getDoctors();
             if (response.success && response.doctors) {
-                // Filter doctors that have coordinates from Supabase
+                // Filter doctors that have coordinates
                 let validDoctors = response.doctors.filter(d => d.latitude && d.longitude);
                 console.log(`[NearMe] Found ${validDoctors.length} doctors with location.`);
 

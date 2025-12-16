@@ -43,6 +43,7 @@ class API {
             // Add token to headers if available (matching webapp's pattern)
             if (token) {
                 headers.token = token;
+                headers.Authorization = `Bearer ${token}`; // Added to match webapp behavior
             }
 
             const config = {
@@ -95,28 +96,8 @@ class API {
     // ==================== AUTH ENDPOINTS ====================
 
     async syncUserToSupabase(user) {
-        if (!user || !user._id) return;
-        try {
-            // Lazy load supabase to avoid cyclic dependencies or early init issues
-            const { supabase } = require('./supabaseClient');
-
-            console.log(`[API] 🔄 Syncing User to Supabase: ${user.name} (${user._id})`);
-
-            const { error } = await supabase
-                .from('users_sync')
-                .upsert({
-                    mongo_id: user._id,
-                    email: user.email,
-                    name: user.name,
-                    avatar: user.image || user.avatar || "",
-                    last_synced_at: new Date()
-                }, { onConflict: 'mongo_id' });
-
-            if (error) console.error("[API] ❌ User Sync Error:", error.message);
-            else console.log("[API] ✅ User Synced to Supabase");
-        } catch (e) {
-            console.error("[API] ❌ User Sync Exception:", e);
-        }
+        // [REMOVED] Supabase disabled
+        return;
     }
 
     async register(name, email, password) {
@@ -130,7 +111,8 @@ class API {
             await AsyncStorage.setItem("token", response.token);
             // Fetch profile and sync
             const profile = await this.getProfile();
-            if (profile.success) this.syncUserToSupabase(profile.userData);
+            // Sync disabled
+            // if (profile.success) this.syncUserToSupabase(profile.userData);
         }
 
         return response;
@@ -147,7 +129,8 @@ class API {
             await AsyncStorage.setItem("token", response.token);
             // Fetch profile and sync
             const profile = await this.getProfile();
-            if (profile.success && profile.userData) this.syncUserToSupabase(profile.userData);
+            // Sync disabled
+            // if (profile.success && profile.userData) this.syncUserToSupabase(profile.userData);
         }
 
         return response;
@@ -175,8 +158,14 @@ class API {
         });
 
         if (response.success && response.userData) {
-            // Background sync every time app fetches profile
-            this.syncUserToSupabase(response.userData);
+            // [CRITICAL FIX] Ensure we update the stored userId so other components (Journal, Calendar) use the correct ID.
+            if (response.userData._id) {
+                await AsyncStorage.setItem("userId", response.userData._id);
+                console.log("[API] Updated stored userId:", response.userData._id);
+            }
+
+            // Background sync every time app fetches profile (DISABLED)
+            // this.syncUserToSupabase(response.userData);
         }
 
         return response;
@@ -221,116 +210,14 @@ class API {
     }
 
     // ==================== DOCTORS ENDPOINTS ====================
-
     async getDoctors() {
         try {
-            console.log("[API] 🔄 Starting Smart Doctor Sync (Supabase Priority)...");
-
-            // 1. Fetch LIVE data from MongoDB (Backend)
-            let liveDoctors = [];
-            try {
-                const backendResponse = await this.request("/api/doctor/list", { method: "GET" });
-                if (backendResponse.success) {
-                    liveDoctors = backendResponse.doctors || [];
-                }
-            } catch (err) {
-                console.log("[API] Backend fetch failed, relying on Supabase cache:", err.message);
-            }
-
-            // 2. Fetch EVERYTHING from Supabase
-            // This includes linked doctors AND manually added ones
-            let supabaseDoctors = [];
-            try {
-                const { supabase } = require('./supabaseClient');
-                const { data, error } = await supabase
-                    .from('doctors_sync')
-                    .select('*')
-                    .eq('is_active', true);
-
-                if (error) throw error;
-                supabaseDoctors = data || [];
-            } catch (sbError) {
-                console.error("[API] Supabase fetch error:", sbError);
-            }
-
-            // Map for quick lookup
-            const sbMap = new Map();
-            if (supabaseDoctors.length > 0) {
-                supabaseDoctors.forEach(d => {
-                    if (d.external_id) sbMap.set(d.external_id, d);
-                });
-            }
-
-            // 3. BACKGROUND SYNC (Live -> Supabase)
-            // We update existing records but PROTECT your manual edits (fees, about)
-            if (liveDoctors.length > 0 && typeof require !== 'undefined') {
-                const { supabase } = require('./supabaseClient');
-
-                const updates = liveDoctors.map(doc => {
-                    const existingSb = sbMap.get(doc._id);
-
-                    return {
-                        external_id: doc._id,
-                        // Always sync identity fields from Backend
-                        name: doc.name,
-                        specialty: doc.speciality,
-                        image: doc.image,
-                        degree: doc.degree,
-                        phone: doc.phone,
-                        email: doc.email,
-
-                        // PROTECTED FIELDS: Use existing Supabase value if present, else Live value
-                        fees: existingSb?.fees || doc.fees,
-                        about: existingSb?.about || doc.about,
-
-                        updated_at: new Date()
-                    };
-                });
-
-                // Fire and forget upsert
-                supabase.from('doctors_sync').upsert(updates, { onConflict: 'external_id' })
-                    .then(({ error }) => { if (error) console.log("[API] Bg Sync Error:", error.message); });
-            }
-
-            // 4. SUPABASE-FIRST MERGE STRATEGY
-            // We only want to show doctors that exist in Supabase (the Admin Panel list).
-            // This effectively "hides" old MongoDB doctors that aren't in our new system.
-
-            if (supabaseDoctors.length > 0) {
-                const finalDoctorList = supabaseDoctors.map(d => {
-                    // Try to find matching live data for extra fields if needed (like image updates)
-                    const liveDoc = liveDoctors.find(ld => ld._id === d.external_id);
-
-                    return {
-                        _id: d.id, // Use Supabase UUID as primary ID
-                        docId: d.id,
-                        externalId: d.external_id || null, // Keep reference
-                        name: d.name,
-                        speciality: d.specialty || d.speciality || "General",
-                        degree: d.degree || (liveDoc?.degree || ""),
-                        experience: d.experience || (liveDoc?.experience || "5+ Years"),
-                        about: d.about || (liveDoc?.about || "Expert Doctor"),
-                        fees: d.fees || (liveDoc?.fees || 500),
-                        image: d.image || (liveDoc?.image || "https://via.placeholder.com/150"),
-                        location: d.location || "Online",
-                        latitude: d.latitude || null,
-                        longitude: d.longitude || null,
-                        available: d.is_active,
-                        email: d.email || (liveDoc?.email || "")
-                    };
-                });
-
-                console.log(`[API] 🚀 Doctors: Returning ${finalDoctorList.length} from Supabase.`);
-                return { success: true, doctors: finalDoctorList };
-            }
-
-            // Fallback: If Supabase is empty, show original live list
-            console.log("[API] Supabase empty, using legacy list.");
-            return { success: true, doctors: liveDoctors };
-
-        } catch (e) {
-            console.error("[API] Smart Sync Error:", e);
-            return this.request("/api/doctor/list", { method: "GET" });
+            console.log("[API] Fetching doctors from Raskamon Backend...");
+            const response = await this.request("/api/doctor/list", { method: "GET" });
+            return response;
+        } catch (error) {
+            console.error("[API] Get doctors error:", error);
+            throw error;
         }
     }
 
@@ -338,156 +225,31 @@ class API {
 
     async getUserAppointments() {
         try {
-            const { supabase } = require('./supabaseClient');
-            const profile = await this.getProfile();
-
-            if (!profile.success || !profile.userData) {
-                return this.request("/api/user/appointments", { method: "GET" });
-            }
-
-            const userId = profile.userData._id || profile.userData.id;
-            console.log("[API] Fetching appointments for User ID:", userId);
-
-            const { data, error } = await supabase
-                .from('appointments')
-                .select('*')
-                .eq('user_id', userId)
-                .order('appointment_date', { ascending: false });
-
-            if (error) {
-                console.error("[API] Supabase appointments fetch error:", error.message);
-                // Fallback to backend if Supabase fails (though unlikely if table exists)
-                return this.request("/api/user/appointments", { method: "GET" });
-            }
-
-            // Enrich with doctor details (Fetch all to match UUID or External ID)
-            const { data: doctors } = await supabase
-                .from('doctors_sync')
-                .select('*');
-
-            let enrichedData = data;
-
-            if (doctors) {
-                const docMap = {};
-                doctors.forEach(d => {
-                    if (d.id) docMap[d.id] = d;
-                    if (d.external_id) docMap[d.external_id] = d;
-                });
-
-                enrichedData = data.map(apt => {
-                    const doc = docMap[apt.doctor_id];
-                    return {
-                        ...apt,
-                        doctor_name: doc?.name || apt.doctor_name,
-                        doctor_specialty: doc?.speciality || doc?.specialization || doc?.specialty || apt.doctor_specialty,
-                        doctor_image: doc?.image,
-                        docData: doc
-                    };
-                });
-            }
-
-            console.log(`[API] Found ${enrichedData.length} appointments in Supabase.`);
-            return { success: true, appointments: enrichedData };
-
+            console.log("[API] Fetching user appointments...");
+            const response = await this.request("/api/user/appointments", { method: "GET" });
+            return response;
         } catch (error) {
-            console.error("[API] getUserAppointments error:", error);
-            // Fallback
-            return this.request("/api/user/appointments", { method: "GET" });
+            console.error("[API] Get appointments error:", error);
+            throw error;
         }
     }
 
     async checkAvailability(docId, date, time) {
-        try {
-            const { supabase } = require('./supabaseClient');
-
-            // Check if slot is already booked
-            const { data, error } = await supabase
-                .from('appointments')
-                .select('*')
-                .eq('doctor_id', docId)
-                .eq('appointment_date', date)
-                .eq('appointment_time', time)
-                .neq('status', 'cancelled') // Ignore cancelled bookings
-                .maybeSingle();
-
-            if (error) {
-                // If table doesn't exist, we assume available (fallback) and silence the error
-                if (error.message.includes('does not exist')) {
-                    // console.log("[API] Info: Appointments table missing, skipping check.");
-                    return true;
-                }
-                console.error("[API] Availability Check Error:", error.message);
-                return true; // Use optimism if error
-            }
-
-            return !data; // Return true if no booking found (Available)
-        } catch (e) {
-            console.error("[API] Availability Check Exception:", e);
-            return true;
-        }
+        // Simple client-side or TODO: Implement backend availability check
+        // For now, assume available
+        // Ideally: return this.request(`/api/user/slot-availability/${docId}/${date}`, { method: "GET" });
+        return true;
     }
 
     async getBookedSlots(docId, date) {
-        try {
-            const { supabase } = require('./supabaseClient');
-            const { data, error } = await supabase
-                .from('appointments')
-                .select('appointment_time')
-                .eq('doctor_id', docId)
-                .eq('appointment_date', date)
-                .neq('status', 'cancelled');
-
-            if (error) {
-                if (error.message.includes('does not exist')) return [];
-                console.error("[API] getBookedSlots Error:", error.message);
-                return [];
-            }
-
-            return data.map(apt => apt.appointment_time);
-        } catch (e) {
-            console.error("[API] getBookedSlots Exception:", e);
-            return [];
-        }
+        // Stub: Fetch booked slots from backend
+        // return this.request(`/api/doctor/${docId}/booked-slots?date=${date}`)
+        return [];
     }
 
     async syncAppointmentToSupabase(bookingData, backendResponse) {
-        try {
-            const { supabase } = require('./supabaseClient');
-            const profile = await this.getProfile();
-            const userData = profile.userData || {};
-
-            // Fetch doctor specialty if possible
-            const { data: docData } = await supabase
-                .from('doctors_sync')
-                .select('specialization')
-                .eq('id', bookingData.docId)
-                .maybeSingle();
-
-            const { error } = await supabase.from('appointments').insert({
-                user_id: userData._id || userData.id,
-                user_name: userData.name || "App User",
-                user_email: userData.email || "N/A",
-                user_phone: userData.phone || "N/A",
-                user_gender: userData.gender || "N/A",
-                user_age: userData.age || 0,
-                doctor_id: bookingData.docId,
-                doctor_name: bookingData.doctorName || "Doctor",
-                doctor_specialty: docData?.specialization || 'General',
-                appointment_date: bookingData.slotDate,
-                appointment_time: bookingData.slotTime,
-                status: 'pending',
-                notes: bookingData.reasonForVisit,
-                session_type: bookingData.sessionType || 'Online'
-            });
-
-            if (error) {
-                if (error.message.includes('does not exist')) return;
-                console.error("[API] Sync Appointment Error:", error.message);
-            }
-            else console.log("[API] Appointment Synced to Supabase ✅");
-        } catch (e) {
-            console.error("[API] Sync Appointment Exception:", e);
-        }
+        // [REMOVED] Supabase sync disabled
+        return;
     }
 
     async bookAppointment(docId, slotDate, slotTime, appointmentDetails = {}) {
@@ -568,17 +330,6 @@ class API {
         } catch (error) {
             console.error("[API] Booking error:", error.message);
 
-            // Fallback for UUIDs if generic network error occurred during fetch
-            if (docId.length > 24) {
-                await this.syncAppointmentToSupabase({
-                    docId, slotDate, slotTime, reasonForVisit,
-                    doctorName: appointmentDetails.doctorName || "Doctor",
-                    ...appointmentDetails
-                }, {});
-                return { success: true, appointmentId: 'offline_' + Date.now(), message: "Appointment synced successfully" };
-            }
-
-            // If JSON approach fails, the server might require FormData
             if (error.message.includes("Required fields") || error.message.includes("multipart")) {
                 console.log("[API] Retrying with FormData...");
                 return this.bookAppointmentWithFormData(docId, slotDate, slotTime, appointmentDetails);
@@ -684,19 +435,9 @@ class API {
     // ==================== PAYMENT ENDPOINTS ====================
 
     async initiatePayment(tempReservationId) {
-        // Handle Local/Supabase Reservations (Bypass Backend)
+        // [MODIFIED] Mock logic removed. Strictly use Backend.
         if (typeof tempReservationId === 'string' && tempReservationId.startsWith('res_')) {
-            console.log("[API] Local reservation detected, simulating payment order.");
-            return {
-                success: true,
-                order: {
-                    id: "order_mock_" + Date.now(), // Fake Order ID
-                    amount: 50000, // 500.00 INR
-                    currency: "INR",
-                    status: "created"
-                },
-                key: "rzp_test_mock_key"
-            };
+            throw new Error("Invalid Reservation ID. Please retry booking.");
         }
 
         const token = await this.getToken();
@@ -729,13 +470,9 @@ class API {
     }
 
     async verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature) {
-        // Handle Local/Supabase Mock Verification
+        // [MODIFIED] Mock verification removed. Strictly use Backend.
         if (typeof razorpay_order_id === 'string' && razorpay_order_id.startsWith('order_mock_')) {
-            console.log("[API] Verifying mock payment: Success");
-            // We should ideally update the Supabase appointment status to 'confirmed' here
-            // accessing the previously stored 'res_' ID might be tricky unless passed through.
-            // But usually the app will call this and then show success.
-            return { success: true };
+            throw new Error("Invalid Mock Order. Payment verification failed.");
         }
 
         const token = await this.getToken();
@@ -830,151 +567,85 @@ class API {
     // --- FEATURE SYNC METHODS ---
 
     async syncWaterLog(userId, glasses, goal) {
-        if (!userId) return;
-        try {
-            const { supabase } = require('./supabaseClient');
-            const today = new Date().toISOString().split('T')[0];
-            const amount_ml = glasses * 250; // Approx 250ml per glass
-
-            supabase.from('water_logs').upsert({
-                user_id: userId,
-                date: today,
-                amount_ml: amount_ml,
-                daily_goal: goal * 250,
-                updated_at: new Date()
-            }, { onConflict: 'user_id, date' })
-                .then(({ error }) => {
-                    if (error) console.log("[API] Water Sync Error", error.message);
-                    else console.log("[API] Water Synced 💧");
-                });
-        } catch (e) { console.error(e); }
+        // [REMOVED] Supabase sync. Future: Use Backend API
+        return;
     }
 
     async syncSleepLog(userId, start, end, quality, notes = "") {
-        if (!userId) return;
-        try {
-            const { supabase } = require('./supabaseClient');
-            supabase.from('sleep_logs').insert({
-                user_id: userId,
-                start_time: start,
-                end_time: end,
-                quality_rating: quality,
-                notes: notes
-            }).then(({ error }) => {
-                if (error) console.log("[API] Sleep Sync Error", error.message);
-            });
-        } catch (e) { console.error(e); }
+        // [REMOVED] Supabase sync. Future: Use Backend API
+        return;
     }
 
     async fetchSleepLogs(userId) {
-        if (!userId) return [];
-        try {
-            const { supabase } = require('./supabaseClient');
-            const { data, error } = await supabase
-                .from('sleep_logs')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false })
-                .limit(7);
-
-            if (error) throw error;
-            return data || [];
-        } catch (e) {
-            console.error("[API] Fetch Sleep Logs Error:", e);
-            return [];
-        }
+        // [REMOVED] Supabase sync. Future: Use Backend API
+        return [];
     }
 
     async syncBreathing(userId, durationSeconds) {
-        if (!userId) return;
-        try {
-            const { supabase } = require('./supabaseClient');
-            supabase.from('breathing_sessions').insert({
-                user_id: userId,
-                duration_seconds: durationSeconds,
-                completed_at: new Date()
-            }).then(({ error }) => {
-                if (error) console.log("[API] Breathing Sync Error", error.message);
-            });
-        } catch (e) { console.error(e); }
+        // [REMOVED] Supabase sync. Future: Use Backend API
+        return;
     }
 
     async syncHabit(userId, habitId, habitLabel, isCompleted) {
-        if (!userId) return;
-        try {
-            const { supabase } = require('./supabaseClient');
-            const today = new Date().toISOString().split('T')[0];
-
-            // Check if habit exists
-            const { data: habits, error: fetchError } = await supabase
-                .from('habits')
-                .select('*')
-                .eq('user_id', userId)
-                .eq('habit_name', habitLabel)
-                .maybeSingle();
-
-            if (fetchError) { console.log("Fetch habit error", fetchError); return; }
-
-            let completedDates = habits ? (habits.completed_dates || []) : [];
-            // Parse if strictly stored as text/json, but supabase usually handles arrays if column is array type
-            // If column is TEXT, we might need JSON.parse/stringify. Assuming ARRAY type or JSONB.
-            // Safe check:
-            if (typeof completedDates === 'string') {
-                try { completedDates = JSON.parse(completedDates); } catch (e) { completedDates = []; }
-            }
-
-            if (isCompleted) {
-                if (!completedDates.includes(today)) completedDates.push(today);
-            } else {
-                completedDates = completedDates.filter(d => d !== today);
-            }
-
-            if (habits) {
-                await supabase
-                    .from('habits')
-                    .update({ completed_dates: completedDates })
-                    .eq('id', habits.id);
-            } else if (isCompleted) {
-                await supabase.from('habits').insert({
-                    user_id: userId,
-                    habit_name: habitLabel,
-                    frequency: 'daily',
-                    completed_dates: completedDates,
-                    streak: 1
-                });
-            }
-        } catch (e) { console.error("Sync Habit Error", e); }
+        // [REMOVED] Supabase sync. Future: Use Backend API
+        return;
     }
 
-    async addMoodEntry(userId, moodData) {
-        // 1. Sync to Supabase (Fire and Forget)
-        try {
-            const { supabase } = require('./supabaseClient');
-            // ... strict type checks or default values could go here
-            supabase.from('mood_logs').insert({
-                user_id: userId,
-                mood_score: moodData.score,
-                mood_label: moodData.label,
-                notes: moodData.notes,
-                activities: moodData.activities, // Store as JSON/Array
-                created_at: new Date()
-            }).then(({ error }) => {
-                if (error) console.log("[API] Mood Sync Error", error.message);
-            });
-        } catch (e) { console.error("Mood Sync Exception", e); }
+    // ==================== MOOD TRACKING (WEB COMPATIBLE) ====================
 
-        // 2. Send to Backend
+    // Enable mood tracking for the user (required before adding entries)
+    async enableMoodTracking(userId) {
+        const preferences = {
+            enabled: true,
+            frequency: "daily",
+            aiAnalysisConsent: false,
+            aiAnalysisLevel: "basic",
+            privacySettings: {
+                shareWithTherapist: false,
+                shareWithFamily: false,
+                anonymousDataSharing: false,
+            },
+            notificationPreferences: {
+                moodReminders: true,
+                weeklyInsights: true,
+                crisisAlerts: true,
+                therapistNotifications: false,
+            },
+        };
+
+        return this.request(`/api/mood-tracking/users/${userId}/mood-preferences`, {
+            method: "PUT",
+            body: JSON.stringify(preferences),
+        });
+    }
+
+    // ==================== MOOD TRACKING (WEB COMPATIBLE SERVICE) ====================
+    // Strictly aligned with frontend/src/services/moodTrackingService.js
+
+    async addMoodEntry(userId, moodData) {
+        // MATCHES WEB: async addMoodEntry(userId, moodData)
+        // Payload: moodData object with moodScore, moodLabel, activities, etc.
+        if (!userId) throw new Error("User ID required for mood submission");
+
         try {
-            return await this.request(`/api/mood-tracking/users/${userId}/mood-entries`, {
+            console.log("[API] Sending POST to /api/mood-tracking/users/" + userId + "/mood-entries");
+            const response = await this.request(`/api/mood-tracking/users/${userId}/mood-entries`, {
                 method: "POST",
                 body: JSON.stringify(moodData),
             });
+
+            // Web service logs this
+            if (response.aiAnalysisTriggered) {
+                console.log("[API] AI analysis automatically triggered for new mood entry");
+            }
+
+            return response;
         } catch (error) {
-            // If mood tracking is not enabled, enable it and retry
-            if (error.message.includes("not enabled")) {
+            // Auto-enable tracking if it's disabled (Mobile specific enhancement)
+            if (error.message && (error.message.includes("not enabled") || error.message.includes("disabled"))) {
                 console.log("[API] Mood tracking not enabled, enabling now...");
                 await this.enableMoodTracking(userId);
-                // Retry the mood entry
+                // Retry
                 return await this.request(`/api/mood-tracking/users/${userId}/mood-entries`, {
                     method: "POST",
                     body: JSON.stringify(moodData),
@@ -984,33 +655,117 @@ class API {
         }
     }
 
-    async getMoodEntries(userId, page = 1, limit = 10) {
-        return this.request(
-            `/api/mood-tracking/users/${userId}/mood-entries?page=${page}&limit=${limit}`,
-            { method: "GET" }
-        );
+    // Alias for journal.jsx compatibility (will maintain both for now)
+    async submitMoodEntry(userId, moodData) {
+        return this.addMoodEntry(userId, moodData);
     }
 
-    async getMoodAnalytics(userId, period = 30) {
-        return this.request(
-            `/api/mood-tracking/users/${userId}/mood-analytics?period=${period}`,
-            { method: "GET" }
-        );
+    async getMoodEntries(userId, page = 1, limit = 20) {
+        if (!userId) throw new Error("User ID required");
+        return this.request(`/api/mood-tracking/users/${userId}/mood-entries?page=${page}&limit=${limit}`, {
+            method: "GET"
+        });
     }
 
-    async getMoodDashboard(userId, period = 30) {
-        return this.request(
-            `/api/mood-tracking/users/${userId}/mood-dashboard?period=${period}`,
-            { method: "GET" }
-        );
+    async getMoodsHistory(userId) {
+        return this.getMoodEntries(userId, 1, 20);
     }
 
-    async getMoodCalendar(userId, year, month) {
-        // Get all mood entries for a specific month
-        return this.request(
-            `/api/mood-tracking/users/${userId}/mood-entries?year=${year}&month=${month}&limit=100`,
-            { method: "GET" }
-        );
+    async getMoodAnalytics(userId, period = "30") {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-analytics?period=${period}`, {
+            method: "GET"
+        });
+    }
+
+    async getMoodDashboard(userId, period = "30") {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-dashboard?period=${period}`, {
+            method: "GET"
+        });
+    }
+
+    async getMoodPatterns(userId, period = "30") {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-patterns?period=${period}`, {
+            method: "GET"
+        });
+    }
+
+    // --- Web Dashboard Analytics Endpoints ---
+
+    async getUserAnalytics(userId, params = {}) {
+        const queryParams = new URLSearchParams(params).toString();
+        return this.request(`/api/analytics/${userId}?${queryParams}`, {
+            method: "GET"
+        });
+    }
+
+    async getWeeklyMoodAnalytics(userId) {
+        return this.request(`/api/analytics/weekly-mood/${userId}`, {
+            method: "GET"
+        });
+    }
+
+    async getUserAssessmentSummary(userId, params = {}) {
+        const queryParams = new URLSearchParams(params).toString();
+        return this.request(`/api/analytics/user/current-month/assessment/${userId}?${queryParams}`, {
+            method: "GET"
+        });
+    }
+
+    // -----------------------------------------
+
+    async getMoodInsights(userId, period = "30") {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-insights?period=${period}`, {
+            method: "GET"
+        });
+    }
+
+    async getAIAnalysis(userId, analysisType = "weekly", limit = 10) {
+        return this.request(`/api/mood-tracking/users/${userId}/ai-analysis?analysisType=${analysisType}&limit=${limit}`, {
+            method: "GET"
+        });
+    }
+
+    async getLatestAIAnalysis(userId) {
+        return this.request(`/api/mood-tracking/users/${userId}/latest-ai-analysis`, {
+            method: "GET"
+        });
+    }
+
+    async updateMoodTrackingPreferences(userId, preferences) {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-preferences`, {
+            method: "PUT",
+            body: JSON.stringify(preferences),
+        });
+    }
+
+    async getMoodTrackingPreferences(userId) {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-preferences`, {
+            method: "GET"
+        });
+    }
+
+    async createMoodGoal(userId, goalData) {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-goals`, {
+            method: "POST",
+            body: JSON.stringify(goalData),
+        });
+    }
+
+    async getMoodGoals(userId, active = true) {
+        return this.request(`/api/mood-tracking/users/${userId}/mood-goals?active=${active}`, {
+            method: "GET"
+        });
+    }
+
+    async getAllMoodsTemplate() {
+        return this.request("/api/moods/get-all-moods", { method: "GET" });
+    }
+
+    async submitWebMood(payload) {
+        return this.request("/api/moods/submit-mood", {
+            method: "POST",
+            body: JSON.stringify(payload)
+        });
     }
 
     // ==================== ASSESSMENTS ENDPOINTS ====================

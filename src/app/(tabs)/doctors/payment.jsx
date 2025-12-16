@@ -118,69 +118,14 @@ export default function PaymentScreen() {
     const generatePaymentHTML = () => {
         if (!paymentOrder) return "";
 
-        // --- MOCK PAYMENT FLOW (For new Supabase Doctors) ---
-        // Since backend Razorpay keys don't work for these new local appointments yet.
-        if (paymentOrder.id && paymentOrder.id.startsWith("order_mock_")) {
-            return `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                  body {
-                    margin: 0;
-                    padding: 20px;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    background: #F8FAFC;
-                    min-height: 100vh;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                  }
-                  .loader {
-                    border: 4px solid #f3f3f3;
-                    border-radius: 50%;
-                    border-top: 4px solid #6366F1;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 1s linear infinite;
-                    margin-bottom: 20px;
-                  }
-                  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                  h2 { color: #1F2937; margin: 0 0 10px 0; }
-                  p { color: #6B7280; text-align: center; }
-                </style>
-              </head>
-              <body>
-                <div class="loader"></div>
-                <h2>Processing Payment</h2>
-                <p>Securely confirming your appointment...</p>
-                <script>
-                  // Simulate successful payment processing
-                  setTimeout(function() {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                      type: "payment_success",
-                      data: {
-                        razorpay_order_id: "${paymentOrder.id}",
-                        razorpay_payment_id: "pay_mock_" + Date.now(),
-                        razorpay_signature: "sig_mock_" + Date.now()
-                      }
-                    }));
-                  }, 2000);
-                </script>
-              </body>
-              </html>
-            `;
-        }
+
 
         // --- REAL RAZORPAY FLOW ---
         return `
       <!DOCTYPE html>
       <html>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
           body {
             margin: 0;
@@ -233,11 +178,13 @@ export default function PaymentScreen() {
             color: #10B981;
             font-size: 14px;
           }
-          .loading {
-            color: #6B7280;
-            font-size: 16px;
+          #msg {
+              color: red;
+              font-size: 12px;
+              margin-top: 10px;
           }
         </style>
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
       </head>
       <body>
         <div class="container">
@@ -245,59 +192,73 @@ export default function PaymentScreen() {
           <p class="doctor">Appointment with ${doctorName || "Doctor"}</p>
           <div class="amount">₹${paymentOrder.amount / 100}</div>
           <button class="pay-btn" onclick="openRazorpay()">Pay Now</button>
+          <div id="msg"></div>
           <div class="secure">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
-            Secured by Razorpay
+            Secured by Razorpay - Trusted
           </div>
         </div>
         
         <script>
           function openRazorpay() {
-            var options = {
-              key: "${RAZORPAY_KEY_ID}",
-              amount: ${paymentOrder.amount},
-              currency: "${paymentOrder.currency || "INR"}",
-              name: "MoodMantra",
-              description: "Appointment Payment",
-              order_id: "${paymentOrder.id}",
-              prefill: {
-                name: "",
-                email: "",
-                contact: ""
-              },
-              theme: {
-                color: "#6366F1"
-              },
-              handler: function(response) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: "payment_success",
-                  data: response
-                }));
-              },
-              modal: {
-                ondismiss: function() {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: "payment_cancelled"
-                  }));
+            try {
+                if (!window.Razorpay) {
+                    document.getElementById('msg').innerText = "Loading payment gateway...";
+                    setTimeout(openRazorpay, 500);
+                    return;
                 }
-              }
-            };
-            
-            var rzp = new Razorpay(options);
-            rzp.on("payment.failed", function(response) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: "payment_failed",
-                data: response.error
-              }));
-            });
-            rzp.open();
+
+                var options = {
+                  key: "${RAZORPAY_KEY_ID}",
+                  amount: ${paymentOrder.amount},
+                  currency: "${paymentOrder.currency || "INR"}",
+                  name: "MoodMantra",
+                  description: "Appointment Payment",
+                  order_id: "${paymentOrder.id}",
+                  image: "https://your-logo-url.png", // Optional
+                  prefill: {
+                    name: "User",
+                    email: "user@example.com",
+                    contact: "9999999999"
+                  },
+                  theme: {
+                    color: "#6366F1"
+                  },
+                  handler: function(response) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: "payment_success",
+                      data: response
+                    }));
+                  },
+                  modal: {
+                    ondismiss: function() {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: "payment_cancelled"
+                      }));
+                    }
+                  }
+                };
+                
+                var rzp = new Razorpay(options);
+                rzp.on("payment.failed", function(response) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: "payment_failed",
+                    data: response.error
+                  }));
+                });
+                rzp.open();
+            } catch (e) {
+                document.getElementById('msg').innerText = "Error: " + e.message;
+            }
           }
           
-          // Auto-open Razorpay after 500ms
-          setTimeout(openRazorpay, 500);
+          // Auto-open on load
+          window.onload = function() {
+              setTimeout(openRazorpay, 1000);
+          };
         </script>
       </body>
       </html>
@@ -415,10 +376,23 @@ export default function PaymentScreen() {
                     ref={webViewRef}
                     source={{ html: generatePaymentHTML() }}
                     style={{ flex: 1 }}
-                    onMessage={handleWebViewMessage}
+                    originWhitelist={['*']}
+                    allowsInlineMediaPlayback={true}
                     javaScriptEnabled={true}
                     domStorageEnabled={true}
                     startInLoadingState={true}
+                    onMessage={handleWebViewMessage}
+                    onShouldStartLoadWithRequest={(request) => {
+                        // Allow UPI and other intent schemes to open external apps
+                        if (request.url.startsWith("upi:") || request.url.startsWith("gpay:") || request.url.startsWith("phonepe:") || request.url.startsWith("paytm:")) {
+                            Linking.openURL(request.url).catch(err => {
+                                console.log("[Payment] Failed to open external app:", err);
+                                Alert.alert("App not found", "Could not open the payment app.");
+                            });
+                            return false;
+                        }
+                        return true;
+                    }}
                     renderLoading={() => (
                         <View style={styles.webviewLoading}>
                             <ActivityIndicator size="large" color="#6366F1" />
@@ -427,8 +401,7 @@ export default function PaymentScreen() {
                     onError={(syntheticEvent) => {
                         const { nativeEvent } = syntheticEvent;
                         console.log("[Payment] WebView error:", nativeEvent);
-                        setError("Failed to load payment page");
-                        setPaymentStatus("failed");
+                        // Don't fail immediately on some minor errors, but log it
                     }}
                 />
             )}
