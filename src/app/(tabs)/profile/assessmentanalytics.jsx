@@ -12,7 +12,8 @@ import { Stack, useRouter } from "expo-router";
 import { ArrowLeft, Calendar, TrendingUp, Award, BarChart3, Target, Heart, Book, Leaf } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../../utils/api";
-import { NativePieChart, CircularProgress, NativeTestResultsBarChart } from "../../../components/MoodAnalysis/NativeMoodCharts";
+import NativeAssessmentHistory from "../../../components/MoodAnalysis/NativeAssessmentHistory";
+import { NativeAssessmentInsights, NativeSummaryChart, NativeTestResultsBarChart as CategoryBarChart } from "../../../components/MoodAnalysis/NativeAssessmentCharts";
 import Svg, { Path } from "react-native-svg";
 
 
@@ -46,10 +47,15 @@ export default function AssessmentAnalytics() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [therapyType, setTherapyType] = useState("individual");
-    const [dayRange, setDayRange] = useState(30);
+    // Match web: "" = all days
+    const [dayRange, setDayRange] = useState("");
     const [analyticsData, setAnalyticsData] = useState(null);
     const [assessmentHistory, setAssessmentHistory] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState("");
+    const [testCategories, setTestCategories] = useState([]);
+    const [testResults, setTestResults] = useState([]);
+    const [testResultsAvg, setTestResultsAvg] = useState(0);
+    const [testResultsCount, setTestResultsCount] = useState(0);
 
     useEffect(() => {
         loadData();
@@ -61,16 +67,18 @@ export default function AssessmentAnalytics() {
             const userId = await AsyncStorage.getItem("userId");
             if (!userId) return;
 
-            // Use correct API functions
-            const [analytics, history, summary] = await Promise.all([
-                api.getUserAnalytics(userId, { dayRange, therapyType }),
+            // Use correct API functions (align query params with web)
+            const [analytics, history, summary, categories] = await Promise.all([
+                api.getUserAnalytics(userId, { days: dayRange || undefined, therapyType }),
                 api.getUserAssessments(userId),
-                api.getUserAssessmentSummary(userId, { days: dayRange, therapyType })
+                api.getUserAssessmentSummary(userId, { days: dayRange, therapyType }),
+                api.getUserTestCategories(userId, therapyType).catch(() => ({ category: [] }))
             ]);
 
             console.log("Analytics data:", analytics);
             console.log("Assessment history:", history);
             console.log("Summary data:", summary);
+            console.log("Test categories:", categories);
 
             // Merge summary into analytics data
             setAnalyticsData({
@@ -79,14 +87,22 @@ export default function AssessmentAnalytics() {
             });
 
             // Filter history by therapy type if needed
-            const filteredHistory = history && history.assessments
-                ? history.assessments.filter(a => {
-                    const aType = a.assessmentId?.therapyType || "individual";
-                    return therapyType === "all" || aType === therapyType;
-                })
-                : [];
+            // Use analytics.userAssessmentRecent30 if available (matching web), otherwise use history.assessments
+            const historyData = analytics?.userAssessmentRecent30 || (history && history.assessments ? history.assessments : []);
+            const filteredHistory = Array.isArray(historyData) ? historyData.filter(a => {
+                const aType = a.assessmentId?.therapyType || "individual";
+                return therapyType === "all" || aType === therapyType;
+            }) : [];
 
             setAssessmentHistory(filteredHistory);
+
+            // Set test categories and select first one
+            const categoryList = categories?.category || [];
+            setTestCategories(categoryList);
+            if (categoryList.length > 0 && !selectedCategory) {
+                setSelectedCategory(categoryList[0]);
+            }
+
         } catch (error) {
             console.error("Error loading assessment analytics:", error);
             setAssessmentHistory([]);
@@ -95,6 +111,27 @@ export default function AssessmentAnalytics() {
             setLoading(false);
         }
     };
+
+    // Load test results when category changes
+    useEffect(() => {
+        const loadTestResults = async () => {
+            if (!selectedCategory) return;
+            try {
+                const userId = await AsyncStorage.getItem("userId");
+                if (!userId) return;
+
+                const results = await api.getUserTestResults(userId, selectedCategory, dayRange || "");
+                setTestResults(results.data || []);
+                setTestResultsAvg(results.overallAvg || 0);
+                setTestResultsCount(results.data?.length || 0);
+            } catch (error) {
+                console.error("Error loading test results:", error);
+                setTestResults([]);
+            }
+        };
+
+        loadTestResults();
+    }, [selectedCategory, dayRange, therapyType]);
 
     if (loading) {
         return (
@@ -120,26 +157,30 @@ export default function AssessmentAnalytics() {
             <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
                 {/* Filter Options */}
                 <View style={{ marginBottom: 20 }}>
-                    {/* Day Range Filter */}
+                    {/* Day Range Filter (match web semantics: \"\" = All) */}
                     <Text style={styles.filterLabel}>Select Day Range:</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                        {[7, 30, 60, 90, "All"].map((days) => (
-                            <TouchableOpacity
-                                key={days}
-                                onPress={() => setDayRange(days === "All" ? 365 : days)}
-                                style={[
-                                    styles.filterChip,
-                                    dayRange === (days === "All" ? 365 : days) && styles.filterChipActive
-                                ]}
-                            >
-                                <Text style={[
-                                    styles.filterChipText,
-                                    dayRange === (days === "All" ? 365 : days) && styles.filterChipTextActive
-                                ]}>
-                                    {days === "All" ? "All" : `${days} Days`}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                        {["All", "7", "30", "60", "90"].map((label) => {
+                            const value = label === "All" ? "" : label;
+                            const isActive = dayRange === value;
+                            return (
+                                <TouchableOpacity
+                                    key={label}
+                                    onPress={() => setDayRange(value)}
+                                    style={[
+                                        styles.filterChip,
+                                        isActive && styles.filterChipActive
+                                    ]}
+                                >
+                                    <Text style={[
+                                        styles.filterChipText,
+                                        isActive && styles.filterChipTextActive
+                                    ]}>
+                                        {label === "All" ? "All" : `${label} Days`}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </ScrollView>
 
                     {/* Therapy Type Filter */}
@@ -202,7 +243,7 @@ export default function AssessmentAnalytics() {
                     />
                 </View>
 
-                {/* Activity & Engagement */}
+                {/* 5. Activity & Engagement - Component 5 */}
                 <View style={styles.activityCard}>
                     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
                         <TrendingUp size={20} color="#6366F1" />
@@ -327,307 +368,53 @@ export default function AssessmentAnalytics() {
                     </View>
                 </View>
 
-                {/* Assessment Insights */}
-                <View style={styles.insightsCard}>
-                    <Text style={{ fontSize: 18, fontWeight: "700", color: "#1E293B", marginBottom: 16 }}>Assessment Insights</Text>
+                {/* 1. Assessment Insights - Component 1 */}
+                <NativeAssessmentInsights data={analyticsData?.userassessments || []} />
 
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
-                        {/* Left: Metrics */}
-                        <View style={{ flex: 1 }}>
-                            {/* Total Assessments */}
-                            <View style={{ marginBottom: 16 }}>
-                                <Text style={{ fontSize: 12, color: "#64748B", marginBottom: 4 }}>Total Assessments</Text>
-                                <Text style={{ fontSize: 32, fontWeight: "700", color: "#6366F1" }}>
-                                    {analyticsData?.userassessments?.length || 0}
-                                </Text>
-                            </View>
+                {/* 2. Assessment History Chart - Component 2 (Right after Assessment Insights) */}
+                <NativeAssessmentHistory
+                    data={assessmentHistory || []}
+                    avgScore={analyticsData?.avgScoreRecent30 || analyticsData?.summary?.overallAvgScore || 0}
+                />
 
-                            {/* Categories Found */}
-                            <View style={{ marginBottom: 16 }}>
-                                <Text style={{ fontSize: 12, color: "#64748B", marginBottom: 4 }}>Categories</Text>
-                                <Text style={{ fontSize: 32, fontWeight: "700", color: "#10B981" }}>
-                                    {analyticsData?.userassessments
-                                        ? [...new Set(analyticsData.userassessments.map(a => a.assessmentId?.category || "Other"))].length
-                                        : 0}
-                                </Text>
-                            </View>
+                {/* 4. Summary Chart (Category Contribution Overview) - Component 4 */}
+                <NativeSummaryChart data={analyticsData?.summary || {}} />
 
-                            {/* Most Frequent */}
-                            <View>
-                                <Text style={{ fontSize: 12, color: "#64748B", marginBottom: 4 }}>Most Frequent</Text>
-                                <Text style={{ fontSize: 16, fontWeight: "700", color: "#F59E0B" }} numberOfLines={2}>
-                                    {(() => {
-                                        const assessments = analyticsData?.userassessments || [];
-                                        if (assessments.length === 0) return "N/A";
-                                        const freqMap = {};
-                                        assessments.forEach(a => {
-                                            const cat = a.assessmentId?.category || "Other";
-                                            freqMap[cat] = (freqMap[cat] || 0) + 1;
-                                        });
-                                        return Object.entries(freqMap).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
-                                    })()}
-                                </Text>
-                            </View>
+                {/* 3. Bar Chart (Category-specific test results) - Component 3 */}
+                {testCategories.length > 0 && (
+                    <View style={{ marginBottom: 16 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: "#1E293B", marginBottom: 12 }}>Select test:</Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                            {testCategories.map((cat, idx) => (
+                                <TouchableOpacity
+                                    key={idx}
+                                    onPress={() => setSelectedCategory(cat)}
+                                    style={{
+                                        paddingHorizontal: 16,
+                                        paddingVertical: 10,
+                                        backgroundColor: selectedCategory === cat ? "#0B5302" : "#F9FAFB",
+                                        borderRadius: 8,
+                                        borderWidth: 1,
+                                        borderColor: selectedCategory === cat ? "#0B5302" : "#E2E8F0",
+                                        minWidth: 100,
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 13, color: selectedCategory === cat ? "#FFF" : "#64748B", fontWeight: "600", textAlign: "center" }}>
+                                        {cat}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
-
-                        {/* Right: Chart - Assessment Categories */}
-                        <View style={{ alignItems: "center" }}>
-                            {(() => {
-                                const assessments = analyticsData?.userassessments || [];
-                                if (assessments.length === 0) {
-                                    return (
-                                        <View style={{ width: 140, height: 140, borderRadius: 70, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" }}>
-                                            <Text style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>No Data</Text>
-                                        </View>
-                                    );
-                                }
-
-                                // Process assessment data to get category counts (matching web)
-                                const assessmentCounts = {};
-                                assessments.forEach(assessment => {
-                                    const categoriesInThisAssessment = new Set();
-                                    assessment.assessmentId?.questions?.forEach(q => {
-                                        const cat = q.category || "Other";
-                                        categoriesInThisAssessment.add(cat);
-                                    });
-                                    categoriesInThisAssessment.forEach(cat => {
-                                        assessmentCounts[cat] = (assessmentCounts[cat] || 0) + 1;
-                                    });
-                                });
-
-                                const labels = Object.keys(assessmentCounts);
-                                const values = Object.values(assessmentCounts);
-                                const total = values.reduce((a, b) => a + b, 0);
-
-                                if (total === 0) {
-                                    return (
-                                        <View style={{ width: 140, height: 140, borderRadius: 70, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" }}>
-                                            <Text style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>No Data</Text>
-                                        </View>
-                                    );
-                                }
-
-                                const colors = [
-                                    "#EF5350", "#AB47BC", "#5C6BC0", "#29B6F6", "#66BB6A",
-                                    "#FFCA28", "#26A69A", "#FFA726", "#8D6E63", "#78909C"
-                                ];
-
-                                let currentAngle = -90;
-                                const radius = 60;
-                                const center = 70;
-                                const strokeWidth = 20;
-
-                                return (
-                                    <Svg width="140" height="140">
-                                        {values.map((value, index) => {
-                                            const percentage = value / total;
-                                            const angle = percentage * 360;
-                                            const endAngle = currentAngle + angle;
-
-                                            const startX = center + radius * Math.cos((currentAngle * Math.PI) / 180);
-                                            const startY = center + radius * Math.sin((currentAngle * Math.PI) / 180);
-                                            const endX = center + radius * Math.cos((endAngle * Math.PI) / 180);
-                                            const endY = center + radius * Math.sin((endAngle * Math.PI) / 180);
-
-                                            const largeArcFlag = angle > 180 ? 1 : 0;
-
-                                            const pathData = [
-                                                `M ${startX} ${startY}`,
-                                                `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`
-                                            ].join(' ');
-
-                                            const color = colors[index % colors.length];
-                                            const segment = (
-                                                <Path
-                                                    key={index}
-                                                    d={pathData}
-                                                    stroke={color}
-                                                    strokeWidth={strokeWidth}
-                                                    fill="none"
-                                                    strokeLinecap="round"
-                                                />
-                                            );
-
-                                            currentAngle = endAngle;
-                                            return segment;
-                                        })}
-                                    </Svg>
-                                );
-                            })()}
-                        </View>
+                        {selectedCategory && testResults.length > 0 && (
+                            <CategoryBarChart
+                                data={testResults.slice(0, 7)}
+                                category={selectedCategory}
+                                avgScore={testResultsAvg}
+                                testTaken={testResultsCount}
+                            />
+                        )}
                     </View>
-
-                    {/* Summary Message */}
-                    <View style={{ marginTop: 16, padding: 12, backgroundColor: "#F8FAFC", borderRadius: 12, borderLeftWidth: 4, borderLeftColor: "#6366F1" }}>
-                        <Text style={{ fontSize: 12, color: "#475569", lineHeight: 18 }}>
-                            {(analyticsData?.userassessments?.length || 0) === 0
-                                ? "🚀 No assessments yet. Start your first one to begin tracking insights!"
-                                : (analyticsData?.userassessments?.length || 0) > 20
-                                    ? "🎉 Great job! You've completed many assessments and are building strong insights."
-                                    : "✍️ Keep going. Completing more assessments will give you deeper insights."}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Category Contribution Overview (Horizontal Bars) */}
-                {(() => {
-                    const summary = analyticsData?.summary || {};
-                    const categories = summary?.categorySummary || [];
-
-                    if (categories.length === 0) return null;
-
-                    const total = categories.reduce((sum, c) => sum + (c.averageScore || 0), 0);
-
-                    return (
-                        <View style={[styles.chartCard, { borderTopWidth: 8, borderTopColor: "#B0B300" }]}>
-                            <Text style={styles.chartTitle}>Category Contribution</Text>
-                            <Text style={{ fontSize: 12, color: "#64748B", marginBottom: 16 }}>
-                                Relative contribution of each category
-                            </Text>
-
-                            {/* Horizontal Progress Bars */}
-                            <View style={{ gap: 16 }}>
-                                {categories.map((cat, index) => {
-                                    const colors = ["#60A5FA", "#F472B6", "#34D399", "#F59E0B", "#A78BFA", "#FB7185", "#38BDF8"];
-                                    const color = colors[index % colors.length];
-                                    const percentage = total > 0 ? ((cat.averageScore / total) * 100) : 0;
-
-                                    return (
-                                        <View key={index}>
-                                            {/* Category Info */}
-                                            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                                                <View>
-                                                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#1E293B", marginBottom: 2 }}>
-                                                        {cat.category}
-                                                    </Text>
-                                                    <Text style={{ fontSize: 11, color: "#64748B" }}>
-                                                        Avg Score: {cat.averageScore?.toFixed(1) || 0}
-                                                    </Text>
-                                                </View>
-                                                <Text style={{ fontSize: 18, fontWeight: "700", color }}>
-                                                    {percentage.toFixed(1)}%
-                                                </Text>
-                                            </View>
-
-                                            {/* Horizontal Progress Bar */}
-                                            <View style={{ height: 12, backgroundColor: "#F1F5F9", borderRadius: 6, overflow: "hidden" }}>
-                                                <View
-                                                    style={{
-                                                        width: `${percentage}%`,
-                                                        height: "100%",
-                                                        backgroundColor: color,
-                                                        borderRadius: 6
-                                                    }}
-                                                />
-                                            </View>
-                                        </View>
-                                    );
-                                })}
-                            </View>
-
-                            <View style={{ marginTop: 16, padding: 12, backgroundColor: "#FFFBEB", borderRadius: 8, borderWidth: 1, borderColor: "#FDE68A" }}>
-                                <Text style={{ fontSize: 12, color: "#78350F", textAlign: "center" }}>
-                                    Total Score: <Text style={{ fontWeight: "700" }}>{total.toFixed(0)}</Text>
-                                </Text>
-                            </View>
-                        </View>
-                    );
-                })()}
-
-                {/* Test Results Bar Chart with Category Selector (from web BarChart) */}
-                {(() => {
-                    const assessments = analyticsData?.userassessments || [];
-                    if (assessments.length === 0) return null;
-
-                    // Get unique categories
-                    const categoriesSet = new Set();
-                    assessments.forEach(assessment => {
-                        assessment.assessmentId?.questions?.forEach(q => {
-                            if (q.category) categoriesSet.add(q.category);
-                        });
-                    });
-                    const categoryList = Array.from(categoriesSet);
-
-                    // Set initial category if not set
-                    if (!selectedCategory && categoryList.length > 0) {
-                        setSelectedCategory(categoryList[0]);
-                    }
-
-                    // Filter assessments by selected category
-                    const filteredTests = assessments.filter(assessment => {
-                        return assessment.assessmentId?.questions?.some(q => q.category === selectedCategory);
-                    }).slice(0, 7); // Last 7
-
-                    const avgScore = filteredTests.length > 0
-                        ? filteredTests.reduce((sum, t) => sum + (t.totalScore || 0), 0) / filteredTests.length
-                        : 0;
-
-                    return (
-                        <View style={[styles.chartCard, { borderTopWidth: 8, borderTopColor: "#0B5302" }]}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                                <Text style={{ fontSize: 14, fontWeight: "700", color: "#1E293B" }}>Select test:</Text>
-                                <View style={{ flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, backgroundColor: "#FFF" }}>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ padding: 8 }}>
-                                        {categoryList.map((cat, idx) => (
-                                            <TouchableOpacity
-                                                key={idx}
-                                                onPress={() => setSelectedCategory(cat)}
-                                                style={{
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 6,
-                                                    backgroundColor: selectedCategory === cat ? "#0B5302" : "#F9FAFB",
-                                                    borderRadius: 6,
-                                                    marginRight: 8
-                                                }}
-                                            >
-                                                <Text style={{ fontSize: 12, color: selectedCategory === cat ? "#FFF" : "#64748B", fontWeight: "600" }}>
-                                                    {cat}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            </View>
-
-                            <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-                                <View style={{ backgroundColor: "#F3F4F6", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
-                                    <Text style={{ fontSize: 11, color: "#64748B" }}>Tests Taken: <Text style={{ fontWeight: "700", color: "#1E293B" }}>{filteredTests.length}</Text></Text>
-                                </View>
-                                <View style={{ backgroundColor: "#F3F4F6", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
-                                    <Text style={{ fontSize: 11, color: "#64748B" }}>Avg Score: <Text style={{ fontWeight: "700", color: "#1E293B" }}>{avgScore.toFixed(0)}</Text></Text>
-                                </View>
-                            </View>
-
-                            {/* Simple Bar Visualization */}
-                            <View style={{ gap: 8 }}>
-                                {filteredTests.map((test, idx) => {
-                                    const score = test.totalScore || 0;
-                                    const maxScore = 100;
-                                    const barWidth = `${(score / maxScore) * 100}%`;
-                                    const colors = ["#60A5FA", "#F472B6", "#34D399", "#F59E0B", "#A78BFA", "#FB7185", "#38BDF8"];
-                                    const color = colors[idx % colors.length];
-
-                                    return (
-                                        <View key={idx}>
-                                            <Text style={{ fontSize: 10, color: "#64748B", marginBottom: 4 }}>
-                                                {new Date(test.completedAt).toLocaleDateString()} - {test.assessmentId?.title || "Test"}
-                                            </Text>
-                                            <View style={{ height: 32, backgroundColor: "#F1F5F9", borderRadius: 6, overflow: "hidden" }}>
-                                                <View style={{ width: barWidth, height: "100%", backgroundColor: color, justifyContent: "center", paddingHorizontal: 8 }}>
-                                                    <Text style={{ fontSize: 11, color: "#FFF", fontWeight: "700" }}>{score}</Text>
-                                                </View>
-                                            </View>
-                                        </View>
-                                    );
-                                })}
-                            </View>
-
-                            <Text style={{ fontSize: 11, color: "#64748B", marginTop: 12 }}>
-                                Displays data from the 7 most recent assessments
-                            </Text>
-                        </View>
-                    );
-                })()}
+                )}
 
                 {/* Individual Summary Report (from web) */}
                 {(() => {
@@ -713,51 +500,6 @@ export default function AssessmentAnalytics() {
                     );
                 })()}
 
-                {/* Pie Chart - Assessment Contribution Overview */}
-                {assessmentHistory.length > 0 && (
-                    <View style={[styles.chartCard, { borderTopWidth: 8, borderTopColor: "#B0B300" }]}>
-                        <Text style={styles.chartTitle}>Your Assessment Contribution Overview</Text>
-                        <Text style={{ fontSize: 12, color: "#64748B", marginBottom: 12 }}>
-                            Showing relative contribution of each category to your overall score
-                        </Text>
-                        <NativePieChart data={assessmentHistory} width={SCREEN_WIDTH - 72} />
-                    </View>
-                )}
-
-                {/* Bar Chart - Test Results */}
-                {assessmentHistory.length > 0 && (
-                    <View style={[styles.chartCard, { borderTopWidth: 8, borderTopColor: "#0B5302" }]}>
-                        <Text style={styles.chartTitle}>Test Results Overview</Text>
-                        <NativeTestResultsBarChart data={assessmentHistory} width={SCREEN_WIDTH - 72} />
-                        <Text style={{ fontSize: 12, color: "#64748B", marginTop: 8 }}>
-                            Displays data from the most recent assessments
-                        </Text>
-                    </View>
-                )}
-
-                {/* Individual Summary Reports */}
-                <View style={styles.reportsSection}>
-                    <Text style={styles.sectionTitle}></Text>
-                    {assessmentHistory.slice(0, 5).map((assessment, index) => (
-                        <View key={index} style={styles.reportCard}>
-                            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                                <Text style={styles.reportTitle}>{assessment.assessmentId?.title || "Assessment"}</Text>
-                                <Text style={styles.reportScore}>{assessment.score || 0}/100</Text>
-                            </View>
-                            <Text style={styles.reportCategory}>{assessment.assessmentId?.category || "General"}</Text>
-                            <Text style={styles.reportDate}>
-                                {new Date(assessment.createdAt).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                })}
-                            </Text>
-                            <View style={styles.progressBar}>
-                                <View style={[styles.progressFill, { width: `${assessment.score || 0}%` }]} />
-                            </View>
-                        </View>
-                    ))}
-                </View>
             </ScrollView>
         </View>
     );

@@ -208,13 +208,61 @@ export default function JournalScreen() {
 
     const [selectedMood, setSelectedMood] = useState(null);
     const [selectedCategories, setSelectedCategories] = useState([]);
+    const [selectedEmotionByGroup, setSelectedEmotionByGroup] = useState({});
+    const [step, setStep] = useState(1);
+    const [selectedSituationTags, setSelectedSituationTags] = useState({});
     const [submitting, setSubmitting] = useState(false);
+
+    const SITUATION_SUB_TAGS = {
+        Work: ["Deadline", "Teamwork", "Overtime", "Promotion", "Meeting"],
+        PeriodSymptoms: ["Cramps", "Mood Swings", "Bloating", "Headache", "Energy Low"],
+        BadHabits: ["Smoking", "Drinking", "Overeating", "Procrastination", "Negative Thinking"],
+        Emotions: ["Joy", "Sadness", "Anger", "Fear", "Surprise"],
+        Moon: ["Full Moon", "New Moon", "Waxing", "Waning", "Eclipse"],
+        Weather: ["Sunny", "Rainy", "Cold", "Hot", "Windy"],
+        Places: ["Home", "Office", "Outdoor", "Transport", "Public"],
+        Beauty: ["Skincare", "Makeup", "Hair", "Fitness", "Self-Care"],
+        Productivity: ["Focus", "Lazy", "Motivated", "Procrastination", "Task Done"],
+        Romance: ["Love", "Date", "Breakup", "Argument", "Affection"],
+        Chores: ["Cleaning", "Laundry", "Cooking", "Errands", "Repairs"],
+        BetterMe: ["Goal", "Routine", "Learning", "Therapy", "Mindfulness"],
+        Health: ["Exercise", "Medication", "Checkup", "Recovery", "Pain"],
+        Food: ["Healthy", "Craving", "Cooking", "Diet", "Eating Out"],
+        Sleep: ["Insomnia", "Nap", "Dream", "Routine", "Late Night"],
+        Hobbies: ["Reading", "Gaming", "Music", "Art", "Travel"],
+        Social: ["Party", "Conflict", "Support", "Lonely", "New Friends"],
+        School: ["Exam", "Homework", "Class", "Presentation", "Results"]
+    };
+
+    const EMOTION_TAGS_BY_GROUP = {
+        Work: ["Stressed", "Anxious", "Tired", "Motivated", "Confident", "Happy"],
+        PeriodSymptoms: ["Irritated", "Fatigued", "Sensitive", "Relieved", "Calm"],
+        BadHabits: ["Guilty", "Ashamed", "Determined", "Tired", "Neutral"],
+        Emotions: ["Happy", "Sad", "Angry", "Peaceful", "Excited", "Lonely"],
+        Moon: ["Calm", "Restless", "Inspired", "Sleepy", "Reflective"],
+        Weather: ["Lazy", "Energetic", "Calm", "Bored", "Relaxed"],
+        Places: ["Excited", "Curious", "Relaxed", "Anxious", "Happy"],
+        Beauty: ["Confident", "Insecure", "Happy", "Calm", "Motivated"],
+        Productivity: ["Focused", "Lazy", "Satisfied", "Tired", "Motivated"],
+        Romance: ["Loved", "Lonely", "Happy", "Sad", "Excited"],
+        Chores: ["Tired", "Productive", "Bored", "Satisfied", "Calm"],
+        BetterMe: ["Motivated", "Confident", "Focused", "Tired", "Grateful"],
+        Health: ["Healthy", "Weak", "Energetic", "Sick", "Grateful"],
+        Food: ["Satisfied", "Guilty", "Happy", "Lazy", "Energetic"],
+        Sleep: ["Rested", "Tired", "Dreamy", "Lazy", "Calm"],
+        Hobbies: ["Relaxed", "Creative", "Excited", "Focused", "Happy"],
+        Social: ["Excited", "Nervous", "Happy", "Confident", "Drained"],
+        School: ["Focused", "Anxious", "Tired", "Curious", "Stressed", "Accomplished"]
+    };
 
     const handleMoodSelect = (mood) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setSelectedMood(mood);
         setSelectedCategories([]);
+        setSelectedEmotionByGroup({});
+        setStep(1);
+        setSelectedSituationTags({});
     };
 
     const toggleCategory = (category) => {
@@ -226,15 +274,60 @@ export default function JournalScreen() {
         );
     };
 
+    const toggleEmotionTag = (group, tag) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setSelectedEmotionByGroup(prev => {
+            const current = prev[group] || [];
+            const next = current.includes(tag)
+                ? current.filter(t => t !== tag)
+                : [...current, tag];
+            const updated = { ...prev, [group]: next };
+            if (next.length === 0) delete updated[group];
+            return updated;
+        });
+        setSelectedCategories(prev => {
+            const exists = prev.includes(tag);
+            return exists ? prev.filter(t => t !== tag) : [...prev, tag];
+        });
+    };
+
     const handleBack = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setSelectedMood(null);
         setSelectedCategories([]);
+        setSelectedSituationTags({});
+        setSelectedEmotionByGroup({});
+        setStep(1);
     };
 
-    const handleSave = async () => {
-        if (selectedCategories.length === 0) {
-            Alert.alert("Select Categories", "Please select at least one category");
+    const toggleSituationTag = (category, tag) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setSelectedSituationTags(prev => {
+            const current = prev[category] || [];
+            const next = current.includes(tag)
+                ? current.filter(t => t !== tag)
+                : [...current, tag];
+            const updated = { ...prev, [category]: next };
+            if (next.length === 0) {
+                delete updated[category];
+            }
+            return updated;
+        });
+    };
+
+    const handleNextOrSave = async () => {
+        if (step === 1) {
+            const hasAnyEmotion = Object.keys(selectedEmotionByGroup).length > 0;
+            if (!hasAnyEmotion) {
+                Alert.alert("Select Tags", "Please select at least one tag");
+                return;
+            }
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setStep(2);
+            return;
+        }
+        if (Object.keys(selectedSituationTags).length === 0) {
+            Alert.alert("Select Situations", "Please select at least one situation tag");
             return;
         }
 
@@ -250,20 +343,22 @@ export default function JournalScreen() {
             const dateStr = now.toISOString().split("T")[0];
             const timeStr = now.toTimeString().slice(0, 5);
 
+            const situationsArray = Object.keys(selectedSituationTags).map(cat => ({
+                situation: cat,
+                emotions: (selectedEmotionByGroup[cat] || selectedCategories).map(e => ({ emotion: e, intensity: 3 })),
+                tags: (selectedSituationTags[cat] || []),
+                entry_score: 0,
+                final_adjusted: 0,
+                intensities: [3],
+                normalized_score: 50,
+                tag_adjustment: 0
+            }));
+
             const payload = {
                 date: dateStr,
                 time: timeStr,
                 mood: selectedMood.label,
-                situations: [{
-                    situation: selectedMood.label,
-                    emotions: selectedCategories.map(cat => ({ emotion: cat, intensity: 3 })),
-                    tags: [],
-                    entry_score: 0,
-                    final_adjusted: 0,
-                    intensities: [3],
-                    normalized_score: 50,
-                    tag_adjustment: 0
-                }]
+                situations: situationsArray
             };
 
             await api.submitWebMood(payload);
@@ -274,6 +369,9 @@ export default function JournalScreen() {
                 onPress: () => {
                     setSelectedMood(null);
                     setSelectedCategories([]);
+                    setSelectedSituationTags({});
+                    setSelectedEmotionByGroup({});
+                    setStep(1);
                 }
             }]);
         } catch (e) {
@@ -331,8 +429,7 @@ export default function JournalScreen() {
                             ))}
                         </View>
                     </View>
-                ) : (
-                    // Category Selection Screen
+                ) : step === 1 ? (
                     <View style={styles.card}>
                         <View style={styles.selectedMoodHeader}>
                             <Text style={styles.selectedMoodEmoji}>{selectedMood.emoji}</Text>
@@ -340,49 +437,114 @@ export default function JournalScreen() {
                             <Text style={styles.selectedMoodDescription}>{selectedMood.description}</Text>
                         </View>
 
-                        <Text style={styles.categoryQuestion}>What specifically are you feeling?</Text>
-
-                        <View style={styles.categoryGrid}>
-                            {selectedMood.categories.map((category, index) => {
-                                const isSelected = selectedCategories.includes(category);
-                                return (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={[
-                                            styles.categoryChip,
-                                            isSelected && {
-                                                backgroundColor: selectedMood.color,
-                                                borderColor: selectedMood.color,
-                                            }
-                                        ]}
-                                        onPress={() => toggleCategory(category)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={[
-                                            styles.categoryText,
-                                            isSelected && styles.categoryTextSelected
-                                        ]}>
-                                            {category}
-                                        </Text>
-                                        {isSelected && (
-                                            <CheckCircle size={16} color="#FFF" style={{ marginLeft: 4 }} />
-                                        )}
-                                    </TouchableOpacity>
-                                );
-                            })}
+                        <Text style={styles.categoryQuestion}>Select tags</Text>
+                        <View style={{ gap: 16 }}>
+                            {Object.keys(EMOTION_TAGS_BY_GROUP).map((group) => (
+                                <View key={group} style={{ marginBottom: 8 }}>
+                                    <Text style={[styles.selectedMoodLabel, { fontSize: 18 }]}>{group}</Text>
+                                    <View style={styles.categoryGrid}>
+                                        {EMOTION_TAGS_BY_GROUP[group].map((tag, idx) => {
+                                            const isSelected = (selectedEmotionByGroup[group] || []).includes(tag);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={idx}
+                                                    style={[
+                                                        styles.categoryChip,
+                                                        isSelected && {
+                                                            backgroundColor: selectedMood.color,
+                                                            borderColor: selectedMood.color,
+                                                        }
+                                                    ]}
+                                                    onPress={() => toggleEmotionTag(group, tag)}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text style={[
+                                                        styles.categoryText,
+                                                        isSelected && styles.categoryTextSelected
+                                                    ]}>
+                                                        {tag}
+                                                    </Text>
+                                                    {isSelected && (
+                                                        <CheckCircle size={16} color="#FFF" style={{ marginLeft: 4 }} />
+                                                    )}
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            ))}
                         </View>
 
                         <TouchableOpacity
                             style={[
                                 styles.saveButton,
-                                selectedCategories.length === 0 && styles.saveButtonDisabled
+                                Object.keys(selectedEmotionByGroup).length === 0 && styles.saveButtonDisabled
                             ]}
-                            onPress={handleSave}
-                            disabled={selectedCategories.length === 0 || submitting}
+                            onPress={handleNextOrSave}
+                            disabled={Object.keys(selectedEmotionByGroup).length === 0 || submitting}
                             activeOpacity={0.8}
                         >
                             <LinearGradient
-                                colors={selectedCategories.length > 0 ? ["#4A9B7F", "#14B8A6"] : ["#D1D5DB", "#9CA3AF"]}
+                                colors={Object.keys(selectedEmotionByGroup).length > 0 ? ["#4A9B7F", "#14B8A6"] : ["#D1D5DB", "#9CA3AF"]}
+                                start={[0, 0]}
+                                end={[1, 0]}
+                                style={styles.saveButtonGradient}
+                            >
+                                {submitting ? (
+                                    <ActivityIndicator color="#FFF" />
+                                ) : (
+                                    <Text style={styles.saveButtonText}>Next</Text>
+                                )}
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <View style={styles.card}>
+                        <Text style={styles.categoryQuestion}>Select tags for your situations</Text>
+                        <View style={{ gap: 16 }}>
+                            {Object.keys(SITUATION_SUB_TAGS).filter(cat => !!selectedEmotionByGroup[cat]).map((cat) => (
+                                <View key={cat} style={{ marginBottom: 8 }}>
+                                    <Text style={[styles.selectedMoodLabel, { fontSize: 18 }]}>{cat}</Text>
+                                    <View style={styles.categoryGrid}>
+                                        {SITUATION_SUB_TAGS[cat].map((tag, idx) => {
+                                            const selected = (selectedSituationTags[cat] || []).includes(tag);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={idx}
+                                                    style={[
+                                                        styles.categoryChip,
+                                                        selected && {
+                                                            backgroundColor: selectedMood.color,
+                                                            borderColor: selectedMood.color,
+                                                        }
+                                                    ]}
+                                                    onPress={() => toggleSituationTag(cat, tag)}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>
+                                                        {tag}
+                                                    </Text>
+                                                    {selected && (
+                                                        <CheckCircle size={16} color="#FFF" style={{ marginLeft: 4 }} />
+                                                    )}
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                        <TouchableOpacity
+                            style={[
+                                styles.saveButton,
+                                Object.keys(selectedSituationTags).length === 0 && styles.saveButtonDisabled
+                            ]}
+                            onPress={handleNextOrSave}
+                            disabled={Object.keys(selectedSituationTags).length === 0 || submitting}
+                            activeOpacity={0.8}
+                        >
+                            <LinearGradient
+                                colors={Object.keys(selectedSituationTags).length > 0 ? ["#4A9B7F", "#14B8A6"] : ["#D1D5DB", "#9CA3AF"]}
                                 start={[0, 0]}
                                 end={[1, 0]}
                                 style={styles.saveButtonGradient}

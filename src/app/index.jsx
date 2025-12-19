@@ -22,8 +22,14 @@ export default function Index() {
       } else {
         // Check if logged in
         const token = await AsyncStorage.getItem("token");
+        const userType = await AsyncStorage.getItem("userType");
         if (token && token.split(".").length === 3) {
-          setDestination("/(tabs)/home");
+          // Route based on user type
+          if (userType === "doctor") {
+            setDestination("/doctor");
+          } else {
+            setDestination("/(tabs)/home");
+          }
         } else {
           setDestination("/auth/login");
         }

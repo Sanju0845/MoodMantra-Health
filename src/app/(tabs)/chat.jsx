@@ -9,11 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Image,
+  Modal,
+  Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Send, Bot, Sparkles, Heart, ArrowLeft } from "lucide-react-native";
+import { Send, Bot, Sparkles, Heart, ArrowLeft, Mic, Zap } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import api from "../../utils/api";
@@ -32,10 +35,29 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [voiceCredits, setVoiceCredits] = useState(0);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
 
   useEffect(() => {
     loadChatHistory();
+    preloadChatContext();
+    loadVoiceCredits();
   }, []);
+
+  const loadVoiceCredits = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (userId) {
+        // Fetch user's voice credits from API
+        const response = await api.getProfile();
+        if (response.success && response.userData) {
+          setVoiceCredits(response.userData.voiceCredits || 0);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading voice credits:", error);
+    }
+  };
 
   const loadChatHistory = async () => {
     try {
@@ -50,6 +72,30 @@ export default function ChatScreen() {
       console.error("Error loading chat history:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Preload context used by the chatbot (assessments + doctors),
+  // mirroring the web app's behavior with localStorage.
+  const preloadChatContext = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (!userId) return;
+
+      // Fetch full user assessments and doctors list
+      const [assessmentsData, doctorsData] = await Promise.all([
+        api.getUserAssessments(userId).catch(() => null),
+        api.getDoctors().catch(() => null),
+      ]);
+
+      if (assessmentsData) {
+        await AsyncStorage.setItem("userAssessments", JSON.stringify(assessmentsData));
+      }
+      if (doctorsData?.doctors) {
+        await AsyncStorage.setItem("doctors", JSON.stringify(doctorsData.doctors));
+      }
+    } catch (error) {
+      console.log("[Chat] Error preloading chat context:", error);
     }
   };
 
@@ -123,6 +169,25 @@ export default function ChatScreen() {
     }
   };
 
+  const handleClearChat = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (userId) {
+        await api.deleteChatHistory(userId);
+      }
+    } catch (error) {
+      console.error("Clear chat error:", error);
+    } finally {
+      setMessages([
+        {
+          id: "1",
+          role: "assistant",
+          content: "Hi, I am Raska your Mental Wellness Assistant. How are you feeling today?",
+        },
+      ]);
+    }
+  };
+
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
@@ -148,7 +213,10 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={styles.headerAvatar}>
-            <Bot size={24} color="#4A9B7F" />
+            <Image
+              source={{ uri: "https://raskamon.com/raskabot.jpg" }}
+              style={styles.headerAvatarImage}
+            />
           </View>
           <View>
             <Text style={styles.headerTitle}>Raska</Text>
@@ -160,7 +228,11 @@ export default function ChatScreen() {
             </View>
           </View>
         </View>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.clearButton} onPress={handleClearChat} activeOpacity={0.8}>
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
       {/* Messages */}
@@ -193,7 +265,10 @@ export default function ChatScreen() {
           >
             {message.role !== "user" && (
               <View style={styles.botAvatar}>
-                <Bot size={16} color="#4A9B7F" />
+                <Image
+                  source={{ uri: "https://raskamon.com/raskabot.jpg" }}
+                  style={styles.botAvatarImage}
+                />
               </View>
             )}
             <View
@@ -234,7 +309,20 @@ export default function ChatScreen() {
       </ScrollView>
 
       {/* Input */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 90 }]}>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 20 }]}>
+        <TouchableOpacity
+          style={styles.micButton}
+          onPress={() => {
+            if (voiceCredits > 0) {
+              Alert.alert("Voice Feature", "Voice input coming soon!");
+            } else {
+              setShowCreditsModal(true);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <Mic size={20} color="#4A9B7F" />
+        </TouchableOpacity>
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.input}
@@ -258,6 +346,103 @@ export default function ChatScreen() {
           <Send size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+
+      {/* Credits Modal */}
+      <Modal
+        visible={showCreditsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCreditsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Header */}
+            <LinearGradient
+              colors={["#F59E0B", "#F97316"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modalHeaderGradient}
+            >
+              <Zap size={40} color="#FFFFFF" />
+              <Text style={styles.modalTitle}>Voice Credits</Text>
+            </LinearGradient>
+
+            {/* Credits Display */}
+            <View style={styles.creditsDisplay}>
+              <View style={styles.creditsRow}>
+                <Text style={styles.creditsLabel}>Available Credits</Text>
+                <Text style={styles.creditsValue}>{voiceCredits}</Text>
+              </View>
+              <View style={styles.creditsDivider} />
+              <View style={styles.creditsRow}>
+                <Text style={styles.creditsLabel}>Cost per use</Text>
+                <Text style={styles.creditsValue}>1 credit</Text>
+              </View>
+            </View>
+
+            {/* Info Text */}
+            <View style={styles.infoBox}>
+              <Sparkles size={20} color="#4A9B7F" />
+              <Text style={styles.infoText}>
+                Voice features let you speak naturally with Raska. Each voice message uses 1 credit.
+              </Text>
+            </View>
+
+            {/* Features List */}
+            <View style={styles.featuresList}>
+              <View style={styles.featureItem}>
+                <View style={styles.featureDot} />
+                <Text style={styles.featureText}>Natural voice conversations</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <View style={styles.featureDot} />
+                <Text style={styles.featureText}>Real-time speech recognition</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <View style={styles.featureDot} />
+                <Text style={styles.featureText}>Hands-free interaction</Text>
+              </View>
+            </View>
+
+            {/* Upgrade Button */}
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => {
+                setShowCreditsModal(false);
+                setTimeout(() => {
+                  Alert.alert(
+                    "Coming Soon! 🚀",
+                    "Voice credits will be available for purchase soon. Stay tuned for updates!",
+                    [{ text: "OK" }]
+                  );
+                }, 300);
+              }}
+            >
+              <LinearGradient
+                colors={["#4A9B7F", "#3B8068"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.upgradeButtonGradient}
+              >
+                <View style={styles.upgradeButtonContent}>
+                  <Text style={styles.upgradeButtonText}>Get More Credits</Text>
+                  <View style={styles.comingSoonBadge}>
+                    <Text style={styles.comingSoonText}>Coming Soon</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Close Button */}
+            <TouchableOpacity
+              style={styles.closeModalButton}
+              onPress={() => setShowCreditsModal(false)}
+            >
+              <Text style={styles.closeModalText}>Maybe Later</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -298,6 +483,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
+  headerAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    resizeMode: "cover",
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -319,8 +510,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "rgba(255,255,255,0.9)",
   },
-  headerSpacer: {
-    width: 40,
+  headerRight: {
+    width: 60,
+    alignItems: "flex-end",
+  },
+  clearButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.6)",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  clearButtonText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   messagesContainer: {
     flex: 1,
@@ -379,6 +584,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 8,
   },
+  botAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    resizeMode: "cover",
+  },
   messageBubble: {
     maxWidth: "75%",
     paddingHorizontal: 16,
@@ -418,11 +629,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E6F4F0",
     gap: 10,
+  },
+  micButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#E6F4F0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   inputWrapper: {
     flex: 1,
@@ -462,5 +681,150 @@ const styles = StyleSheet.create({
   privacyText: {
     fontSize: 12,
     color: "#9CA3AF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    width: "100%",
+    maxHeight: "85%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  modalHeaderGradient: {
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    alignItems: "center",
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  creditsDisplay: {
+    backgroundColor: "#F9FAFB",
+    marginHorizontal: 24,
+    marginTop: 24,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  creditsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  creditsLabel: {
+    fontSize: 15,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  creditsValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  creditsDivider: {
+    height: 1,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 16,
+  },
+  infoBox: {
+    flexDirection: "row",
+    backgroundColor: "#E6F4F0",
+    marginHorizontal: 24,
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1F2937",
+    lineHeight: 20,
+  },
+  featuresList: {
+    marginHorizontal: 24,
+    marginTop: 20,
+    gap: 12,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  featureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#4A9B7F",
+  },
+  featureText: {
+    fontSize: 14,
+    color: "#4B5563",
+    flex: 1,
+  },
+  upgradeButton: {
+    marginHorizontal: 24,
+    marginTop: 24,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#4A9B7F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  upgradeButtonGradient: {
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  upgradeButtonContent: {
+    alignItems: "center",
+    gap: 6,
+  },
+  upgradeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  comingSoonBadge: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  comingSoonText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  closeModalButton: {
+    paddingVertical: 16,
+    marginTop: 12,
+    marginBottom: 32,
+    alignItems: "center",
+  },
+  closeModalText: {
+    color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

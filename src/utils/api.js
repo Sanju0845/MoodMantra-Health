@@ -93,6 +93,70 @@ class API {
         }
     }
 
+    // Doctor-specific request method that uses 'dtoken' header
+    async doctorRequest(endpoint, options = {}) {
+        const url = `${this.baseUrl}${endpoint}`;
+
+        try {
+            const token = await this.getToken();
+
+            const headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                ...options.headers,
+            };
+
+            // Add dtoken header for doctor endpoints
+            if (token) {
+                headers.dtoken = token;
+            }
+
+            const config = {
+                ...options,
+                headers,
+            };
+
+            console.log(`[API] ${options.method || 'GET'} ${endpoint} (doctor)`);
+
+            const response = await fetch(url, config);
+
+            // Get response text first
+            const responseText = await response.text();
+
+            // Try to parse as JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error("[API] Failed to parse response:", responseText.substring(0, 200));
+                throw new Error("Invalid response from server");
+            }
+
+            console.log(`[API] Response status: ${response.status}, success: ${data.success}`);
+
+            // Handle errors from API
+            if (data.success === false && data.message) {
+                throw new Error(data.message);
+            }
+
+            // If response status is 4xx or 5xx and we have a message, throw error
+            if (!response.ok && data.message) {
+                throw new Error(data.message);
+            }
+
+            return data;
+        } catch (error) {
+            // Network errors
+            if (error.message === "Network request failed") {
+                console.error("[API] Network error");
+                throw new Error("Network error. Please check your internet connection.");
+            }
+
+            console.error("[API] Error:", error.message);
+            throw error;
+        }
+    }
+
     // ==================== AUTH ENDPOINTS ====================
 
     async syncUserToSupabase(user) {
@@ -711,6 +775,20 @@ class API {
         });
     }
 
+    async getUserTestCategories(userId, therapyType) {
+        const queryParams = new URLSearchParams({ therapyType }).toString();
+        return this.request(`/api/analytics/user-test-category/${userId}?${queryParams}`, {
+            method: "GET"
+        });
+    }
+
+    async getUserTestResults(userId, therapyType, dayRange) {
+        const queryParams = new URLSearchParams({ therapyType, dayRange: dayRange || "" }).toString();
+        return this.request(`/api/analytics/test-results/${userId}?${queryParams}`, {
+            method: "GET"
+        });
+    }
+
     // -----------------------------------------
 
     async getMoodInsights(userId, period = "30") {
@@ -788,6 +866,14 @@ class API {
         });
     }
 
+    async getAssessmentByDate(date) {
+        // Format date properly - backend expects ISO string or specific format
+        const dateParam = date instanceof Date ? date.toISOString() : date;
+        return this.request(`/api/analytics/assessment?date=${encodeURIComponent(dateParam)}`, {
+            method: "GET",
+        });
+    }
+
     async submitAssessment(assessmentData) {
         const {
             userId,
@@ -826,9 +912,28 @@ class API {
             headers.Authorization = `Bearer ${token}`;
         }
 
-        // Match web app's payload format
+        // Match web app's payload format: include cached userAssessments and doctors
+        let userAssessments = null;
+        let doctors = null;
+        try {
+            const uaRaw = await AsyncStorage.getItem("userAssessments");
+            if (uaRaw) {
+                userAssessments = JSON.parse(uaRaw);
+            }
+        } catch (e) {
+            console.log("[API] Failed to read userAssessments from AsyncStorage");
+        }
+        try {
+            const docsRaw = await AsyncStorage.getItem("doctors");
+            if (docsRaw) {
+                doctors = JSON.parse(docsRaw);
+            }
+        } catch (e) {
+            console.log("[API] Failed to read doctors from AsyncStorage");
+        }
+
         const payload = userId
-            ? { message, userId }
+            ? { message, userId, userAssessments, doctors }
             : { message };
 
         console.log("[API] POST /api/chat/send", payload);
@@ -883,6 +988,38 @@ class API {
         }
     }
 
+    async deleteChatHistory(userId) {
+        if (!userId) {
+            return { success: false };
+        }
+
+        const token = await this.getToken();
+        const url = `${this.baseUrl}/api/chat`;
+
+        const headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        };
+
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: "DELETE",
+                headers,
+                body: JSON.stringify({ userId }),
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("[API] Delete chat history error:", error);
+            throw error;
+        }
+    }
+
     // ==================== NOTIFICATIONS ENDPOINTS ====================
 
     async getNotifications(userId) {
@@ -919,12 +1056,93 @@ class API {
         });
     }
 
+    // ==================== DOCTOR ENDPOINTS ====================
+
+    async doctorLogin(email, password) {
+        const response = await this.request("/api/doctor/login", {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+        });
+
+        // Save token on successful login
+        if (response.success && response.token && validateToken(response.token)) {
+            await AsyncStorage.setItem("token", response.token);
+            await AsyncStorage.setItem("userType", "doctor");
+        }
+
+        return response;
+    }
+
+    async getDoctorProfile() {
+        const response = await this.doctorRequest("/api/doctor/profile", {
+            method: "GET",
+        });
+        return response;
+    }
+
+    async updateDoctorProfile(docId, data) {
+        const response = await this.doctorRequest("/api/doctor/update-profile", {
+            method: "POST",
+            body: JSON.stringify({
+                docId,
+                address: data.address,
+                fees: data.fees,
+                experience: data.experience,
+                available: data.available,
+            }),
+        });
+        return response;
+    }
+
+    async getDoctorAppointments() {
+        return this.doctorRequest("/api/doctor/appointments", {
+            method: "GET",
+        });
+    }
+
+    async getDoctorPatients() {
+        return this.doctorRequest("/api/doctor/patients", {
+            method: "GET",
+        });
+    }
+
+    async getDoctorDashboard() {
+        return this.doctorRequest("/api/doctor/dashboard", {
+            method: "GET",
+        });
+    }
+
+    async completeDoctorAppointment(appointmentId) {
+        return this.doctorRequest("/api/doctor/complete-appointment", {
+            method: "POST",
+            body: JSON.stringify({ appointmentId }),
+        });
+    }
+
+    async cancelDoctorAppointment(appointmentId) {
+        return this.doctorRequest("/api/doctor/cancel-appointment", {
+            method: "POST",
+            body: JSON.stringify({ appointmentId }),
+        });
+    }
+
+    getDoctorPatientsPDFUrl(reportType = "30months") {
+        // Return the URL for PDF download - will be opened directly
+        return `${this.baseUrl}/api/doctor/download-patients-pdf?reportType=${reportType}`;
+    }
+
+    getDoctorPatientsExcelUrl(reportType = "30months") {
+        // Return the URL for Excel download
+        return `${this.baseUrl}/api/doctor/download-patients-excel?reportType=${reportType}`;
+    }
+
     // ==================== LOGOUT ====================
 
     async logout() {
         try {
             await AsyncStorage.removeItem("token");
             await AsyncStorage.removeItem("userId");
+            await AsyncStorage.removeItem("userType");
             console.log("[API] Logged out, tokens cleared");
         } catch (error) {
             console.error("[API] Logout error:", error);

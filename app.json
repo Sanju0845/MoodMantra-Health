@@ -45,7 +45,8 @@
           },
           "android": {
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ],
@@ -67,12 +68,12 @@
         "sitemap": false
       },
       "eas": {
-        "projectId": "f72911ff-f5bd-4867-bffb-8ba892e332a8"
+        "projectId": "004ab587-689d-47e7-86a4-2cc3c639a101"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "owner": "nimo123"
+    "owner": "signup90592"
   }
 }

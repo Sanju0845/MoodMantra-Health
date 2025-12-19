@@ -1,7 +1,6 @@
 import { Tabs } from "expo-router";
-import { View, StyleSheet, Platform } from "react-native";
+import { StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   Home,
   ClipboardList,
@@ -17,23 +16,16 @@ const INACTIVE_COLOR = "#9CA3AF"; // Gray for inactive
 // Custom Tab Bar Icon
 const TabIcon = ({ icon: Icon, focused }) => {
   return (
-    <View style={styles.iconContainer}>
-      <Icon
-        color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
-        size={22}
-        strokeWidth={focused ? 2.2 : 1.8}
-      />
-    </View>
+    <Icon
+      color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+      size={24}
+      strokeWidth={focused ? 2.5 : 2}
+    />
   );
 };
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-
-  // Calculate bottom padding based on device type
-  const hasGestureNavigation = insets.bottom > 20;
-  const bottomPadding = hasGestureNavigation ? insets.bottom - 5 : Math.max(insets.bottom, 10);
-  const tabBarHeight = 70 + bottomPadding;
 
   return (
     <Tabs
@@ -46,32 +38,28 @@ export default function TabLayout() {
           right: 0,
           backgroundColor: "#FFFFFF",
           borderTopWidth: 0,
-          height: tabBarHeight,
-          paddingTop: 12,
-          paddingBottom: bottomPadding,
-          paddingHorizontal: 8,
-          ...Platform.select({
-            ios: {
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.08,
-              shadowRadius: 16,
-            },
-            android: {
-              elevation: 20,
-            },
-          }),
+          height: 70 + insets.bottom,
+          paddingBottom: insets.bottom,
+          paddingTop: 10,
+          paddingHorizontal: 10,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+          elevation: 20,
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
         },
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: "600",
-          marginTop: 6,
-          letterSpacing: 0.3,
+          marginTop: 4,
+          marginBottom: 4,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 8,
         },
       }}
     >
@@ -90,56 +78,30 @@ export default function TabLayout() {
       <Tabs.Screen
         name="assessment/index"
         options={{
-          title: "Assessment",
+          title: "Assess",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={ClipboardList} focused={focused} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="assessment/take"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="assessment/result"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="assessment/take" options={{ href: null }} />
+      <Tabs.Screen name="assessment/result" options={{ href: null }} />
 
       {/* Doctor Tab */}
       <Tabs.Screen
         name="doctors/index"
         options={{
-          title: "Doctors",
+          title: "Care",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={Stethoscope} focused={focused} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="doctors/[id]"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="doctors/payment"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-      <Tabs.Screen
-        name="doctors/nearme"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="doctors/[id]" options={{ href: null }} />
+      <Tabs.Screen name="doctors/payment" options={{ href: null, tabBarStyle: { display: "none" } }} />
+      <Tabs.Screen name="doctors/nearme" options={{ href: null }} />
 
-      {/* Journal Tab - with mood tracking */}
+      {/* Journal Tab */}
       <Tabs.Screen
         name="journal"
         options={{
@@ -151,46 +113,22 @@ export default function TabLayout() {
       />
 
       {/* Hidden mood routes */}
-      <Tabs.Screen
-        name="mood/index"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="mood/tracker"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="mood/dashboard"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="mood/calendar"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="mood/index" options={{ href: null }} />
+      <Tabs.Screen name="mood/tracker" options={{ href: null }} />
+      <Tabs.Screen name="mood/dashboard" options={{ href: null }} />
+      <Tabs.Screen name="mood/calendar" options={{ href: null }} />
 
-      {/* Hidden chat route */}
+      {/* Hidden chat route - HIDE TAB BAR */}
       <Tabs.Screen
         name="chat"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
       {/* Hidden goals route */}
-      <Tabs.Screen
-        name="goals"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="goals" options={{ href: null }} />
 
       {/* Profile Tab */}
       <Tabs.Screen
@@ -202,65 +140,16 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="profile/edit"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="profile/appointments"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="profile/assessmentanalytics"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="profile/settings"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="profile/edit" options={{ href: null }} />
+      <Tabs.Screen name="profile/appointments" options={{ href: null }} />
+      <Tabs.Screen name="profile/assessmentanalytics" options={{ href: null }} />
+      <Tabs.Screen name="profile/settings" options={{ href: null }} />
 
-      {/* Wellness Routes - Local Features */}
-      <Tabs.Screen
-        name="wellness/breathing"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="wellness/water"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="wellness/sleep"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="wellness/habits"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Wellness Routes */}
+      <Tabs.Screen name="wellness/breathing" options={{ href: null }} />
+      <Tabs.Screen name="wellness/water" options={{ href: null }} />
+      <Tabs.Screen name="wellness/sleep" options={{ href: null }} />
+      <Tabs.Screen name="wellness/habits" options={{ href: null }} />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 44,
-    height: 32,
-  },
-});

@@ -239,29 +239,6 @@ export default function MoodDashboardScreen() {
           </ScrollView>
         </View>
 
-        {/* Therapy Type Filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-          {["individual", "couple", "family", "child"].map((type) => (
-            <TouchableOpacity
-              key={type}
-              onPress={() => setTherapyType(type)}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                backgroundColor: therapyType === type ? "#6366F1" : "#fff",
-                borderRadius: 20,
-                marginRight: 8,
-                borderWidth: 1,
-                borderColor: therapyType === type ? "#6366F1" : "#E2E8F0"
-              }}
-            >
-              <Text style={{ color: therapyType === type ? "#fff" : "#64748B", textTransform: "capitalize", fontWeight: "600" }}>
-                {type} Therapy
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
 
         {/* Mood Count - Half Donut + Mood Cards */}
         <MoodCount data={moodEntries} width={SCREEN_WIDTH - 40} />

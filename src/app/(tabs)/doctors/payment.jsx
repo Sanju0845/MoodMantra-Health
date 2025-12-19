@@ -16,7 +16,7 @@ import { ArrowLeft, CheckCircle, XCircle, CreditCard, Shield } from "lucide-reac
 import api from "../../../utils/api";
 
 // Razorpay Key - should match backend
-const RAZORPAY_KEY_ID = "rzp_test_7sJWblV6pIQGop"; // Test key from backend
+const RAZORPAY_KEY_ID = "rzp_live_Rp5H9S3bTwyfa5"; // Test key from backend
 
 export default function PaymentScreen() {
     const router = useRouter();

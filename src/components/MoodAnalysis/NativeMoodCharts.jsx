@@ -226,7 +226,7 @@ export const NativeWeeklyMoodDistribution = ({ data = [], width = SCREEN_WIDTH -
     const moodDistribution = useMemo(() => {
         const map = {};
         data.forEach(entry => {
-            const mood = entry.moodLabel || "Neutral";
+            const mood = entry.mood || entry.moodLabel || "Neutral";
             map[mood] = (map[mood] || 0) + 1;
         });
         return map;
@@ -254,7 +254,7 @@ export const NativeWeeklyMoodDistribution = ({ data = [], width = SCREEN_WIDTH -
         const percent = count / total;
         const angle = percent * 360;
         const nextAngle = startAngle + angle;
-        const path = createPieSlice(100, 100, 80, startAngle, nextAngle);
+        const path = createDonutSlice(110, 110, 90, 55, startAngle, nextAngle);
 
         const arc = {
             label,
@@ -281,52 +281,89 @@ export const NativeWeeklyMoodDistribution = ({ data = [], width = SCREEN_WIDTH -
     };
 
     return (
-        <View style={styles.card}>
-            <Text style={styles.title}>Weekly Mood Distribution</Text>
+        <View style={{ marginTop: 8 }}>
+            <View style={{ alignItems: 'center', marginBottom: 20, position: 'relative' }}>
+                <Svg width={220} height={220} viewBox="0 0 220 220">
+                    {arcs.map((arc, i) => (
+                        <TouchableOpacity key={i} onPress={() => handleSlicePress(arc)}>
+                            <Path
+                                d={arc.path}
+                                fill={arc.color}
+                                stroke="#FFFFFF"
+                                strokeWidth={3}
+                            />
+                        </TouchableOpacity>
+                    ))}
+                </Svg>
 
-            {/* Horizontal Bar Chart Design */}
-            <View style={{ gap: 12, marginTop: 16 }}>
+                {tooltipData && (
+                    <View style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: [{ translateX: -70 }, { translateY: -35 }],
+                        backgroundColor: '#1F2937',
+                        paddingHorizontal: 20,
+                        paddingVertical: 14,
+                        borderRadius: 12,
+                        alignItems: 'center',
+                        minWidth: 140,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 8,
+                        elevation: 8,
+                    }}>
+                        <Text style={{ fontSize: 28, marginBottom: 6 }}>{tooltipData.mood}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#FFFFFF', marginBottom: 4 }}>
+                            {tooltipData.label}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#10B981', fontWeight: '700' }}>
+                            Percent: {tooltipData.items[1].value}
+                        </Text>
+                    </View>
+                )}
+            </View>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
                 {arcs.map((arc, i) => (
                     <TouchableOpacity
                         key={i}
                         onPress={() => handleSlicePress(arc)}
-                        style={{ marginBottom: 8 }}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            backgroundColor: '#F9FAFB',
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: '#E5E7EB',
+                        }}
                     >
-                        {/* Mood info row */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={{ fontSize: 20 }}>{arc.emoji}</Text>
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>{arc.label}</Text>
-                            </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={{ fontSize: 16, fontWeight: '700', color: arc.color }}>{arc.count}</Text>
-                                <Text style={{ fontSize: 11, color: '#6B7280' }}>{(arc.percent * 100).toFixed(1)}%</Text>
-                            </View>
-                        </View>
-
-                        {/* Horizontal bar */}
-                        <View style={{ height: 8, backgroundColor: '#F3F4F6', borderRadius: 4, overflow: 'hidden' }}>
-                            <View
-                                style={{
-                                    width: `${arc.percent * 100}%`,
-                                    height: '100%',
-                                    backgroundColor: arc.color,
-                                    borderRadius: 4
-                                }}
-                            />
-                        </View>
+                        <View style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 5,
+                            backgroundColor: arc.color,
+                        }} />
+                        <Text style={{ fontSize: 16 }}>{arc.emoji}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>
+                            {arc.label}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: '600' }}>
+                            {(arc.percent * 100).toFixed(0)}%
+                        </Text>
                     </TouchableOpacity>
                 ))}
             </View>
 
-            {/* Total at bottom */}
-            <View style={{ marginTop: 16, padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8 }}>
-                <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+            <View style={{ marginTop: 16, padding: 12, backgroundColor: '#EFF6FF', borderRadius: 8, borderWidth: 1, borderColor: '#DBEAFE' }}>
+                <Text style={{ fontSize: 13, color: '#1E40AF', textAlign: 'center', fontWeight: '600' }}>
                     Total Entries: <Text style={{ fontWeight: '700', color: '#1F2937' }}>{total}</Text>
                 </Text>
             </View>
-
-            <DataTooltip visible={!!tooltipData} data={tooltipData} onClose={() => setTooltipData(null)} />
         </View>
     );
 };
@@ -350,6 +387,49 @@ const createPieSlice = (cx, cy, r, startAngle, endAngle) => {
     const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
     return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 };
+
+// Helper for donut slices (with inner and outer radius)
+const createDonutSlice = (cx, cy, outerR, innerR, startAngle, endAngle) => {
+    if (endAngle - startAngle >= 360) {
+        return `
+            M ${cx - outerR} ${cy}
+            A ${outerR} ${outerR} 0 1 1 ${cx + outerR} ${cy}
+            A ${outerR} ${outerR} 0 1 1 ${cx - outerR} ${cy}
+            M ${cx - innerR} ${cy}
+            A ${innerR} ${innerR} 0 1 0 ${cx + innerR} ${cy}
+            A ${innerR} ${innerR} 0 1 0 ${cx - innerR} ${cy}
+            Z
+        `;
+    }
+
+    if (isNaN(startAngle) || isNaN(endAngle)) return "";
+
+    const startRad = (startAngle - 90) * Math.PI / 180;
+    const endRad = (endAngle - 90) * Math.PI / 180;
+
+    const x1Outer = cx + outerR * Math.cos(startRad);
+    const y1Outer = cy + outerR * Math.sin(startRad);
+    const x2Outer = cx + outerR * Math.cos(endRad);
+    const y2Outer = cy + outerR * Math.sin(endRad);
+
+    const x1Inner = cx + innerR * Math.cos(startRad);
+    const y1Inner = cy + innerR * Math.sin(startRad);
+    const x2Inner = cx + innerR * Math.cos(endRad);
+    const y2Inner = cy + innerR * Math.sin(endRad);
+
+    if (isNaN(x1Outer) || isNaN(y1Outer) || isNaN(x2Outer) || isNaN(y2Outer)) return "";
+
+    const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+
+    return `
+        M ${x1Outer} ${y1Outer}
+        A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2Outer} ${y2Outer}
+        L ${x2Inner} ${y2Inner}
+        A ${innerR} ${innerR} 0 ${largeArc} 0 ${x1Inner} ${y1Inner}
+        Z
+    `;
+};
+
 
 // Circular Progress
 export const CircularProgress = ({ value, total, size = 60, strokeWidth = 6, color = COLORS.primary }) => {

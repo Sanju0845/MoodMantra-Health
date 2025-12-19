@@ -129,12 +129,12 @@ export default function SettingsScreen() {
                     <View style={[styles.infoCard, isDarkMode && { backgroundColor: "#1F2937", borderColor: "#374151" }]}>
                         <View style={styles.infoRow}>
                             <Text style={[styles.infoLabel, isDarkMode && { color: "#D1D5DB" }]}>App Version</Text>
-                            <Text style={[styles.infoValue, isDarkMode && { color: "#F3F4F6" }]}>1.0.0</Text>
+                            <Text style={[styles.infoValue, isDarkMode && { color: "#3e7efcff" }]}>v7.0</Text>
                         </View>
                         <View style={[styles.divider, isDarkMode && { backgroundColor: "#374151" }]} />
                         <View style={styles.infoRow}>
                             <Text style={[styles.infoLabel, isDarkMode && { color: "#D1D5DB" }]}>Build</Text>
-                            <Text style={[styles.infoValue, isDarkMode && { color: "#F3F4F6" }]}>2024.12.11</Text>
+                            <Text style={[styles.infoValue, isDarkMode && { color: "#F3F4F6" }]}>Test-sanju-16/v7.0</Text>
                         </View>
                     </View>
                 </View>

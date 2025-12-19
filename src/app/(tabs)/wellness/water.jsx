@@ -6,23 +6,30 @@ import {
     TouchableOpacity,
     StyleSheet,
     Animated,
+    Easing,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Droplets, Plus, Minus } from "lucide-react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ArrowLeft, Droplets, Plus, Minus, Info } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useWellness } from "@/context/WellnessContext";
 
 const DAILY_GOAL = 2000; // 2000ml = 2L
 const CUP_SIZE = 200; // 200ml per cup
 
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
 export default function WaterTracker() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const [mlToday, setMlToday] = useState(0);
-    const [history, setHistory] = useState([]);
+    const { water, updateWater } = useWellness();
+    
+    // Derived state from context
+    const mlToday = water.today;
+    const history = water.history;
+    
     const [showConfetti, setShowConfetti] = useState(false);
 
     const fillAnim = useRef(new Animated.Value(0)).current;
@@ -34,8 +41,19 @@ export default function WaterTracker() {
         }))
     ).current;
 
+    // Button animations
+    const addBtnScale = useRef(new Animated.Value(1)).current;
+    const removeBtnScale = useRef(new Animated.Value(1)).current;
+    const mainBtnScale = useRef(new Animated.Value(1)).current;
+
+    const animateButton = (scaleAnim) => {
+        Animated.sequence([
+            Animated.timing(scaleAnim, { toValue: 0.95, duration: 100, useNativeDriver: true }),
+            Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true })
+        ]).start();
+    };
+
     useEffect(() => {
-        loadWaterData();
         startWaveAnimation();
     }, []);
 
@@ -59,11 +77,13 @@ export default function WaterTracker() {
                 Animated.timing(waveAnim, {
                     toValue: 1,
                     duration: 2000,
+                    easing: Easing.linear,
                     useNativeDriver: true,
                 }),
                 Animated.timing(waveAnim, {
                     toValue: 0,
                     duration: 2000,
+                    easing: Easing.linear,
                     useNativeDriver: true,
                 }),
             ])
@@ -73,6 +93,8 @@ export default function WaterTracker() {
     const triggerConfetti = () => {
         setShowConfetti(true);
         confettiAnims.forEach((anim) => {
+            anim.y.setValue(0);
+            anim.opacity.setValue(1);
             Animated.parallel([
                 Animated.timing(anim.y, {
                     toValue: 300,
@@ -89,61 +111,23 @@ export default function WaterTracker() {
         setTimeout(() => setShowConfetti(false), 3000);
     };
 
-    const loadWaterData = async () => {
-        try {
-            const today = new Date().toDateString();
-            const storedData = await AsyncStorage.getItem("waterData");
-
-            if (storedData) {
-                const data = JSON.parse(storedData);
-                const todayData = data.find(d => d.date === today);
-                setMlToday(todayData?.ml || 0);
-                setHistory(data.slice(0, 30));
-            }
-        } catch (error) {
-            console.error("Error loading water data:", error);
-        }
-    };
-
-    const saveWaterData = async (ml) => {
-        try {
-            const today = new Date().toDateString();
-            const storedData = await AsyncStorage.getItem("waterData");
-            let data = storedData ? JSON.parse(storedData) : [];
-
-            const todayIndex = data.findIndex(d => d.date === today);
-
-            if (todayIndex >= 0) {
-                data[todayIndex] = { date: today, ml, cups: Math.floor(ml / CUP_SIZE), timestamp: new Date().toISOString() };
-            } else {
-                data.unshift({ date: today, ml, cups: Math.floor(ml / CUP_SIZE), timestamp: new Date().toISOString() });
-            }
-
-            data = data.slice(0, 30);
-
-            await AsyncStorage.setItem("waterData", JSON.stringify(data));
-            setMlToday(ml);
-            setHistory(data.slice(0, 30));
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } catch (error) {
-            console.error("Error saving water data:", error);
-        }
-    };
-
     const addWater = (amount) => {
         const newAmount = Math.min(mlToday + amount, 5000);
-        saveWaterData(newAmount);
+        updateWater(newAmount);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
 
     const removeWater = (amount) => {
         const newAmount = Math.max(mlToday - amount, 0);
-        saveWaterData(newAmount);
+        updateWater(newAmount);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
 
     const progress = Math.min(mlToday / DAILY_GOAL, 1);
     const fillHeight = fillAnim.interpolate({
         inputRange: [0, DAILY_GOAL],
         outputRange: ["0%", "100%"],
+        extrapolate: "clamp"
     });
 
     const getCalendarDays = () => {
@@ -207,18 +191,23 @@ export default function WaterTracker() {
 
             <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
             >
-                {/* Time Card */}
-                <View style={styles.timeCard}>
+                {/* Time Card with Gradient */}
+                <LinearGradient
+                    colors={["#3B82F6", "#2563EB"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.timeCard}
+                >
                     <View>
                         <Text style={styles.timeText}>{currentTime}</Text>
-                        <Text style={styles.timeSubtext}>{mlToday}ml water</Text>
+                        <Text style={styles.timeSubtext}>{mlToday}ml consumed today</Text>
                     </View>
-                    <TouchableOpacity style={styles.addNowButton} onPress={() => addWater(CUP_SIZE)}>
-                        <Text style={styles.addNowText}>Add now</Text>
-                    </TouchableOpacity>
-                </View>
+                    <View style={styles.percentageCircle}>
+                        <Text style={styles.percentageText}>{Math.round(progress * 100)}%</Text>
+                    </View>
+                </LinearGradient>
 
                 {/* Water Bottle Visualization */}
                 <View style={styles.bottleContainer}>
@@ -232,9 +221,25 @@ export default function WaterTracker() {
                                         colors={["#60A5FA", "#3B82F6"]}
                                         style={StyleSheet.absoluteFill}
                                     />
+                                    <Animated.View 
+                                        style={[
+                                            styles.wave, 
+                                            { 
+                                                opacity: 0.5,
+                                                transform: [{
+                                                    translateY: waveAnim.interpolate({
+                                                        inputRange: [0, 1],
+                                                        outputRange: [0, 10]
+                                                    })
+                                                }]
+                                            }
+                                        ]} 
+                                    />
                                 </Animated.View>
                                 <View style={styles.bottleOverlay}>
-                                    <Text style={styles.bottleText}>{mlToday}ml</Text>
+                                    <Text style={[styles.bottleText, { color: mlToday > DAILY_GOAL / 2 ? '#FFF' : '#1F2937' }]}>
+                                        {mlToday}ml
+                                    </Text>
                                 </View>
                             </View>
                         </View>
@@ -242,31 +247,47 @@ export default function WaterTracker() {
 
                     {/* Progress Info */}
                     <View style={styles.progressInfo}>
-                        <View style={styles.progressBar}>
-                            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-                        </View>
-                        <View style={styles.progressStats}>
-                            <View style={styles.progressStat}>
-                                <Droplets size={16} color="#3B82F6" />
-                                <Text style={styles.progressStatText}>{mlToday}ml</Text>
-                            </View>
-                            <Text style={styles.progressPercentage}>{Math.round(progress * 100)}%</Text>
-                        </View>
                         <View style={styles.targetCard}>
-                            <Text style={styles.targetLabel}>Target</Text>
-                            <Text style={styles.targetValue}>{DAILY_GOAL}ml 💧</Text>
+                            <View style={styles.targetIcon}>
+                                <Droplets size={20} color="#3B82F6" />
+                            </View>
+                            <View>
+                                <Text style={styles.targetLabel}>Daily Goal</Text>
+                                <Text style={styles.targetValue}>{DAILY_GOAL}ml</Text>
+                            </View>
+                        </View>
+                         <View style={styles.targetCard}>
+                            <View style={[styles.targetIcon, { backgroundColor: '#ECFDF5' }]}>
+                                <Info size={20} color="#10B981" />
+                            </View>
+                            <View>
+                                <Text style={styles.targetLabel}>Remaining</Text>
+                                <Text style={styles.targetValue}>{Math.max(0, DAILY_GOAL - mlToday)}ml</Text>
+                            </View>
                         </View>
                     </View>
                 </View>
 
                 {/* Quick Add Buttons */}
                 <View style={styles.quickAddContainer}>
-                    <TouchableOpacity style={styles.quickAddButton} onPress={() => removeWater(CUP_SIZE)}>
+                    <AnimatedTouchable 
+                        style={[styles.quickAddButton, { transform: [{ scale: removeBtnScale }] }]} 
+                        onPress={() => {
+                            animateButton(removeBtnScale);
+                            removeWater(CUP_SIZE);
+                        }}
+                    >
                         <Minus size={20} color="#EF4444" />
                         <Text style={styles.quickAddText}>-200ml</Text>
-                    </TouchableOpacity>
+                    </AnimatedTouchable>
 
-                    <TouchableOpacity style={styles.mainAddButton} onPress={() => addWater(CUP_SIZE)}>
+                    <AnimatedTouchable 
+                        style={[styles.mainAddButton, { transform: [{ scale: mainBtnScale }] }]} 
+                        onPress={() => {
+                            animateButton(mainBtnScale);
+                            addWater(CUP_SIZE);
+                        }}
+                    >
                         <LinearGradient
                             colors={["#3B82F6", "#2563EB"]}
                             style={styles.mainAddGradient}
@@ -274,29 +295,23 @@ export default function WaterTracker() {
                             <Plus size={24} color="#FFFFFF" />
                             <Text style={styles.mainAddText}>Add 200ml</Text>
                         </LinearGradient>
-                    </TouchableOpacity>
+                    </AnimatedTouchable>
 
-                    <TouchableOpacity style={styles.quickAddButton} onPress={() => addWater(CUP_SIZE)}>
+                    <AnimatedTouchable 
+                        style={[styles.quickAddButton, { transform: [{ scale: addBtnScale }] }]} 
+                        onPress={() => {
+                            animateButton(addBtnScale);
+                            addWater(CUP_SIZE);
+                        }}
+                    >
                         <Plus size={20} color="#10B981" />
                         <Text style={styles.quickAddText}>+200ml</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Stats */}
-                <View style={styles.statsContainer}>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>{mlToday}ml</Text>
-                        <Text style={styles.statLabel}>Today</Text>
-                    </View>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>{Math.max(0, DAILY_GOAL - mlToday)}ml</Text>
-                        <Text style={styles.statLabel}>Remaining</Text>
-                    </View>
+                    </AnimatedTouchable>
                 </View>
 
                 {/* Mini Calendar */}
                 <View style={styles.calendarContainer}>
-                    <Text style={styles.calendarTitle}>This Month</Text>
+                    <Text style={styles.calendarTitle}>History</Text>
                     <View style={styles.calendarGrid}>
                         {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
                             <Text key={i} style={styles.calendarDayHeader}>{day}</Text>
@@ -357,8 +372,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 16,
         backgroundColor: "#FFFFFF",
-        borderBottomWidth: 1,
-        borderBottomColor: "#F3F4F6",
     },
     backButton: {
         width: 40,
@@ -378,32 +391,41 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         marginHorizontal: 20,
-        marginTop: 20,
-        marginBottom: 24,
-        padding: 20,
-        backgroundColor: "#DBEAFE",
-        borderRadius: 20,
+        marginTop: 10,
+        marginBottom: 30,
+        padding: 24,
+        borderRadius: 24,
+        shadowColor: "#3B82F6",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
     },
     timeText: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: "700",
-        color: "#1F2937",
+        color: "#FFFFFF",
         marginBottom: 4,
     },
     timeSubtext: {
         fontSize: 14,
-        color: "#6B7280",
+        color: "#DBEAFE",
+        fontWeight: "500",
     },
-    addNowButton: {
-        backgroundColor: "#1F2937",
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
+    percentageCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "rgba(255, 255, 255, 0.4)",
     },
-    addNowText: {
+    percentageText: {
         color: "#FFFFFF",
-        fontSize: 14,
-        fontWeight: "600",
+        fontSize: 18,
+        fontWeight: "700",
     },
     bottleContainer: {
         marginHorizontal: 20,
@@ -415,27 +437,47 @@ const styles = StyleSheet.create({
     },
     bottleOutline: {
         alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
     },
     bottleNeck: {
-        width: 40,
-        height: 20,
-        backgroundColor: "#E5E7EB",
+        width: 50,
+        height: 25,
+        backgroundColor: "rgba(255, 255, 255, 0.9)",
         borderTopLeftRadius: 8,
         borderTopRightRadius: 8,
+        borderWidth: 2,
+        borderColor: "#E5E7EB",
+        borderBottomWidth: 0,
+        zIndex: 1,
     },
     bottleBody: {
-        width: 120,
-        height: 200,
-        backgroundColor: "#F3F4F6",
-        borderRadius: 20,
+        width: 140,
+        height: 240,
+        backgroundColor: "rgba(255, 255, 255, 0.9)",
+        borderRadius: 24,
         overflow: "hidden",
         position: "relative",
+        borderWidth: 2,
+        borderColor: "#E5E7EB",
     },
     waterFill: {
         position: "absolute",
         bottom: 0,
         left: 0,
         right: 0,
+    },
+    wave: {
+        position: "absolute",
+        top: -10,
+        left: 0,
+        right: 0,
+        height: 20,
+        backgroundColor: "#60A5FA",
+        borderRadius: 10,
     },
     bottleOverlay: {
         position: "absolute",
@@ -445,65 +487,49 @@ const styles = StyleSheet.create({
         bottom: 0,
         justifyContent: "center",
         alignItems: "center",
+        zIndex: 10,
     },
     bottleText: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#1F2937",
+        fontSize: 32,
+        fontWeight: "800",
+        textShadowColor: 'rgba(0, 0, 0, 0.1)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     progressInfo: {
+        flexDirection: "row",
+        justifyContent: "space-between",
         gap: 12,
     },
-    progressBar: {
-        height: 8,
-        backgroundColor: "#E5E7EB",
-        borderRadius: 4,
-        overflow: "hidden",
-    },
-    progressFill: {
-        height: "100%",
-        backgroundColor: "#F59E0B",
-        borderRadius: 4,
-    },
-    progressStats: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-    },
-    progressStat: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-    },
-    progressStatText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#1F2937",
-    },
-    progressPercentage: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#6B7280",
-    },
     targetCard: {
+        flex: 1,
         flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
         backgroundColor: "#FFFFFF",
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 16,
+        gap: 12,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
     },
+    targetIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#EFF6FF",
+        justifyContent: "center",
+        alignItems: "center",
+    },
     targetLabel: {
-        fontSize: 14,
+        fontSize: 12,
         color: "#6B7280",
+        fontWeight: "500",
     },
     targetValue: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: "700",
         color: "#1F2937",
     },
@@ -511,7 +537,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: 12,
         marginHorizontal: 20,
-        marginBottom: 24,
+        marginBottom: 32,
     },
     quickAddButton: {
         flex: 1,
@@ -520,11 +546,11 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         gap: 6,
         backgroundColor: "#FFFFFF",
-        paddingVertical: 14,
-        borderRadius: 14,
+        paddingVertical: 16,
+        borderRadius: 16,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
     },
@@ -535,13 +561,13 @@ const styles = StyleSheet.create({
     },
     mainAddButton: {
         flex: 1.5,
-        height: 56,
-        borderRadius: 14,
+        height: 60,
+        borderRadius: 16,
         overflow: "hidden",
         shadowColor: "#3B82F6",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowRadius: 12,
         elevation: 6,
     },
     mainAddGradient: {
@@ -556,49 +582,21 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
     },
-    statsContainer: {
-        flexDirection: "row",
-        gap: 12,
-        marginHorizontal: 20,
-        marginBottom: 24,
-    },
-    statCard: {
-        flex: 1,
-        backgroundColor: "#FFFFFF",
-        borderRadius: 16,
-        padding: 20,
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        elevation: 3,
-    },
-    statValue: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#3B82F6",
-        marginBottom: 4,
-    },
-    statLabel: {
-        fontSize: 13,
-        color: "#6B7280",
-    },
     calendarContainer: {
         backgroundColor: "#FFFFFF",
         marginHorizontal: 20,
         marginBottom: 24,
-        borderRadius: 16,
-        padding: 20,
+        borderRadius: 24,
+        padding: 24,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        elevation: 3,
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     calendarTitle: {
-        fontSize: 16,
-        fontWeight: "600",
+        fontSize: 18,
+        fontWeight: "700",
         color: "#1F2937",
         marginBottom: 16,
     },
@@ -611,8 +609,8 @@ const styles = StyleSheet.create({
         textAlign: "center",
         fontSize: 12,
         fontWeight: "600",
-        color: "#6B7280",
-        marginBottom: 8,
+        color: "#9CA3AF",
+        marginBottom: 12,
     },
     calendarDay: {
         width: "14.28%",
@@ -624,14 +622,15 @@ const styles = StyleSheet.create({
     calendarDayText: {
         fontSize: 14,
         color: "#6B7280",
+        fontWeight: "500",
     },
     calendarDayCompleted: {
         color: "#3B82F6",
-        fontWeight: "600",
+        fontWeight: "700",
     },
     calendarDot: {
         position: "absolute",
-        bottom: 4,
+        bottom: 6,
         width: 4,
         height: 4,
         borderRadius: 2,
@@ -641,21 +640,23 @@ const styles = StyleSheet.create({
         backgroundColor: "#EFF6FF",
         marginHorizontal: 20,
         marginBottom: 24,
-        borderRadius: 16,
-        padding: 20,
+        borderRadius: 24,
+        padding: 24,
         borderWidth: 1,
         borderColor: "#BFDBFE",
     },
     tipsTitle: {
         fontSize: 16,
-        fontWeight: "600",
+        fontWeight: "700",
         color: "#1E40AF",
         marginBottom: 12,
     },
     tipText: {
         fontSize: 14,
         color: "#1E40AF",
-        lineHeight: 22,
+        lineHeight: 24,
         marginBottom: 4,
+        fontWeight: "500",
     },
 });
+

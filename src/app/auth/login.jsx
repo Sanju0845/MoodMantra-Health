@@ -46,10 +46,24 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
+            // Try doctor login first
+            const doctorResponse = await api.doctorLogin(trimmedEmail, trimmedPassword);
+            
+            if (doctorResponse.success && doctorResponse.token) {
+                // Doctor login successful
+                setToken(doctorResponse.token);
+                await AsyncStorage.setItem("userType", "doctor");
+                router.replace("/doctor");
+                setLoading(false);
+                return;
+            }
+
+            // If doctor login fails, try user login
             const response = await api.login(trimmedEmail, trimmedPassword);
 
             if (response.success && response.token) {
                 setToken(response.token);
+                await AsyncStorage.setItem("userType", "user");
 
                 try {
                     const profileResponse = await api.getProfile();

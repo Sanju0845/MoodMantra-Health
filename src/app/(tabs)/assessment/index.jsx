@@ -227,7 +227,7 @@ export default function AssessmentScreen() {
                 style={styles.scrollView}
                 contentContainerStyle={[
                     styles.scrollContent,
-                    { paddingBottom: insets.bottom + 100 },
+                    { paddingBottom: insets.bottom + 130 },
                 ]}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

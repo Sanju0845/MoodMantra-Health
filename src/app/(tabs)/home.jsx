@@ -48,6 +48,7 @@ import "../../i18n"; // Init i18n
 import { useTranslation } from "react-i18next";
 import { Modal } from "react-native";
 import { Globe } from "lucide-react-native";
+import { useWellness } from "@/context/WellnessContext";
 
 
 // Daily inspirational quotes
@@ -103,6 +104,7 @@ const CircleProgress = ({ size = 70, strokeWidth = 6, progress = 0, color = "#4A
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { water, sleep, breathing, habits, refreshData: refreshWellness } = useWellness();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState(null);
@@ -116,11 +118,17 @@ export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [analytics, setAnalytics] = useState(null);
+  
+  const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  // Wellness data from local storage
-  const [waterToday, setWaterToday] = useState(0);
-  const [sleepToday, setSleepToday] = useState(0);
-  const [breathingToday, setBreathingToday] = useState(0);
+  // Wellness Data
+  const waterProgress = water.today / 2000;
+  const sleepProgress = sleep.today / 8;
+  const breathingProgress = breathing.today / 3;
+  const completedHabits = habits.logs.find(l => l.date === new Date().toDateString())?.completedIds?.length || 0;
+  const totalHabits = habits.list.length;
+  const habitsProgress = totalHabits > 0 ? completedHabits / totalHabits : 0;
+
   const LANGUAGES = [
     { code: 'en', label: 'English', native: 'English' },
     { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
@@ -133,6 +141,7 @@ export default function HomeScreen() {
     await AsyncStorage.setItem('language', langCode);
     setShowLanguageModal(false);
   };
+
 
   // Chat tooltip animation
   const tooltipScale = useRef(new Animated.Value(0)).current;
@@ -227,7 +236,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-      loadWellnessData();
+      refreshWellness();
     }, [])
   );
   useEffect(() => {
@@ -268,38 +277,6 @@ export default function HomeScreen() {
       }, 5000);
     }, 500);
   }, []);
-
-  const loadWellnessData = async () => {
-    try {
-      const today = new Date().toDateString();
-
-      // Load water data
-      const waterData = await AsyncStorage.getItem("waterData");
-      if (waterData) {
-        const data = JSON.parse(waterData);
-        const todayData = data.find(d => d.date === today);
-        setWaterToday(todayData?.cups || 0);
-      }
-
-      // Load sleep data
-      const sleepData = await AsyncStorage.getItem("sleepData");
-      if (sleepData) {
-        const data = JSON.parse(sleepData);
-        const todayData = data.find(d => d.date === today);
-        setSleepToday(todayData?.hours || 0);
-      }
-
-      // Load breathing data
-      const breathingData = await AsyncStorage.getItem("breathingData");
-      if (breathingData) {
-        const data = JSON.parse(breathingData);
-        const todayData = data.find(d => d.date === today);
-        setBreathingToday(todayData?.sessions || 0);
-      }
-    } catch (error) {
-      console.error("Error loading wellness data:", error);
-    }
-  };
 
   const loadData = async () => {
     try {
@@ -389,7 +366,7 @@ export default function HomeScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
-    loadWellnessData();
+    refreshWellness();
   };
 
   const formatAppointmentDate = (slotDate, slotTime) => {
@@ -459,9 +436,12 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>
-            {t('greeting')} {user?.name?.split(" ")[0] || t('greeting_placeholder')}!
-          </Text>
+          <View>
+            <Text style={styles.greeting}>
+              {t('greeting')} {user?.name?.split(" ")[0] || t('greeting_placeholder')}!
+            </Text>
+            <Text style={styles.dateText}>{todayDate}</Text>
+          </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <TouchableOpacity
@@ -538,6 +518,11 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.moodCard}
         >
+          {/* Background Pattern */}
+          <View style={{ position: 'absolute', right: -20, top: -20, opacity: 0.1 }}>
+            <Smile size={140} color="#FFFFFF" />
+          </View>
+
           <View style={styles.moodCardContent}>
             <View style={styles.moodCardLeft}>
               <Text style={styles.moodCardTitle}>{t('how_are_you')}</Text>
@@ -609,7 +594,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/wellness/breathing")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#E6F4F0" }]}>
-                <Wind size={28} color="#4A9B7F" />
+                <Wind size={32} color="#4A9B7F" />
               </View>
               <Text style={styles.quickActionText}>{t('breathing')}</Text>
             </AnimatedButton>
@@ -619,7 +604,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/journal")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#FEF3C7" }]}>
-                <BookOpen size={28} color="#F59E0B" />
+                <BookOpen size={32} color="#F59E0B" />
               </View>
               <Text style={styles.quickActionText}>{t('journal')}</Text>
             </AnimatedButton>
@@ -629,7 +614,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/assessment")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#E0F2FE" }]}>
-                <ClipboardList size={28} color="#0EA5E9" />
+                <ClipboardList size={32} color="#0EA5E9" />
               </View>
               <Text style={styles.quickActionText}>{t('assessment')}</Text>
             </AnimatedButton>
@@ -639,7 +624,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/chat")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#FCE7F3" }]}>
-                <MessageCircle size={28} color="#EC4899" />
+                <MessageCircle size={32} color="#EC4899" />
               </View>
               <Text style={styles.quickActionText}>{t('raska_ai')}</Text>
             </AnimatedButton>
@@ -649,7 +634,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/doctors")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#DBEAFE" }]}>
-                <Stethoscope size={28} color="#3B82F6" />
+                <Stethoscope size={32} color="#3B82F6" />
               </View>
               <Text style={styles.quickActionText}>{t('doctors')}</Text>
             </AnimatedButton>
@@ -659,7 +644,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/goals")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#FEE2E2" }]}>
-                <Target size={28} color="#EF4444" />
+                <Target size={32} color="#EF4444" />
               </View>
               <Text style={styles.quickActionText}>{t('goals')}</Text>
             </AnimatedButton>
@@ -680,7 +665,7 @@ export default function HomeScreen() {
           <Text style={styles.focusCardText}>
             Take 5 minutes for mindful breathing and set your intention for the day
           </Text>
-          <TouchableOpacity style={styles.focusButton}>
+          <TouchableOpacity style={styles.focusButton} onPress={() => router.push("/(tabs)/wellness/breathing")}>
             <Text style={styles.focusButtonText}>Start Now</Text>
           </TouchableOpacity>
         </LinearGradient>
@@ -691,50 +676,71 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Wellness Progress</Text>
             <Text style={styles.sectionSubtitle}>Today's goals</Text>
           </View>
-          <View style={styles.progressGrid}>
+          <View style={[styles.progressGrid, { flexWrap: 'wrap', gap: 12 }]}>
             {/* Water Intake */}
-            <View style={styles.progressCard}>
+            <View style={[styles.progressCard, { width: '47%' }]}>
               <CircleProgress
                 size={70}
                 strokeWidth={6}
-                progress={waterToday / 10}
+                progress={water.today / 2000}
                 color="#3B82F6"
                 bgColor="#DBEAFE"
               >
                 <Droplets size={24} color="#3B82F6" />
               </CircleProgress>
               <Text style={styles.progressLabel}>Water</Text>
-              <Text style={styles.progressValue}>{waterToday}/10 cups</Text>
+              <Text style={styles.progressValue}>{Math.floor(water.today / 200)}/10 cups</Text>
             </View>
 
             {/* Sleep */}
-            <View style={styles.progressCard}>
+            <View style={[styles.progressCard, { width: '47%' }]}>
               <CircleProgress
                 size={70}
                 strokeWidth={6}
-                progress={sleepToday / 8}
+                progress={sleep.today / 8}
                 color="#4A9B7F"
                 bgColor="#E6F4F0"
               >
                 <Moon size={24} color="#4A9B7F" />
               </CircleProgress>
               <Text style={styles.progressLabel}>Sleep</Text>
-              <Text style={styles.progressValue}>{sleepToday.toFixed(1)} hrs</Text>
+              <Text style={styles.progressValue}>{sleep.today.toFixed(1)} hrs</Text>
             </View>
 
             {/* Breathing */}
-            <View style={styles.progressCard}>
+            <View style={[styles.progressCard, { width: '47%' }]}>
               <CircleProgress
                 size={70}
                 strokeWidth={6}
-                progress={breathingToday / 3}
+                progress={breathing.today / 3}
                 color="#10B981"
                 bgColor="#D1FAE5"
               >
                 <Wind size={24} color="#10B981" />
               </CircleProgress>
               <Text style={styles.progressLabel}>Breathing</Text>
-              <Text style={styles.progressValue}>{breathingToday}/3 sessions</Text>
+              <Text style={styles.progressValue}>{breathing.today}/3 sessions</Text>
+            </View>
+
+            {/* Habits */}
+            <View style={[styles.progressCard, { width: '47%' }]}>
+              <CircleProgress
+                size={70}
+                strokeWidth={6}
+                progress={
+                  habits.list.length > 0
+                    ? (habits.logs.find(l => l.date === new Date().toDateString())?.completedIds?.length || 0) / habits.list.length
+                    : 0
+                }
+                color="#F59E0B"
+                bgColor="#FEF3C7"
+              >
+                <CheckSquare size={24} color="#F59E0B" />
+              </CircleProgress>
+              <Text style={styles.progressLabel}>Habits</Text>
+              <Text style={styles.progressValue}>
+                {habits.logs.find(l => l.date === new Date().toDateString())?.completedIds?.length || 0}/{habits.list.length} done
+              </Text>
             </View>
           </View>
         </View>
@@ -854,10 +860,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 key={apt._id}
                 style={styles.appointmentCard}
-                onPress={() => router.push({
-                  pathname: "/(tabs)/doctors/[id]",
-                  params: { id: apt.docData?._id }
-                })}
+                onPress={() => router.push("/(tabs)/profile/appointments")}
               >
                 <View style={styles.appointmentIcon}>
                   <Calendar size={20} color="#4A9B7F" />
@@ -950,12 +953,13 @@ export default function HomeScreen() {
         onPress={() => router.push("/(tabs)/chat")}
         scale={0.9}
       >
-        <LinearGradient
-          colors={["#4A9B7F", "#3B8068"]}
-          style={styles.floatingChatGradient}
-        >
-          <MessageCircle size={20} color="#FFFFFF" />
-        </LinearGradient>
+        <View style={styles.floatingChatGradient}>
+          <Image 
+            source={{ uri: "https://raskamon.com/raskabot.jpg" }}
+            style={{ width: "100%", height: "100%", borderRadius: 24 }}
+            resizeMode="cover"
+          />
+        </View>
       </AnimatedButton>
     </Animated.View>
   );
@@ -987,6 +991,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     color: "#1F2937",
+  },
+  dateText: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 4,
   },
   profileImage: {
     width: 48,
@@ -1198,10 +1207,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFBEB",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-    gap: 10,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#FEF3C7",
+    shadowColor: "#F59E0B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
   },
   quoteEmoji: {
     fontSize: 20,
@@ -1217,11 +1233,11 @@ const styles = StyleSheet.create({
   // Wellness Grid
   wellnessGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
+    flexWrap: "wrap",
+    gap: 12,
   },
   wellnessCard: {
-    flex: 1,
+    width: "47%",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -1494,18 +1510,18 @@ const styles = StyleSheet.create({
   quickActionCard: {
     width: "31%",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 20,
   },
   quickActionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 72,
+    height: 72,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   quickActionText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: "#4B5563",
     textAlign: "center",
@@ -1609,15 +1625,15 @@ const styles = StyleSheet.create({
   },
   // Today's Focus Card
   focusCard: {
-    marginHorizontal: 20,
     marginBottom: 24,
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
     elevation: 8,
+    overflow: "hidden",
   },
   focusCardHeader: {
     flexDirection: "row",
@@ -1658,14 +1674,14 @@ const styles = StyleSheet.create({
   progressCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 16,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
@@ -1673,7 +1689,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#1F2937",
-    marginTop: 10,
+    marginTop: 12,
   },
   progressValue: {
     fontSize: 11,
@@ -1685,15 +1701,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFBEB",
     marginHorizontal: 20,
     marginBottom: 24,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: "#FDE68A",
     shadowColor: "#F59E0B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   mindfulnessHeader: {
     flexDirection: "row",
