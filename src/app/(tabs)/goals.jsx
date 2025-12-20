@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -9,6 +9,7 @@ import {
     Alert,
     Modal,
     RefreshControl,
+    Animated,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +25,7 @@ import {
     X,
     Trophy,
 } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../utils/api";
 
@@ -41,12 +43,23 @@ export default function GoalsScreen() {
     const insets = useSafeAreaInsets();
     const [goals, setGoals] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [newGoal, setNewGoal] = useState({
         title: "",
         category: "wellness",
         frequency: "daily",
     });
+
+    // Confetti animations
+    const confettiAnims = useRef(
+        Array.from({ length: 30 }, () => ({
+            y: new Animated.Value(0),
+            x: new Animated.Value(0),
+            opacity: new Animated.Value(1),
+            rotate: new Animated.Value(0),
+        }))
+    ).current;
 
     useEffect(() => {
         loadGoals();
@@ -127,6 +140,12 @@ export default function GoalsScreen() {
             return g;
         });
         saveGoals(updated);
+
+        // Trigger confetti when all goals are completed
+        const completedGoals = updated.filter(g => g.completedToday).length;
+        if (completedGoals === goals.length && goals.length > 0 && !updated.find(g => g.id === goalId)?.completedToday) {
+            triggerConfetti();
+        }
     };
 
     const deleteGoal = (goalId) => {
@@ -138,6 +157,46 @@ export default function GoalsScreen() {
                 onPress: () => saveGoals(goals.filter((g) => g.id !== goalId)),
             },
         ]);
+    };
+
+    const triggerConfetti = () => {
+        setShowConfetti(true);
+        confettiAnims.forEach((anim, index) => {
+            // Reset values
+            anim.y.setValue(0);
+            anim.x.setValue(0);
+            anim.opacity.setValue(1);
+            anim.rotate.setValue(0);
+
+            const randomX = (Math.random() - 0.5) * 300;
+            const randomRotate = Math.random() * 720;
+
+            Animated.parallel([
+                Animated.timing(anim.y, {
+                    toValue: 600 + Math.random() * 200,
+                    duration: 2500 + Math.random() * 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(anim.x, {
+                    toValue: randomX,
+                    duration: 2500 + Math.random() * 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(anim.opacity, {
+                    toValue: 0,
+                    duration: 2500,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(anim.rotate, {
+                    toValue: randomRotate,
+                    duration: 2500 + Math.random() * 1000,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        });
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => setShowConfetti(false), 3500);
     };
 
     const onRefresh = () => {
@@ -154,6 +213,36 @@ export default function GoalsScreen() {
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <StatusBar style="dark" />
+
+            {/* Confetti Overlay */}
+            {showConfetti && (
+                <View style={styles.confettiContainer}>
+                    {confettiAnims.map((anim, i) => (
+                        <Animated.View
+                            key={i}
+                            style={[
+                                styles.confetti,
+                                {
+                                    backgroundColor: ["#4A9B7F", "#F59E0B", "#EC4899", "#3B82F6", "#8B5CF6", "#10B981"][i % 6],
+                                    transform: [
+                                        { translateY: anim.y },
+                                        { translateX: anim.x },
+                                        {
+                                            rotate: anim.rotate.interpolate({
+                                                inputRange: [0, 720],
+                                                outputRange: ['0deg', '720deg'],
+                                            })
+                                        },
+                                    ],
+                                    opacity: anim.opacity,
+                                    left: '50%',
+                                    top: 0,
+                                },
+                            ]}
+                        />
+                    ))}
+                </View>
+            )}
 
             {/* Header */}
             <View style={styles.header}>
@@ -738,5 +827,20 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "700",
         color: "#FFFFFF",
+    },
+    confettiContainer: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1000,
+        pointerEvents: "none",
+    },
+    confetti: {
+        position: "absolute",
+        width: 12,
+        height: 12,
+        borderRadius: 6,
     },
 });

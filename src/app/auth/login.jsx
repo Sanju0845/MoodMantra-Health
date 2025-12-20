@@ -45,43 +45,64 @@ export default function LoginScreen() {
         }
 
         setLoading(true);
+
         try {
-            // Try doctor login first
-            const doctorResponse = await api.doctorLogin(trimmedEmail, trimmedPassword);
-            
-            if (doctorResponse.success && doctorResponse.token) {
-                // Doctor login successful
-                setToken(doctorResponse.token);
-                await AsyncStorage.setItem("userType", "doctor");
-                router.replace("/doctor");
-                setLoading(false);
-                return;
+            // Try doctor login first (silently catch errors)
+            try {
+                console.log("[Login] Attempting doctor login...");
+                const doctorResponse = await api.doctorLogin(trimmedEmail, trimmedPassword);
+
+                if (doctorResponse.success && doctorResponse.token) {
+                    // Doctor login successful
+                    console.log("[Login] Doctor login successful");
+                    setToken(doctorResponse.token);
+                    await AsyncStorage.setItem("userType", "doctor");
+                    router.replace("/doctor");
+                    return;
+                }
+            } catch (doctorError) {
+                // Silently catch doctor login errors - user might be a regular user
+                console.log("[Login] Doctor login failed, trying user login...");
             }
 
-            // If doctor login fails, try user login
-            const response = await api.login(trimmedEmail, trimmedPassword);
+            // Try user login
+            try {
+                console.log("[Login] Attempting user login...");
+                const response = await api.login(trimmedEmail, trimmedPassword);
 
-            if (response.success && response.token) {
-                setToken(response.token);
-                await AsyncStorage.setItem("userType", "user");
+                if (response.success && response.token) {
+                    console.log("[Login] User login successful");
+                    setToken(response.token);
+                    await AsyncStorage.setItem("userType", "user");
 
-                try {
-                    const profileResponse = await api.getProfile();
-                    if (profileResponse.success && profileResponse.userData) {
-                        await AsyncStorage.setItem("userId", profileResponse.userData._id);
-                        setUserData(profileResponse.userData);
+                    try {
+                        const profileResponse = await api.getProfile();
+                        if (profileResponse.success && profileResponse.userData) {
+                            await AsyncStorage.setItem("userId", profileResponse.userData._id);
+                            setUserData(profileResponse.userData);
+                        }
+                    } catch (profileError) {
+                        console.error("[Login] Error getting profile:", profileError);
                     }
-                } catch (profileError) {
-                    console.error("[Login] Error getting profile:", profileError);
-                }
 
-                router.replace("/(tabs)/home");
-            } else {
-                Alert.alert("Error", response.message || "Login failed");
+                    router.replace("/(tabs)/home");
+                } else {
+                    throw new Error(response.message || "Login failed");
+                }
+            } catch (userError) {
+                // Both logins failed - show generic error
+                console.error("[Login] Both login attempts failed");
+                Alert.alert(
+                    "Login Failed",
+                    "Invalid email or password. Please check your credentials and try again."
+                );
             }
         } catch (error) {
-            console.error("[Login] Error:", error);
-            Alert.alert("Login Failed", error.message || "Please check your credentials and try again.");
+            console.error("[Login] Unexpected error:", error);
+            Alert.alert(
+                "Login Failed",
+                "Invalid email or password. Please check your credentials and try again."
+            );
         } finally {
             setLoading(false);
         }

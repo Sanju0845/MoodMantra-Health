@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { View, Text, Dimensions, TouchableOpacity, Modal, StyleSheet, Animated } from "react-native";
-import Svg, { Path, Circle, G, Text as SvgText } from "react-native-svg";
+import { View, Text, Dimensions, TouchableOpacity, Modal, StyleSheet, Animated, ScrollView } from "react-native";
+import Svg, { Path, Circle, G, Text as SvgText, Rect, Line as SvgLine } from "react-native-svg";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
-// Mood list with colors (matching app theme)
 const moodsList = [
     { emoji: "😁", label: "Joyful", color: "#FACC15" },
     { emoji: "😊", label: "Happy", color: "#F59E0B" },
@@ -34,35 +33,21 @@ const getMoodInfo = (label) => {
     return mood || { emoji: "😐", label: "Neutral", color: "#6B7280" };
 };
 
-// Animated Emoji Component
 const AnimatedEmoji = ({ emoji }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
-                Animated.timing(scaleAnim, {
-                    toValue: 1.2,
-                    duration: 800,
-                    useNativeDriver: true
-                }),
-                Animated.timing(scaleAnim, {
-                    toValue: 1,
-                    duration: 800,
-                    useNativeDriver: true
-                })
+                Animated.timing(scaleAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+                Animated.timing(scaleAnim, { toValue: 1, duration: 800, useNativeDriver: true })
             ])
         ).start();
     }, []);
 
-    return (
-        <Animated.Text style={{ fontSize: 32, transform: [{ scale: scaleAnim }] }}>
-            {emoji}
-        </Animated.Text>
-    );
+    return <Animated.Text style={{ fontSize: 32, transform: [{ scale: scaleAnim }] }}>{emoji}</Animated.Text>;
 };
 
-// Simple donut chart with growth animation
 const SimpleDonutChart = ({ data, total }) => {
     const size = 120;
     const strokeWidth = 24;
@@ -71,21 +56,15 @@ const SimpleDonutChart = ({ data, total }) => {
     const [displayCount, setDisplayCount] = useState(0);
 
     useEffect(() => {
-        // Animate segment growth
-        Animated.timing(growAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: false
-        }).start();
+        Animated.timing(growAnim, { toValue: 1, duration: 1500, useNativeDriver: false }).start();
 
-        // Animate counter separately
         const countInterval = setInterval(() => {
             setDisplayCount(prev => {
                 if (prev >= total) {
                     clearInterval(countInterval);
                     return total;
                 }
-                const increment = Math.ceil(total / 50); // Speed of counting
+                const increment = Math.ceil(total / 50);
                 return Math.min(prev + increment, total);
             });
         }, 30);
@@ -98,30 +77,19 @@ const SimpleDonutChart = ({ data, total }) => {
     return (
         <View style={{ alignItems: 'center' }}>
             <Svg width={size} height={size}>
-                <Circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    stroke="#F3F4F6"
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                />
+                <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#F3F4F6" strokeWidth={strokeWidth} fill="none" />
 
                 {data.map((item, index) => {
                     const { count, color } = item;
                     const percent = count / total;
                     const fullAngle = percent * 360;
 
-                    // Calculate current angle for this segment
-                    let segmentStartAngle = -90; // Start from top
+                    let segmentStartAngle = -90;
                     for (let i = 0; i < index; i++) {
                         segmentStartAngle += (data[i].count / total) * 360;
                     }
 
-                    // Animate this segment's angle
                     const animatedAngle = fullAngle * animProgress.__getValue();
-
-                    // Add generous overlap to eliminate all gaps
                     const overlap = 2;
                     const extendedStartAngle = segmentStartAngle - overlap;
                     const extendedEndAngle = segmentStartAngle + animatedAngle + overlap;
@@ -141,27 +109,10 @@ const SimpleDonutChart = ({ data, total }) => {
 
                     const path = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
 
-                    return (
-                        <Path
-                            key={index}
-                            d={path}
-                            stroke={color}
-                            strokeWidth={strokeWidth}
-                            fill="none"
-                            strokeLinecap="butt"
-                        />
-                    );
+                    return <Path key={index} d={path} stroke={color} strokeWidth={strokeWidth} fill="none" strokeLinecap="butt" />;
                 })}
 
-                {/* Animated counter */}
-                <SvgText
-                    x={size / 2}
-                    y={size / 2 + 5}
-                    textAnchor="middle"
-                    fontSize="24"
-                    fontWeight="bold"
-                    fill="#1F2937"
-                >
+                <SvgText x={size / 2} y={size / 2 + 5} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#1F2937">
                     {displayCount}
                 </SvgText>
             </Svg>
@@ -169,7 +120,42 @@ const SimpleDonutChart = ({ data, total }) => {
     );
 };
 
-// Main component
+// Frequency Bar Chart for Modal
+const FrequencyBarChart = ({ occurrencesByDay, color }) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const maxCount = Math.max(...Object.values(occurrencesByDay), 1);
+    const chartHeight = 100;
+    const barWidth = 30;
+
+    return (
+        <View style={{ marginVertical: 16 }}>
+            <Text style={styles.analyticsTitle}>Occurrence During Week</Text>
+            <Svg width={280} height={chartHeight + 30}>
+                {days.map((day, i) => {
+                    const count = occurrencesByDay[day] || 0;
+                    const barHeight = (count / maxCount) * chartHeight;
+                    const x = i * 40;
+                    const y = chartHeight - barHeight;
+
+                    return (
+                        <G key={day}>
+                            <Rect x={x} y={y} width={barWidth} height={barHeight} fill={color} opacity={0.7} rx={4} />
+                            <SvgText x={x + barWidth / 2} y={chartHeight + 15} fontSize="10" fill="#6B7280" textAnchor="middle">
+                                {day}
+                            </SvgText>
+                            {count > 0 && (
+                                <SvgText x={x + barWidth / 2} y={y - 5} fontSize="10" fill="#1F2937" textAnchor="middle" fontWeight="bold">
+                                    {count}
+                                </SvgText>
+                            )}
+                        </G>
+                    );
+                })}
+            </Svg>
+        </View>
+    );
+};
+
 export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
     const [selectedMood, setSelectedMood] = useState(null);
     const [showAllMoods, setShowAllMoods] = useState(false);
@@ -183,14 +169,58 @@ export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
         return map;
     }, [data]);
 
+    const getMoodAnalytics = (moodLabel) => {
+        const moodEntries = data.filter(e => (e.mood || e.moodLabel) === moodLabel);
+
+        // Occurrence by day of week
+        const occurrencesByDay = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
+        moodEntries.forEach(entry => {
+            const date = new Date(entry.createdAt || entry.date);
+            const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+            occurrencesByDay[dayName]++;
+        });
+
+        // Calculate streaks
+        const sortedDates = data.map(e => new Date(e.createdAt || e.date)).sort((a, b) => a - b);
+        let longestWith = 0, longestWithout = 0, currentWith = 0, currentWithout = 0;
+
+        sortedDates.forEach((date, i) => {
+            const entry = data.find(e => new Date(e.createdAt || e.date).getTime() === date.getTime());
+            const hasMood = (entry.mood || entry.moodLabel) === moodLabel;
+
+            if (hasMood) {
+                currentWith++;
+                currentWithout = 0;
+                longestWith = Math.max(longestWith, currentWith);
+            } else {
+                currentWithout++;
+                currentWith = 0;
+                longestWithout = Math.max(longestWithout, currentWithout);
+            }
+        });
+
+        // Influence on mood score
+        const entriesWithMood = data.filter(e => (e.mood || e.moodLabel) === moodLabel);
+        const entriesWithoutMood = data.filter(e => (e.mood || e.moodLabel) !== moodLabel);
+
+        const avgWithMood = entriesWithMood.length > 0
+            ? Math.round(entriesWithMood.reduce((sum, e) => sum + (e.situations?.[0]?.normalized_score || 50), 0) / entriesWithMood.length)
+            : 0;
+        const avgWithoutMood = entriesWithoutMood.length > 0
+            ? Math.round(entriesWithoutMood.reduce((sum, e) => sum + (e.situations?.[0]?.normalized_score || 50), 0) / entriesWithoutMood.length)
+            : 0;
+
+        return {
+            occurrencesByDay,
+            longestStreak: { withMood: longestWith, withoutMood: longestWithout },
+            influence: { avgWithMood, avgWithoutMood, difference: avgWithMood - avgWithoutMood }
+        };
+    };
+
     const total = Object.values(moodDistribution).reduce((a, b) => a + b, 0);
 
     const allMoods = Object.keys(moodDistribution)
-        .map(mood => ({
-            label: mood,
-            count: moodDistribution[mood],
-            ...getMoodInfo(mood)
-        }))
+        .map(mood => ({ label: mood, count: moodDistribution[mood], ...getMoodInfo(mood) }))
         .sort((a, b) => b.count - a.count);
 
     const top3Moods = allMoods.slice(0, 3);
@@ -212,25 +242,16 @@ export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
         <View style={styles.card}>
             <Text style={styles.title}>Mood Distribution</Text>
 
-            {/* Top Section: Donut + Top 3 Moods */}
             <View style={styles.topSection}>
-                {/* Left: Donut Chart */}
                 <View style={styles.donutContainer}>
                     <SimpleDonutChart data={allMoods} total={total} />
                 </View>
 
-                {/* Right: Top 3 Moods */}
                 <View style={styles.top3Container}>
                     {top3Moods.map((mood, index) => (
                         <TouchableOpacity
                             key={index}
-                            style={[
-                                styles.top3Card,
-                                {
-                                    backgroundColor: `${mood.color}15`,
-                                    borderColor: mood.color
-                                }
-                            ]}
+                            style={[styles.top3Card, { backgroundColor: `${mood.color}15`, borderColor: mood.color }]}
                             onPress={() => setSelectedMood(mood.label)}
                         >
                             <Text style={{ fontSize: 24 }}>{mood.emoji}</Text>
@@ -243,21 +264,13 @@ export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
                 </View>
             </View>
 
-            {/* Bottom Section: Remaining Moods (One Row Initially) */}
             {remainingMoods.length > 0 && (
                 <View style={{ marginTop: 16 }}>
                     <View style={styles.remainingSection}>
                         {visibleRemainingMoods.map((mood, index) => (
                             <TouchableOpacity
                                 key={index}
-                                style={[
-                                    styles.remainingCard,
-                                    {
-                                        backgroundColor: `${mood.color}15`,
-                                        borderColor: mood.color,
-                                        opacity: showAllMoods ? 1 : (index < 4 ? 1 : 0.5)
-                                    }
-                                ]}
+                                style={[styles.remainingCard, { backgroundColor: `${mood.color}15`, borderColor: mood.color, opacity: showAllMoods ? 1 : (index < 4 ? 1 : 0.5) }]}
                                 onPress={() => setSelectedMood(mood.label)}
                             >
                                 <Text style={styles.remainingEmoji}>{mood.emoji}</Text>
@@ -266,19 +279,8 @@ export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
                         ))}
                     </View>
 
-                    {/* See More/Less Button */}
                     {remainingMoods.length > 4 && (
-                        <TouchableOpacity
-                            onPress={() => setShowAllMoods(!showAllMoods)}
-                            style={{
-                                marginTop: 12,
-                                paddingVertical: 8,
-                                paddingHorizontal: 16,
-                                backgroundColor: "#F3F4F6",
-                                borderRadius: 8,
-                                alignSelf: "center"
-                            }}
-                        >
+                        <TouchableOpacity onPress={() => setShowAllMoods(!showAllMoods)} style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#F3F4F6", borderRadius: 8, alignSelf: "center" }}>
                             <Text style={{ fontSize: 12, color: "#6366F1", fontWeight: "600" }}>
                                 {showAllMoods ? "See Less ▲" : `See More (${remainingMoods.length - 4}) ▼`}
                             </Text>
@@ -287,50 +289,75 @@ export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
                 </View>
             )}
 
-            {/* Detail Modal */}
-            <Modal
-                visible={!!selectedMood}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setSelectedMood(null)}
-            >
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setSelectedMood(null)}
-                >
-                    <View style={styles.modalContent}>
-                        <TouchableOpacity
-                            style={styles.closeBtn}
-                            onPress={() => setSelectedMood(null)}
-                        >
-                            <Text style={styles.closeBtnText}>✕</Text>
-                        </TouchableOpacity>
+            <Modal visible={!!selectedMood} transparent animationType="fade" onRequestClose={() => setSelectedMood(null)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMood(null)}>
+                    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                        <View style={styles.modalContentExpanded}>
+                            <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedMood(null)}>
+                                <Text style={styles.closeBtnText}>✕</Text>
+                            </TouchableOpacity>
 
-                        {selectedMood && (() => {
-                            const moodInfo = getMoodInfo(selectedMood);
-                            const count = moodDistribution[selectedMood];
-                            const percent = ((count / total) * 100).toFixed(1);
+                            {selectedMood && (() => {
+                                const moodInfo = getMoodInfo(selectedMood);
+                                const count = moodDistribution[selectedMood];
+                                const percent = ((count / total) * 100).toFixed(1);
+                                const analytics = getMoodAnalytics(selectedMood);
 
-                            return (
-                                <>
-                                    <Text style={styles.modalEmoji}>{moodInfo.emoji}</Text>
-                                    <Text style={styles.modalTitle}>{selectedMood}</Text>
+                                return (
+                                    <>
+                                        <Text style={styles.modalEmoji}>{moodInfo.emoji}</Text>
+                                        <Text style={styles.modalTitle}>{selectedMood}</Text>
 
-                                    <View style={styles.modalStats}>
-                                        <View style={styles.statBox}>
-                                            <Text style={styles.statValue}>{count}</Text>
-                                            <Text style={styles.statLabel}>Times</Text>
+                                        <View style={styles.modalStats}>
+                                            <View style={styles.statBox}>
+                                                <Text style={styles.statValue}>{count}</Text>
+                                                <Text style={styles.statLabel}>Times</Text>
+                                            </View>
+                                            <View style={styles.statBox}>
+                                                <Text style={styles.statValue}>{percent}%</Text>
+                                                <Text style={styles.statLabel}>Of Total</Text>
+                                            </View>
                                         </View>
-                                        <View style={styles.statBox}>
-                                            <Text style={styles.statValue}>{percent}%</Text>
-                                            <Text style={styles.statLabel}>Of Total</Text>
+
+                                        <FrequencyBarChart occurrencesByDay={analytics.occurrencesByDay} color={moodInfo.color} />
+
+                                        <View style={{ width: '100%', marginTop: 16 }}>
+                                            <Text style={styles.analyticsTitle}>Longest Period</Text>
+                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                                <View style={[styles.statBox, { flex: 1 }]}>
+                                                    <Text style={[styles.statValue, { fontSize: 20, color: '#10B981' }]}>{analytics.longestStreak.withMood}</Text>
+                                                    <Text style={styles.statLabel}>With Mood</Text>
+                                                </View>
+                                                <View style={[styles.statBox, { flex: 1 }]}>
+                                                    <Text style={[styles.statValue, { fontSize: 20, color: '#EF4444' }]}>{analytics.longestStreak.withoutMood}</Text>
+                                                    <Text style={styles.statLabel}>Without Mood</Text>
+                                                </View>
+                                            </View>
                                         </View>
-                                    </View>
-                                </>
-                            );
-                        })()}
-                    </View>
+
+                                        <View style={{ width: '100%', marginTop: 16 }}>
+                                            <Text style={styles.analyticsTitle}>Influence on Daily Mood</Text>
+                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                                <View style={[styles.statBox, { flex: 1 }]}>
+                                                    <Text style={[styles.statValue, { fontSize: 18 }]}>{analytics.influence.avgWithMood}</Text>
+                                                    <Text style={styles.statLabel}>Same Day</Text>
+                                                </View>
+                                                <View style={[styles.statBox, { flex: 1 }]}>
+                                                    <Text style={[styles.statValue, { fontSize: 18 }]}>{analytics.influence.avgWithoutMood}</Text>
+                                                    <Text style={styles.statLabel}>Day After</Text>
+                                                </View>
+                                            </View>
+                                            {analytics.influence.difference !== 0 && (
+                                                <Text style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: analytics.influence.difference > 0 ? '#10B981' : '#EF4444', fontWeight: '600' }}>
+                                                    {analytics.influence.difference > 0 ? '+' : ''}{analytics.influence.difference} impact
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </>
+                                );
+                            })()}
+                        </View>
+                    </ScrollView>
                 </TouchableOpacity>
             </Modal>
         </View>
@@ -338,148 +365,29 @@ export const NativeMoodCount = ({ data = [], width = SCREEN_WIDTH - 48 }) => {
 };
 
 const styles = StyleSheet.create({
-    card: {
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-        elevation: 1,
-        shadowColor: "#000",
-        shadowOpacity: 0.04,
-        shadowRadius: 6
-    },
-    title: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#1F2937",
-        marginBottom: 16
-    },
-    topSection: {
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 16
-    },
-    donutContainer: {
-        flex: 0.4,
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    top3Container: {
-        flex: 0.6,
-        gap: 10
-    },
-    top3Card: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 12,
-        padding: 10,
-        borderWidth: 1.5,
-        gap: 12
-    },
-    top3TextContainer: {
-        flex: 1
-    },
-    top3Label: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#1F2937"
-    },
-    top3Count: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#374151"
-    },
-    remainingSection: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginTop: 8
-    },
-    remainingCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        borderRadius: 12,
-        borderWidth: 1.5,
-        gap: 6,
-        minWidth: '30%',
-        maxWidth: '31%'
-    },
-    remainingEmoji: {
-        fontSize: 20
-    },
-    remainingLabel: {
-        fontSize: 11,
-        fontWeight: "600",
-        color: "#374151",
-        flex: 1
-    },
-    emptyText: {
-        color: "#9CA3AF",
-        fontSize: 13
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        justifyContent: "center",
-        alignItems: "center"
-    },
-    modalContent: {
-        backgroundColor: "#fff",
-        borderRadius: 20,
-        padding: 24,
-        width: "80%",
-        maxWidth: 320,
-        alignItems: "center",
-        elevation: 5
-    },
-    closeBtn: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: "#F3F4F6",
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    closeBtnText: {
-        fontSize: 18,
-        color: "#6B7280"
-    },
-    modalEmoji: {
-        fontSize: 56,
-        marginBottom: 12
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#1F2937",
-        marginBottom: 20
-    },
-    modalStats: {
-        flexDirection: 'row',
-        gap: 12,
-        width: '100%'
-    },
-    statBox: {
-        flex: 1,
-        backgroundColor: "#F9FAFB",
-        padding: 14,
-        borderRadius: 12,
-        alignItems: 'center'
-    },
-    statValue: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: "#1F2937",
-        marginBottom: 4
-    },
-    statLabel: {
-        fontSize: 11,
-        color: "#6B7280",
-        textTransform: 'uppercase'
-    }
+    card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 16, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
+    title: { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 16 },
+    topSection: { flexDirection: 'row', gap: 16, marginBottom: 16 },
+    donutContainer: { flex: 0.4, alignItems: 'center', justifyContent: 'center' },
+    top3Container: { flex: 0.6, gap: 10 },
+    top3Card: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 10, borderWidth: 1.5, gap: 12 },
+    top3TextContainer: { flex: 1 },
+    top3Label: { fontSize: 14, fontWeight: "600", color: "#1F2937" },
+    top3Count: { fontSize: 18, fontWeight: "700", color: "#374151" },
+    remainingSection: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    remainingCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, gap: 6, minWidth: '30%', maxWidth: '31%' },
+    remainingEmoji: { fontSize: 20 },
+    remainingLabel: { fontSize: 11, fontWeight: "600", color: "#374151", flex: 1 },
+    emptyText: { color: "#9CA3AF", fontSize: 13 },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)" },
+    modalContentExpanded: { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "90%", maxWidth: 360, alignItems: "center", elevation: 5, maxHeight: '80%' },
+    closeBtn: { position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+    closeBtnText: { fontSize: 18, color: "#6B7280" },
+    modalEmoji: { fontSize: 56, marginBottom: 12 },
+    modalTitle: { fontSize: 20, fontWeight: "bold", color: "#1F2937", marginBottom: 20 },
+    modalStats: { flexDirection: 'row', gap: 12, width: '100%' },
+    statBox: { flex: 1, backgroundColor: "#F9FAFB", padding: 14, borderRadius: 12, alignItems: 'center' },
+    statValue: { fontSize: 24, fontWeight: "bold", color: "#1F2937", marginBottom: 4 },
+    statLabel: { fontSize: 11, color: "#6B7280", textTransform: 'uppercase' },
+    analyticsTitle: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8 }
 });

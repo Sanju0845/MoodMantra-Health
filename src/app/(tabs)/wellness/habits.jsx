@@ -47,15 +47,8 @@ export default function HabitsTracker() {
         }))
     ).current;
 
-    useEffect(() => {
-        if (habits.length === 0) {
-            const defaults = PRESET_HABITS.map((h, i) => ({
-                id: Date.now().toString() + i,
-                ...h
-            }));
-            updateHabits(defaults, null);
-        }
-    }, []);
+    // Removed auto-initialization of preset habits
+    // Users must create their own habits
 
     const toggleHabit = async (id) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

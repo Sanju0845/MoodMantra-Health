@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -11,12 +11,15 @@ import {
     LayoutAnimation,
     Platform,
     UIManager,
+    Animated,
+    Modal,
 } from "react-native";
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { ArrowLeft, X, CheckCircle } from "lucide-react-native";
+import { ArrowLeft, CheckCircle, ChevronDown, ChevronUp, TrendingUp, Home } from "lucide-react-native";
+import { useRouter } from "expo-router";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -26,192 +29,50 @@ if (Platform.OS === 'android') {
     }
 }
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
-
 const MOOD_DATA = [
-    // Positive Emotions
-    {
-        id: "joyful",
-        emoji: "😁",
-        label: "Joyful",
-        description: "Feeling full of joy and excitement",
-        color: "#4A9B7F",
-        categories: ["Grateful", "Excited", "Energetic", "Optimistic", "Proud", "Playful"],
-    },
-    {
-        id: "happy",
-        emoji: "😊",
-        label: "Happy",
-        description: "Feeling good, cheerful and positive",
-        color: "#16A34A",
-        categories: ["Content", "Peaceful", "Satisfied", "Cheerful", "Blessed", "Relaxed"],
-    },
-    {
-        id: "calm",
-        emoji: "😌",
-        label: "Calm",
-        description: "Feeling relaxed and at peace",
-        color: "#14B8A6",
-        categories: ["Serene", "Balanced", "Tranquil", "Centered", "Composed", "Mellow"],
-    },
-    {
-        id: "grateful",
-        emoji: "🙏",
-        label: "Grateful",
-        description: "Feeling thankful and appreciative",
-        color: "#F59E0B",
-        categories: ["Blessed", "Thankful", "Appreciative", "Humbled", "Fortunate", "Touched"],
-    },
-    {
-        id: "motivated",
-        emoji: "💪",
-        label: "Motivated",
-        description: "Feeling driven and ready to take action",
-        color: "#10B981",
-        categories: ["Determined", "Focused", "Inspired", "Ambitious", "Confident", "Empowered"],
-    },
-    {
-        id: "loved",
-        emoji: "❤️",
-        label: "Loved",
-        description: "Feeling cared for and emotionally supported",
-        color: "#EC4899",
-        categories: ["Cherished", "Adored", "Valued", "Connected", "Warm", "Affectionate"],
-    },
-    {
-        id: "inspired",
-        emoji: "🌟",
-        label: "Inspired",
-        description: "Feeling creative and full of new ideas",
-        color: "#6366F1",
-        categories: ["Creative", "Curious", "Innovative", "Imaginative", "Artistic", "Visionary"],
-    },
-    // Negative Emotions
-    {
-        id: "sad",
-        emoji: "😢",
-        label: "Sad",
-        description: "Feeling down or emotionally hurt",
-        color: "#3B82F6",
-        categories: ["Lonely", "Disappointed", "Heartbroken", "Gloomy", "Hopeless", "Dejected"],
-    },
-    {
-        id: "angry",
-        emoji: "😡",
-        label: "Angry",
-        description: "Feeling irritated, frustrated or upset",
-        color: "#EF4444",
-        categories: ["Frustrated", "Irritated", "Furious", "Annoyed", "Resentful", "Bitter"],
-    },
-    {
-        id: "anxious",
-        emoji: "😰",
-        label: "Anxious",
-        description: "Feeling nervous, worried or uneasy",
-        color: "#F59E0B",
-        categories: ["Worried", "Nervous", "Stressed", "Panicked", "Tense", "Fearful"],
-    },
-    {
-        id: "tired",
-        emoji: "😩",
-        label: "Tired",
-        description: "Feeling exhausted or low on energy",
-        color: "#94A3B8",
-        categories: ["Exhausted", "Drained", "Sleepy", "Weary", "Fatigued", "Lethargic"],
-    },
-    {
-        id: "overwhelmed",
-        emoji: "😖",
-        label: "Overwhelmed",
-        description: "Feeling like there's too much to handle",
-        color: "#F97316",
-        categories: ["Swamped", "Pressured", "Burdened", "Overloaded", "Stretched", "Suffocated"],
-    },
-    {
-        id: "awful",
-        emoji: "😭",
-        label: "Awful",
-        description: "Feeling extremely upset or distressed",
-        color: "#A855F7",
-        categories: ["Miserable", "Terrible", "Agonized", "Suffering", "Tormented", "Distressed"],
-    },
-    // Neutral / Ambiguous
-    {
-        id: "neutral",
-        emoji: "😐",
-        label: "Neutral",
-        description: "Feeling neither good nor bad",
-        color: "#64748B",
-        categories: ["Indifferent", "Numb", "Detached", "Apathetic", "Blank", "Empty"],
-    },
-    {
-        id: "confused",
-        emoji: "😕",
-        label: "Confused",
-        description: "Feeling unsure or unclear about something",
-        color: "#8B5CF6",
-        categories: ["Puzzled", "Uncertain", "Perplexed", "Bewildered", "Lost", "Disoriented"],
-    },
-    {
-        id: "bored",
-        emoji: "🥱",
-        label: "Bored",
-        description: "Feeling uninterested or unengaged",
-        color: "#6B7280",
-        categories: ["Restless", "Unstimulated", "Unengaged", "Listless", "Unenthused", "Tedious"],
-    },
-    {
-        id: "okay",
-        emoji: "🙂",
-        label: "Okay",
-        description: "Feeling fine, but not great",
-        color: "#22C55E",
-        categories: ["Fine", "Alright", "Decent", "Moderate", "Average", "So-so"],
-    },
-    // Complex / Mixed
-    {
-        id: "nostalgic",
-        emoji: "🥹",
-        label: "Nostalgic",
-        description: "Feeling emotional about past memories",
-        color: "#EC4899",
-        categories: ["Sentimental", "Wistful", "Reflective", "Longing", "Reminiscent", "Bittersweet"],
-    },
-    {
-        id: "hopeful",
-        emoji: "🌈",
-        label: "Hopeful",
-        description: "Feeling optimistic about the future",
-        color: "#10B981",
-        categories: ["Optimistic", "Encouraged", "Positive", "Expectant", "Confident", "Uplifted"],
-    },
-    {
-        id: "guilty",
-        emoji: "😔",
-        label: "Guilty",
-        description: "Feeling responsible for something wrong",
-        color: "#F59E0B",
-        categories: ["Remorseful", "Regretful", "Ashamed", "Sorry", "Apologetic", "Contrite"],
-    },
-    {
-        id: "ashamed",
-        emoji: "😳",
-        label: "Ashamed",
-        description: "Feeling embarrassed or regretful",
-        color: "#EF4444",
-        categories: ["Embarrassed", "Humiliated", "Mortified", "Disgraced", "Sheepish", "Chagrined"],
-    },
+    { id: "joyful", emoji: "😁", label: "Joyful", color: "#4A9B7F" },
+    { id: "happy", emoji: "😊", label: "Happy", color: "#16A34A" },
+    { id: "calm", emoji: "😌", label: "Calm", color: "#14B8A6" },
+    { id: "grateful", emoji: "🙏", label: "Grateful", color: "#F59E0B" },
+    { id: "motivated", emoji: "💪", label: "Motivated", color: "#10B981" },
+    { id: "loved", emoji: "❤️", label: "Loved", color: "#EC4899" },
+    { id: "inspired", emoji: "🌟", label: "Inspired", color: "#6366F1" },
+    { id: "sad", emoji: "😢", label: "Sad", color: "#3B82F6" },
+    { id: "angry", emoji: "😡", label: "Angry", color: "#EF4444" },
+    { id: "anxious", emoji: "😰", label: "Anxious", color: "#F59E0B" },
+    { id: "tired", emoji: "😩", label: "Tired", color: "#94A3B8" },
+    { id: "overwhelmed", emoji: "😖", label: "Overwhelmed", color: "#F97316" },
+    { id: "awful", emoji: "😭", label: "Awful", color: "#A855F7" },
+    { id: "neutral", emoji: "😐", label: "Neutral", color: "#64748B" },
+    { id: "confused", emoji: "😕", label: "Confused", color: "#8B5CF6" },
+    { id: "bored", emoji: "🥱", label: "Bored", color: "#6B7280" },
+    { id: "okay", emoji: "🙂", label: "Okay", color: "#22C55E" },
+    { id: "nostalgic", emoji: "🥹", label: "Nostalgic", color: "#EC4899" },
+    { id: "hopeful", emoji: "🌈", label: "Hopeful", color: "#10B981" },
+    { id: "guilty", emoji: "😔", label: "Guilty", color: "#F59E0B" },
+    { id: "ashamed", emoji: "😳", label: "Ashamed", color: "#EF4444" },
 ];
 
 export default function JournalScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
 
     const [selectedMood, setSelectedMood] = useState(null);
-    const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedEmotionByGroup, setSelectedEmotionByGroup] = useState({});
     const [step, setStep] = useState(1);
     const [selectedSituationTags, setSelectedSituationTags] = useState({});
     const [submitting, setSubmitting] = useState(false);
+    const [expandedGroups, setExpandedGroups] = useState({});
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
+
+    const confettiAnims = useRef(
+        Array.from({ length: 20 }, () => ({
+            y: new Animated.Value(0),
+            x: new Animated.Value(0),
+            opacity: new Animated.Value(1),
+        }))
+    ).current;
 
     const SITUATION_SUB_TAGS = {
         Work: ["Deadline", "Teamwork", "Overtime", "Promotion", "Meeting"],
@@ -259,60 +120,75 @@ export default function JournalScreen() {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setSelectedMood(mood);
-        setSelectedCategories([]);
         setSelectedEmotionByGroup({});
         setStep(1);
         setSelectedSituationTags({});
+        setExpandedGroups({});
     };
 
-    const toggleCategory = (category) => {
+    const toggleGroup = (group) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setSelectedCategories(prev =>
-            prev.includes(category)
-                ? prev.filter(c => c !== category)
-                : [...prev, category]
-        );
+        setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
     };
 
     const toggleEmotionTag = (group, tag) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setSelectedEmotionByGroup(prev => {
             const current = prev[group] || [];
-            const next = current.includes(tag)
-                ? current.filter(t => t !== tag)
-                : [...current, tag];
+            const next = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
             const updated = { ...prev, [group]: next };
             if (next.length === 0) delete updated[group];
             return updated;
-        });
-        setSelectedCategories(prev => {
-            const exists = prev.includes(tag);
-            return exists ? prev.filter(t => t !== tag) : [...prev, tag];
         });
     };
 
     const handleBack = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setSelectedMood(null);
-        setSelectedCategories([]);
         setSelectedSituationTags({});
         setSelectedEmotionByGroup({});
         setStep(1);
+        setExpandedGroups({});
     };
 
     const toggleSituationTag = (category, tag) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setSelectedSituationTags(prev => {
             const current = prev[category] || [];
-            const next = current.includes(tag)
-                ? current.filter(t => t !== tag)
-                : [...current, tag];
+            const next = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
             const updated = { ...prev, [category]: next };
-            if (next.length === 0) {
-                delete updated[category];
-            }
+            if (next.length === 0) delete updated[category];
             return updated;
         });
+    };
+
+    const triggerConfetti = () => {
+        setShowConfetti(true);
+        confettiAnims.forEach((anim) => {
+            anim.y.setValue(0);
+            anim.x.setValue(0);
+            anim.opacity.setValue(1);
+
+            Animated.parallel([
+                Animated.timing(anim.y, {
+                    toValue: 300 + Math.random() * 200,
+                    duration: 1500 + Math.random() * 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(anim.x, {
+                    toValue: (Math.random() - 0.5) * 200,
+                    duration: 1500 + Math.random() * 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(anim.opacity, {
+                    toValue: 0,
+                    duration: 2000,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        });
+
+        setTimeout(() => setShowConfetti(false), 3000);
     };
 
     const handleNextOrSave = async () => {
@@ -345,7 +221,7 @@ export default function JournalScreen() {
 
             const situationsArray = Object.keys(selectedSituationTags).map(cat => ({
                 situation: cat,
-                emotions: (selectedEmotionByGroup[cat] || selectedCategories).map(e => ({ emotion: e, intensity: 3 })),
+                emotions: (selectedEmotionByGroup[cat] || []).map(e => ({ emotion: e, intensity: 3 })),
                 tags: (selectedSituationTags[cat] || []),
                 entry_score: 0,
                 final_adjusted: 0,
@@ -354,26 +230,12 @@ export default function JournalScreen() {
                 tag_adjustment: 0
             }));
 
-            const payload = {
-                date: dateStr,
-                time: timeStr,
-                mood: selectedMood.label,
-                situations: situationsArray
-            };
-
+            const payload = { date: dateStr, time: timeStr, mood: selectedMood.label, situations: situationsArray };
             await api.submitWebMood(payload);
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("Success! 🌟", "Your mood has been logged.", [{
-                text: "OK",
-                onPress: () => {
-                    setSelectedMood(null);
-                    setSelectedCategories([]);
-                    setSelectedSituationTags({});
-                    setSelectedEmotionByGroup({});
-                    setStep(1);
-                }
-            }]);
+            triggerConfetti();
+            setShowSuccessModal(true);
         } catch (e) {
             console.error("Mood Submit Error", e);
             Alert.alert("Error", "Could not save mood.");
@@ -382,25 +244,36 @@ export default function JournalScreen() {
         }
     };
 
+    const handleGoHome = () => {
+        setShowSuccessModal(false);
+        setSelectedMood(null);
+        setSelectedSituationTags({});
+        setSelectedEmotionByGroup({});
+        setStep(1);
+        router.push("/(tabs)/home");
+    };
+
+    const handleGoToAnalytics = () => {
+        setShowSuccessModal(false);
+        setSelectedMood(null);
+        setSelectedSituationTags({});
+        setSelectedEmotionByGroup({});
+        setStep(1);
+        router.push("/(tabs)/mood/dashboard");
+    };
+
     return (
         <View style={styles.container}>
             <StatusBar style="dark" />
 
-            {/* White Background */}
-            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "#FFFFFF" }} />
-
-            {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 {selectedMood ? (
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <ArrowLeft size={24} color="#374151" />
-                        <Text style={styles.backText}>Back</Text>
+                        <ArrowLeft size={24} color="#4A9B7F" />
                     </TouchableOpacity>
-                ) : (
-                    <View style={{ width: 80 }} />
-                )}
+                ) : <View style={{ width: 40 }} />}
                 <Text style={styles.headerTitle}>Mood Check-in</Text>
-                <View style={{ width: 80 }} />
+                <View style={{ width: 40 }} />
             </View>
 
             <ScrollView
@@ -409,77 +282,77 @@ export default function JournalScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {!selectedMood ? (
-                    // Mood Selection Screen
-                    <View style={styles.card}>
+                    <View>
                         <Text style={styles.questionText}>How are you feeling today?</Text>
                         <View style={styles.moodGrid}>
-                            {MOOD_DATA.map((mood, index) => (
+                            {MOOD_DATA.map((mood) => (
                                 <TouchableOpacity
                                     key={mood.id}
                                     style={styles.moodCard}
                                     onPress={() => handleMoodSelect(mood)}
-                                    activeOpacity={0.7}
+                                    activeOpacity={0.8}
                                 >
-                                    <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-                                    <Text style={styles.moodLabel}>{mood.label}</Text>
-                                    <Text style={styles.moodDescription} numberOfLines={2}>
-                                        {mood.description}
-                                    </Text>
+                                    <View style={[styles.moodCardInner, { borderColor: mood.color }]}>
+                                        <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+                                        <Text style={styles.moodLabel}>{mood.label}</Text>
+                                    </View>
                                 </TouchableOpacity>
                             ))}
                         </View>
                     </View>
                 ) : step === 1 ? (
-                    <View style={styles.card}>
+                    <View>
                         <View style={styles.selectedMoodHeader}>
                             <Text style={styles.selectedMoodEmoji}>{selectedMood.emoji}</Text>
                             <Text style={styles.selectedMoodLabel}>{selectedMood.label}</Text>
-                            <Text style={styles.selectedMoodDescription}>{selectedMood.description}</Text>
                         </View>
 
-                        <Text style={styles.categoryQuestion}>Select tags</Text>
-                        <View style={{ gap: 16 }}>
-                            {Object.keys(EMOTION_TAGS_BY_GROUP).map((group) => (
-                                <View key={group} style={{ marginBottom: 8 }}>
-                                    <Text style={[styles.selectedMoodLabel, { fontSize: 18 }]}>{group}</Text>
-                                    <View style={styles.categoryGrid}>
-                                        {EMOTION_TAGS_BY_GROUP[group].map((tag, idx) => {
-                                            const isSelected = (selectedEmotionByGroup[group] || []).includes(tag);
-                                            return (
-                                                <TouchableOpacity
-                                                    key={idx}
-                                                    style={[
-                                                        styles.categoryChip,
-                                                        isSelected && {
-                                                            backgroundColor: selectedMood.color,
-                                                            borderColor: selectedMood.color,
-                                                        }
-                                                    ]}
-                                                    onPress={() => toggleEmotionTag(group, tag)}
-                                                    activeOpacity={0.7}
-                                                >
-                                                    <Text style={[
-                                                        styles.categoryText,
-                                                        isSelected && styles.categoryTextSelected
-                                                    ]}>
-                                                        {tag}
-                                                    </Text>
-                                                    {isSelected && (
-                                                        <CheckCircle size={16} color="#FFF" style={{ marginLeft: 4 }} />
-                                                    )}
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </View>
+                        <Text style={styles.sectionTitle}>Select your emotions</Text>
+                        {Object.keys(EMOTION_TAGS_BY_GROUP).map((group) => {
+                            const isExpanded = expandedGroups[group];
+                            const selectedCount = (selectedEmotionByGroup[group] || []).length;
+                            return (
+                                <View key={group} style={styles.groupCard}>
+                                    <TouchableOpacity
+                                        style={styles.groupHeader}
+                                        onPress={() => toggleGroup(group)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.groupHeaderLeft}>
+                                            <Text style={styles.groupTitle}>{group}</Text>
+                                            {selectedCount > 0 && (
+                                                <View style={styles.selectedBadge}>
+                                                    <Text style={styles.selectedBadgeText}>{selectedCount}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                        {isExpanded ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                                    </TouchableOpacity>
+
+                                    {isExpanded && (
+                                        <View style={styles.tagGrid}>
+                                            {EMOTION_TAGS_BY_GROUP[group].map((tag) => {
+                                                const isSelected = (selectedEmotionByGroup[group] || []).includes(tag);
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={tag}
+                                                        style={[styles.tagChip, isSelected && { backgroundColor: "#4A9B7F", borderColor: "#4A9B7F" }]}
+                                                        onPress={() => toggleEmotionTag(group, tag)}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <Text style={[styles.tagText, isSelected && styles.tagTextSelected]}>{tag}</Text>
+                                                        {isSelected && <CheckCircle size={14} color="#FFF" style={{ marginLeft: 4 }} />}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    )}
                                 </View>
-                            ))}
-                        </View>
+                            );
+                        })}
 
                         <TouchableOpacity
-                            style={[
-                                styles.saveButton,
-                                Object.keys(selectedEmotionByGroup).length === 0 && styles.saveButtonDisabled
-                            ]}
+                            style={[styles.actionButton, Object.keys(selectedEmotionByGroup).length === 0 && styles.actionButtonDisabled]}
                             onPress={handleNextOrSave}
                             disabled={Object.keys(selectedEmotionByGroup).length === 0 || submitting}
                             activeOpacity={0.8}
@@ -488,57 +361,59 @@ export default function JournalScreen() {
                                 colors={Object.keys(selectedEmotionByGroup).length > 0 ? ["#4A9B7F", "#14B8A6"] : ["#D1D5DB", "#9CA3AF"]}
                                 start={[0, 0]}
                                 end={[1, 0]}
-                                style={styles.saveButtonGradient}
+                                style={styles.actionButtonGradient}
                             >
-                                {submitting ? (
-                                    <ActivityIndicator color="#FFF" />
-                                ) : (
-                                    <Text style={styles.saveButtonText}>Next</Text>
-                                )}
+                                {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.actionButtonText}>Next</Text>}
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <View style={styles.card}>
-                        <Text style={styles.categoryQuestion}>Select tags for your situations</Text>
-                        <View style={{ gap: 16 }}>
-                            {Object.keys(SITUATION_SUB_TAGS).filter(cat => !!selectedEmotionByGroup[cat]).map((cat) => (
-                                <View key={cat} style={{ marginBottom: 8 }}>
-                                    <Text style={[styles.selectedMoodLabel, { fontSize: 18 }]}>{cat}</Text>
-                                    <View style={styles.categoryGrid}>
-                                        {SITUATION_SUB_TAGS[cat].map((tag, idx) => {
-                                            const selected = (selectedSituationTags[cat] || []).includes(tag);
-                                            return (
-                                                <TouchableOpacity
-                                                    key={idx}
-                                                    style={[
-                                                        styles.categoryChip,
-                                                        selected && {
-                                                            backgroundColor: selectedMood.color,
-                                                            borderColor: selectedMood.color,
-                                                        }
-                                                    ]}
-                                                    onPress={() => toggleSituationTag(cat, tag)}
-                                                    activeOpacity={0.7}
-                                                >
-                                                    <Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>
-                                                        {tag}
-                                                    </Text>
-                                                    {selected && (
-                                                        <CheckCircle size={16} color="#FFF" style={{ marginLeft: 4 }} />
-                                                    )}
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </View>
+                    <View>
+                        <Text style={styles.sectionTitle}>Select situation details</Text>
+                        {Object.keys(SITUATION_SUB_TAGS).filter(cat => !!selectedEmotionByGroup[cat]).map((cat) => {
+                            const isExpanded = expandedGroups[cat];
+                            const selectedCount = (selectedSituationTags[cat] || []).length;
+                            return (
+                                <View key={cat} style={styles.groupCard}>
+                                    <TouchableOpacity
+                                        style={styles.groupHeader}
+                                        onPress={() => toggleGroup(cat)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.groupHeaderLeft}>
+                                            <Text style={styles.groupTitle}>{cat}</Text>
+                                            {selectedCount > 0 && (
+                                                <View style={styles.selectedBadge}>
+                                                    <Text style={styles.selectedBadgeText}>{selectedCount}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                        {isExpanded ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                                    </TouchableOpacity>
+
+                                    {isExpanded && (
+                                        <View style={styles.tagGrid}>
+                                            {SITUATION_SUB_TAGS[cat].map((tag) => {
+                                                const selected = (selectedSituationTags[cat] || []).includes(tag);
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={tag}
+                                                        style={[styles.tagChip, selected && { backgroundColor: "#4A9B7F", borderColor: "#4A9B7F" }]}
+                                                        onPress={() => toggleSituationTag(cat, tag)}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <Text style={[styles.tagText, selected && styles.tagTextSelected]}>{tag}</Text>
+                                                        {selected && <CheckCircle size={14} color="#FFF" style={{ marginLeft: 4 }} />}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    )}
                                 </View>
-                            ))}
-                        </View>
+                            );
+                        })}
                         <TouchableOpacity
-                            style={[
-                                styles.saveButton,
-                                Object.keys(selectedSituationTags).length === 0 && styles.saveButtonDisabled
-                            ]}
+                            style={[styles.actionButton, Object.keys(selectedSituationTags).length === 0 && styles.actionButtonDisabled]}
                             onPress={handleNextOrSave}
                             disabled={Object.keys(selectedSituationTags).length === 0 || submitting}
                             activeOpacity={0.8}
@@ -547,173 +422,138 @@ export default function JournalScreen() {
                                 colors={Object.keys(selectedSituationTags).length > 0 ? ["#4A9B7F", "#14B8A6"] : ["#D1D5DB", "#9CA3AF"]}
                                 start={[0, 0]}
                                 end={[1, 0]}
-                                style={styles.saveButtonGradient}
+                                style={styles.actionButtonGradient}
                             >
-                                {submitting ? (
-                                    <ActivityIndicator color="#FFF" />
-                                ) : (
-                                    <Text style={styles.saveButtonText}>Save Mood Check-in</Text>
-                                )}
+                                {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.actionButtonText}>Save Mood Check-in</Text>}
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 )}
             </ScrollView>
+
+            {/* Confetti Overlay */}
+            {showConfetti && (
+                <View style={styles.confettiContainer}>
+                    {confettiAnims.map((anim, i) => (
+                        <Animated.View
+                            key={i}
+                            style={[
+                                styles.confetti,
+                                {
+                                    backgroundColor: ["#F87171", "#60A5FA", "#34D399", "#FBBF24", "#A78BFA", "#EC4899"][i % 6],
+                                    transform: [
+                                        { translateY: anim.y },
+                                        { translateX: anim.x },
+                                        { rotate: `${Math.random() * 360}deg` }
+                                    ],
+                                    opacity: anim.opacity,
+                                    left: "50%",
+                                    top: -20,
+                                },
+                            ]}
+                        />
+                    ))}
+                </View>
+            )}
+
+            {/* Success Modal */}
+            <Modal visible={showSuccessModal} transparent animationType="fade" onRequestClose={() => setShowSuccessModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.successIcon}>
+                            <CheckCircle size={64} color="#4A9B7F" />
+                        </View>
+                        <Text style={styles.successTitle}>Mood Logged! 🌟</Text>
+                        <Text style={styles.successMessage}>Your mood has been successfully saved</Text>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={styles.modalButton}
+                                onPress={handleGoToAnalytics}
+                                activeOpacity={0.8}
+                            >
+                                <LinearGradient
+                                    colors={["#4A9B7F", "#14B8A6"]}
+                                    start={[0, 0]}
+                                    end={[1, 0]}
+                                    style={styles.modalButtonGradient}
+                                >
+                                    <TrendingUp size={20} color="#FFF" />
+                                    <Text style={styles.modalButtonText}>Check Analytics</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalButtonSecondary]}
+                                onPress={handleGoHome}
+                                activeOpacity={0.8}
+                            >
+                                <Home size={20} color="#4A9B7F" />
+                                <Text style={styles.modalButtonTextSecondary}>Go Home</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    container: { flex: 1, backgroundColor: "#F8FAFC" },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+    backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center" },
+    headerTitle: { fontSize: 24, fontWeight: "700", color: "#4A9B7F" },
+    scrollView: { flex: 1 },
+    scrollContent: { padding: 20 },
+    questionText: { fontSize: 24, fontWeight: "700", color: "#1F2937", textAlign: "center", marginBottom: 32 },
+    moodGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
+    moodCard: { width: "30%", aspectRatio: 1 },
+    moodCardInner: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFF", borderRadius: 20, borderWidth: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+    moodEmoji: { fontSize: 48, marginBottom: 8 },
+    moodLabel: { fontSize: 13, fontWeight: "600", color: "#1F2937" },
+    selectedMoodHeader: { alignItems: "center", marginBottom: 32, backgroundColor: "#FFF", borderRadius: 20, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
+    selectedMoodEmoji: { fontSize: 64, marginBottom: 12 },
+    selectedMoodLabel: { fontSize: 28, fontWeight: "700", color: "#1F2937" },
+    sectionTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937", marginBottom: 20 },
+    groupCard: { backgroundColor: "#FFF", borderRadius: 16, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, overflow: "hidden" },
+    groupHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16 },
+    groupHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+    groupTitle: { fontSize: 16, fontWeight: "600", color: "#1F2937" },
+    selectedBadge: { backgroundColor: "#4A9B7F", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
+    selectedBadgeText: { fontSize: 12, fontWeight: "700", color: "#FFF" },
+    tagGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 16, paddingTop: 0 },
+    tagChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: "#F3F4F6", borderWidth: 1.5, borderColor: "#E5E7EB", flexDirection: "row", alignItems: "center" },
+    tagText: { fontSize: 13, fontWeight: "600", color: "#374151" },
+    tagTextSelected: { color: "#FFF" },
+    actionButton: { borderRadius: 16, overflow: "hidden", marginTop: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
+    actionButtonDisabled: { opacity: 0.5 },
+    actionButtonGradient: { paddingVertical: 16, alignItems: "center", justifyContent: "center" },
+    actionButtonText: { fontSize: 17, fontWeight: "700", color: "#FFF" },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
+    modalContent: { backgroundColor: "#FFF", borderRadius: 24, padding: 32, width: "100%", maxWidth: 400, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10 },
+    successIcon: { marginBottom: 24 },
+    successTitle: { fontSize: 28, fontWeight: "700", color: "#1F2937", marginBottom: 12, textAlign: "center" },
+    successMessage: { fontSize: 16, color: "#6B7280", marginBottom: 32, textAlign: "center" },
+    modalButtons: { width: "100%", gap: 12 },
+    modalButton: { borderRadius: 16, overflow: "hidden" },
+    modalButtonGradient: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16 },
+    modalButtonText: { fontSize: 17, fontWeight: "700", color: "#FFF" },
+    modalButtonSecondary: { backgroundColor: "#F3F4F6", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16 },
+    modalButtonTextSecondary: { fontSize: 17, fontWeight: "600", color: "#4A9B7F" },
+    confettiContainer: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1000,
+        pointerEvents: "none",
     },
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-    },
-    backButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "rgba(255, 255, 255, 0.9)",
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    backText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#374151",
-        marginLeft: 8,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#4A9B7F",
-    },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        padding: 20,
-    },
-    card: {
-        backgroundColor: "transparent",
-        borderRadius: 0,
-        padding: 24,
-    },
-    questionText: {
-        fontSize: 22,
-        fontWeight: "700",
-        color: "#1F2937",
-        textAlign: "center",
-        marginBottom: 24,
-    },
-    moodGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 12,
-        justifyContent: "space-between",
-    },
-    moodCard: {
-        width: "30.5%",
-        backgroundColor: "transparent",
-        borderRadius: 16,
-        padding: 12,
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    moodEmoji: {
-        fontSize: 48,
-        marginBottom: 8,
-    },
-    moodLabel: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#1F2937",
-        marginBottom: 4,
-    },
-    moodDescription: {
-        fontSize: 12,
-        color: "#6B7280",
-        textAlign: "center",
-    },
-    selectedMoodHeader: {
-        alignItems: "center",
-        marginBottom: 32,
-    },
-    selectedMoodEmoji: {
-        fontSize: 64,
-        marginBottom: 12,
-    },
-    selectedMoodLabel: {
-        fontSize: 28,
-        fontWeight: "700",
-        color: "#1F2937",
-        marginBottom: 8,
-    },
-    selectedMoodDescription: {
-        fontSize: 16,
-        color: "#6B7280",
-        textAlign: "center",
-    },
-    categoryQuestion: {
-        fontSize: 18,
-        fontWeight: "600",
-        color: "#374151",
-        marginBottom: 16,
-    },
-    categoryGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 12,
-        marginBottom: 32,
-    },
-    categoryChip: {
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 24,
-        backgroundColor: "#FFF",
-        borderWidth: 2,
-        borderColor: "#E5E7EB",
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    categoryText: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#374151",
-    },
-    categoryTextSelected: {
-        color: "#FFF",
-    },
-    saveButton: {
-        borderRadius: 16,
-        overflow: "hidden",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        elevation: 5,
-    },
-    saveButtonDisabled: {
-        opacity: 0.5,
-    },
-    saveButtonGradient: {
-        paddingVertical: 18,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    saveButtonText: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#FFF",
+    confetti: {
+        position: "absolute",
+        width: 10,
+        height: 10,
+        borderRadius: 5,
     },
 });

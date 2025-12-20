@@ -13,10 +13,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { UserCircle, Edit2, Save, X, MapPin, DollarSign, Briefcase, Clock, Globe } from "lucide-react-native";
+import { UserCircle, Edit2, Save, X, MapPin, DollarSign, Briefcase, Clock, Globe, Map } from "lucide-react-native";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import OSMMapPicker from "../../components/OSMMapPicker";
 
 export default function DoctorProfile() {
   const insets = useSafeAreaInsets();
@@ -34,6 +35,11 @@ export default function DoctorProfile() {
   const [available, setAvailable] = useState(true);
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
+
+  // Coordinates for map
+  const [latitude, setLatitude] = useState(12.9716); // Default to Bangalore
+  const [longitude, setLongitude] = useState(77.5946);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -58,6 +64,16 @@ export default function DoctorProfile() {
         if (data.address && typeof data.address === "object") {
           setAddressLine1(data.address.line1 || "");
           setAddressLine2(data.address.line2 || "");
+
+          // Parse coordinates from line2 if they exist (format: "lat:X,lng:Y")
+          if (data.address.line2 && data.address.line2.startsWith('lat:')) {
+            const coords = data.address.line2.match(/lat:([\d.\-]+),lng:([\d.\-]+)/);
+            if (coords) {
+              setLatitude(parseFloat(coords[1]));
+              setLongitude(parseFloat(coords[2]));
+              console.log('[Profile] Loaded coordinates:', coords[1], coords[2]);
+            }
+          }
         } else if (typeof data.address === "string") {
           const parts = data.address.split("\n");
           setAddressLine1(parts[0] || "");
@@ -96,6 +112,10 @@ export default function DoctorProfile() {
 
     setSaving(true);
     try {
+      // Save coordinates in line2 as "lat:X,lng:Y" format
+      const coordinatesString = `lat:${latitude},lng:${longitude}`;
+      console.log('[Profile] Saving address:', addressLine1, coordinatesString);
+
       const response = await api.updateDoctorProfile(docId, {
         fees: parseFloat(fees),
         experience: experience.trim(),
@@ -103,7 +123,7 @@ export default function DoctorProfile() {
         // Match web doctor portal format exactly
         address: {
           line1: addressLine1.trim(),
-          line2: addressLine2.trim(),
+          line2: coordinatesString,  // Store coordinates, not text
         },
       });
 
@@ -325,11 +345,11 @@ export default function DoctorProfile() {
             )}
           </View>
 
-          {/* Address */}
+          {/* Address - Block 1: Text Address */}
           <View style={styles.inputGroup}>
             <View style={styles.inputLabelRow}>
               <MapPin color="#6B7280" size={18} />
-              <Text style={styles.inputLabel}>Address</Text>
+              <Text style={styles.inputLabel}>Clinic Address</Text>
             </View>
             {isEditing ? (
               <>
@@ -337,25 +357,52 @@ export default function DoctorProfile() {
                   style={styles.input}
                   value={addressLine1}
                   onChangeText={setAddressLine1}
-                  placeholder="Address Line 1"
+                  placeholder="E.g., MG Road, Bangalore"
                   placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={2}
                 />
-                <TextInput
-                  style={[styles.input, { marginTop: 10 }]}
-                  value={addressLine2}
-                  onChangeText={setAddressLine2}
-                  placeholder="Address Line 2"
-                  placeholderTextColor="#9CA3AF"
-                />
+                <TouchableOpacity
+                  style={styles.mapButton}
+                  onPress={() => setShowMap(!showMap)}
+                >
+                  <Map size={16} color="#4A9B7F" />
+                  <Text style={styles.mapButtonText}>
+                    {showMap ? "Hide Map" : "Select Location on Map"}
+                  </Text>
+                </TouchableOpacity>
               </>
             ) : (
               <Text style={styles.infoValue}>
                 {profileData.address && typeof profileData.address === "object"
-                  ? `${profileData.address.line1 || ""}\n${profileData.address.line2 || ""}`.trim()
+                  ? profileData.address.line1 || "Not set"
                   : profileData.address || "Not set"}
               </Text>
             )}
           </View>
+
+          {/* Address - Block 2: Interactive Map */}
+          {isEditing && showMap && (
+            <View style={styles.mapSection}>
+              <Text style={styles.mapLabel}>Tap on map to set your clinic location</Text>
+              <OSMMapPicker
+                initialLatitude={latitude}
+                initialLongitude={longitude}
+                onLocationChange={(lat, lng) => {
+                  setLatitude(lat);
+                  setLongitude(lng);
+                  console.log('[Profile] Location updated:', lat, lng);
+                }}
+                style={styles.mapPicker}
+              />
+              <View style={styles.coordinatesDisplay}>
+                <Text style={styles.coordinatesLabel}>Selected Coordinates:</Text>
+                <Text style={styles.coordinatesValue}>
+                  {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Action Buttons */}
@@ -621,6 +668,62 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  mapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 12,
+    backgroundColor: "#E8F5F0",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#4A9B7F",
+  },
+  mapButtonText: {
+    color: "#4A9B7F",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  mapSection: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  mapLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  mapPicker: {
+    height: 300,
+    marginBottom: 12,
+  },
+  coordinatesDisplay: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  coordinatesLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  coordinatesValue: {
+    fontSize: 14,
+    color: "#1F2937",
+    fontWeight: "600",
+    fontFamily: "monospace",
   },
 });
 

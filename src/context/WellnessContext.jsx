@@ -113,10 +113,12 @@ export const WellnessProvider = ({ children }) => {
     <WellnessContext.Provider
       value={{
         water,
+        hydration: water, // Alias for consistency
         sleep,
         breathing,
         habits,
         updateWater,
+        updateHydration: updateWater, // Alias for consistency
         updateSleep,
         updateBreathing,
         updateHabits,

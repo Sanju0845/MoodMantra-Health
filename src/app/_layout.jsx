@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WellnessProvider } from '@/context/WellnessContext';
+import '@/i18n'; // Initialize i18n before app starts
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({

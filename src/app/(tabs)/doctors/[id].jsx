@@ -80,6 +80,12 @@ export default function DoctorDetailScreen() {
 
   useEffect(() => {
     console.log("[DoctorDetail] Loading doctor with ID:", id);
+    // Reset state when doctor ID changes
+    setDoctor(null);
+    setLoading(true);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setBookedSlots([]);
     loadDoctor();
   }, [id]);
 
@@ -193,11 +199,14 @@ export default function DoctorDetailScreen() {
     }
   };
 
-  // Generate time slots
+  // Generate time slots (matching web app: 10 AM - 9 PM)
   const timeSlots = [
-    "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM",
-    "11:00 AM", "11:30 AM", "02:00 PM", "02:30 PM",
-    "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM",
+    "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+    "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM",
+    "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
+    "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
+    "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM",
+    "08:00 PM", "08:30 PM", "09:00 PM",
   ];
 
   // Generate next 7 days
@@ -254,7 +263,7 @@ export default function DoctorDetailScreen() {
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")} style={styles.backBtn}>
           <ArrowLeft color="#1F2937" size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Book Appointment</Text>
@@ -296,6 +305,22 @@ export default function DoctorDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* About Doctor */}
+          {doctor.about && (
+            <View style={styles.aboutSection}>
+              <Text style={styles.aboutTitle}>About</Text>
+              <Text style={styles.aboutText}>{doctor.about}</Text>
+            </View>
+          )}
+
+          {/* Languages */}
+          {doctor.languageSpoken && (
+            <View style={styles.languagesSection}>
+              <Text style={styles.languagesTitle}>Languages Spoken</Text>
+              <Text style={styles.languagesText}>{doctor.languageSpoken}</Text>
+            </View>
+          )}
 
           {/* Fee */}
           <View style={styles.feeCard}>
@@ -342,17 +367,20 @@ export default function DoctorDetailScreen() {
                     style={[
                       styles.timeItem,
                       selectedTime === time && styles.timeItemSelected,
-                      isBooked && { backgroundColor: '#E5E7EB', borderColor: '#E5E7EB', opacity: 0.5 }
+                      isBooked && styles.timeItemBooked
                     ]}
                     onPress={() => setSelectedTime(time)}
                   >
                     <Text style={[
                       styles.timeText,
                       selectedTime === time && styles.timeTextSelected,
-                      isBooked && { color: '#9CA3AF', textDecorationLine: 'line-through' }
+                      isBooked && styles.timeTextBooked
                     ]}>
                       {time}
                     </Text>
+                    {isBooked && (
+                      <Text style={styles.bookedLabel}>Booked</Text>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -641,6 +669,36 @@ const styles = StyleSheet.create({
     color: "#059669",
     fontWeight: "600",
   },
+  aboutSection: {
+    marginBottom: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  aboutTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  aboutText: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 22,
+  },
+  languagesSection: {
+    marginBottom: 16,
+  },
+  languagesTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  languagesText: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
   feeCard: {
     backgroundColor: "#FEF3C7",
     padding: 16,
@@ -728,6 +786,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#F59E0B",
     borderColor: "#F59E0B",
   },
+  timeItemBooked: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#EF4444",
+    borderWidth: 2,
+    opacity: 0.7,
+  },
   timeText: {
     fontSize: 14,
     fontWeight: "600",
@@ -735,6 +799,16 @@ const styles = StyleSheet.create({
   },
   timeTextSelected: {
     color: "#FFFFFF",
+  },
+  timeTextBooked: {
+    color: "#DC2626",
+    textDecorationLine: "line-through",
+  },
+  bookedLabel: {
+    fontSize: 10,
+    color: "#DC2626",
+    fontWeight: "600",
+    marginTop: 2,
   },
   sessionRow: {
     flexDirection: "row",

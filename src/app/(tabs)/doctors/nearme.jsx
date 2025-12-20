@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     },
     selectedCard: {
         position: "absolute",
-        bottom: 100,
+        bottom: 120,
         left: 20,
         right: 20,
         backgroundColor: "#FFFFFF",

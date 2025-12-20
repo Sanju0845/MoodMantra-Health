@@ -39,6 +39,7 @@ import {
   Droplets,
   Moon,
   CheckSquare,
+  Check,
 } from "lucide-react-native";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -50,6 +51,31 @@ import { Modal } from "react-native";
 import { Globe } from "lucide-react-native";
 import { useWellness } from "@/context/WellnessContext";
 
+
+// Mood Emoji Mapping (matching journal.jsx)
+const MOOD_EMOJIS = {
+  "Joyful": "😁",
+  "Happy": "😊",
+  "Calm": "😌",
+  "Grateful": "🙏",
+  "Motivated": "💪",
+  "Loved": "❤️",
+  "Inspired": "🌟",
+  "Sad": "😢",
+  "Angry": "😡",
+  "Anxious": "😰",
+  "Tired": "😩",
+  "Overwhelmed": "😖",
+  "Awful": "😭",
+  "Neutral": "😐",
+  "Confused": "😕",
+  "Bored": "🥱",
+  "Okay": "🙂",
+  "Nostalgic": "🥹",
+  "Hopeful": "🌈",
+  "Guilty": "😔",
+  "Ashamed": "😳",
+};
 
 // Daily inspirational quotes
 const DAILY_QUOTES = [
@@ -118,7 +144,7 @@ export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [analytics, setAnalytics] = useState(null);
-  
+
   const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   // Wellness Data
@@ -140,6 +166,11 @@ export default function HomeScreen() {
     await i18n.changeLanguage(langCode);
     await AsyncStorage.setItem('language', langCode);
     setShowLanguageModal(false);
+    // Force a small delay to ensure all components re-render with new language
+    setTimeout(() => {
+      // This setState will trigger a re-render of the home screen which will cascade through navigation
+      setLoading(false);
+    }, 100);
   };
 
 
@@ -235,6 +266,7 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      console.log('[Home] Screen focused - reloading data');
       loadData();
       refreshWellness();
     }, [])
@@ -323,14 +355,49 @@ export default function HomeScreen() {
         // Get mood entries for streak calculation (use weekly analytics)
         try {
           const weeklyData = await api.getWeeklyMoodAnalytics(userId);
-          if (weeklyData?.moodData) {
-            setMoodEntries(weeklyData.moodData);
+          console.log('[Home] ========== WEEKLY MOOD API RESPONSE ==========');
+          console.log('[Home] Full response:', JSON.stringify(weeklyData, null, 2));
+          console.log('[Home] Response keys:', Object.keys(weeklyData || {}));
+
+          // Check different possible data structures
+          const possibleDataArrays = [
+            weeklyData?.moodData,
+            weeklyData?.moodEntries,
+            weeklyData?.data,
+            Array.isArray(weeklyData) ? weeklyData : null
+          ].filter(Boolean);
+
+          console.log('[Home] Found possible data arrays:', possibleDataArrays.length);
+
+          let moodDataArray = weeklyData?.moodData || weeklyData?.moodEntries || weeklyData?.data || (Array.isArray(weeklyData) ? weeklyData : []);
+
+          console.log('[Home] Using data array with length:', moodDataArray.length);
+          if (moodDataArray && moodDataArray.length > 0) {
+            // Sort by date descending (newest first)
+            const sortedEntries = [...moodDataArray].sort((a, b) =>
+              new Date(b.date || b.timestamp || b.createdAt) - new Date(a.date || a.timestamp || a.createdAt)
+            );
+
+            console.log('[Home] Sorted entries count:', sortedEntries.length);
+            console.log('[Home] ========== LATEST MOOD ENTRY ==========');
+            console.log(JSON.stringify(sortedEntries[0], null, 2));
+            console.log('[Home] ===========================================');
+
+            if (sortedEntries[0]) {
+              console.log('[Home] Mood field value:', sortedEntries[0].mood);
+              console.log('[Home] Available fields:', Object.keys(sortedEntries[0]));
+              console.log('[Home] Emoji from MOOD_EMOJIS map:', MOOD_EMOJIS[sortedEntries[0].mood]);
+            }
+
+            setMoodEntries(sortedEntries);
+
             // Calculate streak
-            const entries = weeklyData.moodData;
+            const entries = moodDataArray;
             if (entries.length > 0) {
               let streak = 0;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
+              console.log('[Home] Today for streak calc:', today.toDateString());
 
               const sorted = [...entries].sort((a, b) =>
                 new Date(b.date || b.timestamp || b.createdAt) - new Date(a.date || a.timestamp || a.createdAt)
@@ -341,6 +408,12 @@ export default function HomeScreen() {
                 const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
                 entryDate.setHours(0, 0, 0, 0);
 
+                console.log('[Home] Checking entry:', {
+                  entryDate: entryDate.toDateString(),
+                  checkDate: checkDate.toDateString(),
+                  matches: entryDate.getTime() === checkDate.getTime()
+                });
+
                 if (entryDate.getTime() === checkDate.getTime()) {
                   streak++;
                   checkDate.setDate(checkDate.getDate() - 1);
@@ -348,11 +421,14 @@ export default function HomeScreen() {
                   break;
                 }
               }
+              console.log('[Home] ========== CALCULATED STREAK:', streak, '==========');
               setLoggingStreak(streak);
             }
+          } else {
+            console.log('[Home] No mood data array found or empty');
           }
         } catch (e) {
-          console.log("[Home] No mood entries");
+          console.log("[Home] No mood entries:", e.message);
         }
       }
     } catch (error) {
@@ -585,6 +661,97 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
+        {/* New 2-Column Layout */}
+        <View style={styles.twoColumnLayout}>
+          {/* Left Column - 2 Stacked Cards */}
+          <View style={styles.leftColumn}>
+            {/* Streak Goal Card */}
+            <View style={styles.streakGoalCard}>
+              <View style={styles.streakGoalHeader}>
+                <Text style={styles.streakGoalTitle}>My Streak Goal</Text>
+                <View style={styles.streakGoalBadge}>
+                  <Text style={styles.streakGoalCount}>{loggingStreak}/40</Text>
+                  <Flame size={16} color="#F59E0B" />
+                </View>
+              </View>
+
+              {/* Weekly Calendar */}
+              <View style={styles.weeklyCalendar}>
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => {
+                  // Get Monday of current week
+                  const today = new Date();
+                  const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                  const diff = currentDay === 0 ? -6 : 1 - currentDay; // If Sunday, go back 6 days, otherwise go to Monday
+
+                  const monday = new Date(today);
+                  monday.setDate(today.getDate() + diff);
+                  monday.setHours(0, 0, 0, 0);
+
+                  // Calculate the date for this day in the week
+                  const checkDate = new Date(monday);
+                  checkDate.setDate(monday.getDate() + index);
+                  checkDate.setHours(0, 0, 0, 0);
+
+                  const hasEntry = moodEntries.some(entry => {
+                    const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
+                    entryDate.setHours(0, 0, 0, 0);
+                    const matches = entryDate.getTime() === checkDate.getTime();
+                    if (matches) {
+                      console.log(`[Home] ✓ Entry found for ${day}:`, {
+                        checkDate: checkDate.toDateString(),
+                        entryDate: entryDate.toDateString(),
+                        moodLabel: entry.mood
+                      });
+                    }
+                    return matches;
+                  });
+
+                  console.log(`[Home] Day ${day} (${checkDate.toDateString()}): hasEntry=${hasEntry}`);
+
+                  return (
+                    <View key={index} style={styles.dayContainer}>
+                      <Text style={styles.dayLabel}>{day}</Text>
+                      <View style={[
+                        styles.dayCircle,
+                        hasEntry && styles.dayCircleActive
+                      ]}>
+                        {hasEntry && (
+                          <Check size={9} color="#FFFFFF" strokeWidth={3} />
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Daily Inspiration Card */}
+            <View style={styles.dailyQuoteCard}>
+              <Text style={styles.dailyQuoteEmoji}>✨</Text>
+              <View style={styles.dailyQuoteContent}>
+                <Text style={styles.dailyQuoteLabel}>Daily Inspiration</Text>
+                <Text style={styles.dailyQuoteText}>"{dailyQuote}"</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Right Column - Large Mood Character */}
+          <View style={styles.rightColumn}>
+            <View style={styles.moodCharacterCard}>
+              <Text style={styles.moodCharacterEmoji}>
+                {moodEntries.length > 0 && moodEntries[0]?.mood
+                  ? MOOD_EMOJIS[moodEntries[0].mood] || '🙂'
+                  : '🙂'}
+              </Text>
+              <Text style={styles.moodCharacterLabel}>
+                {moodEntries.length > 0 && moodEntries[0]?.mood
+                  ? `Feeling ${moodEntries[0].mood}`
+                  : 'Log Your Mood'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* Quick Actions - Now includes Breathing */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
@@ -745,19 +912,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Mindfulness Moment */}
-        <View style={styles.mindfulnessCard}>
-          <View style={styles.mindfulnessHeader}>
-            <Text style={styles.mindfulnessEmoji}>🧘‍♀️</Text>
-            <View style={styles.mindfulnessTextContainer}>
-              <Text style={styles.mindfulnessTitle}>Mindfulness Moment</Text>
-              <Text style={styles.mindfulnessSubtitle}>Take a deep breath</Text>
-            </View>
-          </View>
-          <Text style={styles.mindfulnessQuote}>
-            "The present moment is filled with joy and happiness. If you are attentive, you will see it."
-          </Text>
-        </View>
+
 
         {/* Daily Inspiration - Compact inline */}
         <View style={styles.quoteCardCompact}>
@@ -954,7 +1109,7 @@ export default function HomeScreen() {
         scale={0.9}
       >
         <View style={styles.floatingChatGradient}>
-          <Image 
+          <Image
             source={{ uri: "https://raskamon.com/raskabot.jpg" }}
             style={{ width: "100%", height: "100%", borderRadius: 24 }}
             resizeMode="cover"
@@ -1738,5 +1893,277 @@ const styles = StyleSheet.create({
     color: "#78350F",
     lineHeight: 20,
     fontStyle: "italic",
+  },
+  // New 2-Column Layout
+  twoColumnLayout: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 24,
+  },
+  leftColumn: {
+    flex: 2,
+    gap: 12,
+  },
+  rightColumn: {
+    flex: 1,
+  },
+  // Streak Goal Card (redesigned for left column)
+  streakGoalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  streakGoalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  streakGoalTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  streakGoalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  streakGoalCount: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  weeklyCalendar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  dayContainer: {
+    alignItems: "center",
+    gap: 6,
+  },
+  dayLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  dayCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 9,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayCircleActive: {
+    backgroundColor: "#4A9B7F",
+  },
+  dayCheckmark: {
+    // Removed - now using CheckSquare icon directly
+  },
+  // Level Card
+  levelCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  levelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  levelText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  levelProgressBar: {
+    height: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  levelProgressFill: {
+    height: "100%",
+    backgroundColor: "#F59E0B",
+    borderRadius: 4,
+  },
+  levelXP: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+    textAlign: "right",
+  },
+  // My Mood Card
+  myMoodCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  myMoodHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  myMoodTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  addMoodButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addMoodIcon: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  myMoodContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  moodAvatarContainer: {
+    position: "relative",
+  },
+  moodAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#F3F4F6",
+  },
+  moodTagsContainer: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  moodTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  moodTagText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  // Weekly Insight Card
+  weeklyInsightCard: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  weeklyInsightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#DCFCE7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weeklyInsightText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#166534",
+    lineHeight: 20,
+  },
+  weeklyInsightHighlight: {
+    fontWeight: "700",
+    color: "#15803D",
+  },
+  // Daily Quote Card (new compact version for left column)
+  dailyQuoteCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    flexDirection: "row",
+    gap: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#F59E0B",
+  },
+  dailyQuoteEmoji: {
+    fontSize: 28,
+  },
+  dailyQuoteContent: {
+    flex: 1,
+  },
+  dailyQuoteLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#D97706",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  dailyQuoteText: {
+    fontSize: 13,
+    color: "#1F2937",
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  // Mood Character Card (large square on right)
+  moodCharacterCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moodCharacterEmoji: {
+    fontSize: 64,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  moodCharacterLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4A9B7F",
+    textAlign: "center",
   },
 });

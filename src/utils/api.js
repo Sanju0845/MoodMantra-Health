@@ -274,10 +274,120 @@ class API {
     }
 
     // ==================== DOCTORS ENDPOINTS ====================
+
+    /**
+     * Geocode an address to lat/lng using Nominatim (OpenStreetMap)
+     * Free service with 1 request/second rate limit
+     */
+    async geocodeAddress(address) {
+        try {
+            if (!address || address.trim() === '') {
+                return null;
+            }
+
+            // Build full address string
+            const addressString = typeof address === 'object'
+                ? `${address.line1 || ''} ${address.line2 || ''}`.trim()
+                : address.trim();
+
+            if (!addressString) {
+                return null;
+            }
+
+            console.log(`[API] Geocoding address: ${addressString}`);
+
+            // Use Nominatim (OpenStreetMap) geocoding service
+            const encodedAddress = encodeURIComponent(addressString);
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'RaskamonMobileApp/1.0' // Required by Nominatim
+                }
+            });
+
+            const data = await response.json();
+
+            if (data && data.length > 0) {
+                const result = {
+                    latitude: parseFloat(data[0].lat),
+                    longitude: parseFloat(data[0].lon),
+                    displayName: data[0].display_name
+                };
+                console.log(`[API] Geocoded successfully:`, result);
+                return result;
+            }
+
+            console.log(`[API] No geocoding results for: ${addressString}`);
+            return null;
+        } catch (error) {
+            console.error(`[API] Geocoding error:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Get all doctors with geocoded locations
+     * Prioritizes coordinates from address.line2 (format: "lat:X,lng:Y")
+     * Falls back to geocoding address.line1 if no coordinates exist
+     */
     async getDoctors() {
         try {
             console.log("[API] Fetching doctors from Raskamon Backend...");
             const response = await this.request("/api/doctor/list", { method: "GET" });
+
+            if (response.success && response.doctors) {
+                console.log(`[API] Found ${response.doctors.length} doctors, processing locations...`);
+
+                const doctorsWithLocations = [];
+
+                for (let i = 0; i < response.doctors.length; i++) {
+                    const doctor = response.doctors[i];
+                    let doctorWithLocation = { ...doctor };
+
+                    // PRIORITY 1: Check if coordinates are stored in address.line2
+                    if (doctor.address?.line2?.startsWith('lat:')) {
+                        const coords = doctor.address.line2.match(/lat:([\d.\-]+),lng:([\d.\-]+)/);
+                        if (coords) {
+                            doctorWithLocation.latitude = parseFloat(coords[1]);
+                            doctorWithLocation.longitude = parseFloat(coords[2]);
+                            console.log(`[API] ✓ Doctor ${doctor.name}: Using stored coordinates`);
+                            doctorsWithLocations.push(doctorWithLocation);
+                            continue; // Skip geocoding
+                        }
+                    }
+
+                    // PRIORITY 2: Geocode address.line1 if no coordinates exist
+                    if (doctor.address?.line1) {
+                        const location = await this.geocodeAddress(doctor.address.line1);
+
+                        if (location) {
+                            doctorWithLocation.latitude = location.latitude;
+                            doctorWithLocation.longitude = location.longitude;
+                            doctorWithLocation.geocodedAddress = location.displayName;
+                            console.log(`[API] ✓ Doctor ${doctor.name}: Geocoded from line1`);
+                        } else {
+                            console.log(`[API] ✗ Doctor ${doctor.name}: Geocoding failed`);
+                        }
+
+                        // Rate limiting: Wait 1 second between geocoding requests
+                        if (i < response.doctors.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 1100));
+                        }
+                    }
+
+                    doctorsWithLocations.push(doctorWithLocation);
+                }
+
+                const withCoords = doctorsWithLocations.filter(d => d.latitude && d.longitude).length;
+                console.log(`[API] Processed ${withCoords}/${response.doctors.length} doctors with coordinates`);
+
+                return {
+                    ...response,
+                    doctors: doctorsWithLocations
+                };
+            }
+
             return response;
         } catch (error) {
             console.error("[API] Get doctors error:", error);

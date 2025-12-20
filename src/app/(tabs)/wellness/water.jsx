@@ -11,7 +11,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Droplets, Plus, Minus, Info } from "lucide-react-native";
+import { ArrowLeft, Droplets, Plus, Minus, Info, Coffee, Leaf } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useWellness } from "@/context/WellnessContext";
@@ -25,14 +25,16 @@ export default function WaterTracker() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { water, updateWater } = useWellness();
-    
+
     // Derived state from context
     const mlToday = water.today;
     const history = water.history;
-    
+
     const [showConfetti, setShowConfetti] = useState(false);
 
     const fillAnim = useRef(new Animated.Value(0)).current;
+    const liquidHeight = useRef(new Animated.Value(0)).current;
+    const rotateAnim = useRef(new Animated.Value(0)).current;
     const waveAnim = useRef(new Animated.Value(0)).current;
     const confettiAnims = useRef(
         Array.from({ length: 15 }, () => ({
@@ -55,11 +57,28 @@ export default function WaterTracker() {
 
     useEffect(() => {
         startWaveAnimation();
+
+        // Rotate animation for border
+        Animated.loop(
+            Animated.timing(rotateAnim, {
+                toValue: 1,
+                duration: 10000,
+                useNativeDriver: true,
+            })
+        ).start();
     }, []);
 
     useEffect(() => {
         Animated.spring(fillAnim, {
             toValue: mlToday,
+            useNativeDriver: false,
+            tension: 20,
+            friction: 7,
+        }).start();
+
+        // Animate liquid height for circular view
+        Animated.spring(liquidHeight, {
+            toValue: mlToday / DAILY_GOAL,
             useNativeDriver: false,
             tension: 20,
             friction: 7,
@@ -221,10 +240,10 @@ export default function WaterTracker() {
                                         colors={["#60A5FA", "#3B82F6"]}
                                         style={StyleSheet.absoluteFill}
                                     />
-                                    <Animated.View 
+                                    <Animated.View
                                         style={[
-                                            styles.wave, 
-                                            { 
+                                            styles.wave,
+                                            {
                                                 opacity: 0.5,
                                                 transform: [{
                                                     translateY: waveAnim.interpolate({
@@ -233,7 +252,7 @@ export default function WaterTracker() {
                                                     })
                                                 }]
                                             }
-                                        ]} 
+                                        ]}
                                     />
                                 </Animated.View>
                                 <View style={styles.bottleOverlay}>
@@ -256,7 +275,7 @@ export default function WaterTracker() {
                                 <Text style={styles.targetValue}>{DAILY_GOAL}ml</Text>
                             </View>
                         </View>
-                         <View style={styles.targetCard}>
+                        <View style={styles.targetCard}>
                             <View style={[styles.targetIcon, { backgroundColor: '#ECFDF5' }]}>
                                 <Info size={20} color="#10B981" />
                             </View>
@@ -270,8 +289,8 @@ export default function WaterTracker() {
 
                 {/* Quick Add Buttons */}
                 <View style={styles.quickAddContainer}>
-                    <AnimatedTouchable 
-                        style={[styles.quickAddButton, { transform: [{ scale: removeBtnScale }] }]} 
+                    <AnimatedTouchable
+                        style={[styles.quickAddButton, { transform: [{ scale: removeBtnScale }] }]}
                         onPress={() => {
                             animateButton(removeBtnScale);
                             removeWater(CUP_SIZE);
@@ -281,8 +300,8 @@ export default function WaterTracker() {
                         <Text style={styles.quickAddText}>-200ml</Text>
                     </AnimatedTouchable>
 
-                    <AnimatedTouchable 
-                        style={[styles.mainAddButton, { transform: [{ scale: mainBtnScale }] }]} 
+                    <AnimatedTouchable
+                        style={[styles.mainAddButton, { transform: [{ scale: mainBtnScale }] }]}
                         onPress={() => {
                             animateButton(mainBtnScale);
                             addWater(CUP_SIZE);
@@ -297,8 +316,8 @@ export default function WaterTracker() {
                         </LinearGradient>
                     </AnimatedTouchable>
 
-                    <AnimatedTouchable 
-                        style={[styles.quickAddButton, { transform: [{ scale: addBtnScale }] }]} 
+                    <AnimatedTouchable
+                        style={[styles.quickAddButton, { transform: [{ scale: addBtnScale }] }]}
                         onPress={() => {
                             animateButton(addBtnScale);
                             addWater(CUP_SIZE);
@@ -657,6 +676,94 @@ const styles = StyleSheet.create({
         lineHeight: 24,
         marginBottom: 4,
         fontWeight: "500",
+    },
+    liquidCard: {
+        backgroundColor: "#FFFFFF",
+        marginHorizontal: 20,
+        marginTop: 20,
+        marginBottom: 24,
+        borderRadius: 24,
+        padding: 24,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
+        alignItems: "center",
+    },
+    liquidContainer: {
+        width: 220,
+        height: 220,
+        marginBottom: 32,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    rotatingBorder: {
+        position: "absolute",
+        width: 220,
+        height: 220,
+        borderRadius: 110,
+        overflow: "hidden",
+    },
+    liquidCircle: {
+        width: 196,
+        height: 196,
+        borderRadius: 98,
+        backgroundColor: "#EFF6FF",
+        overflow: "hidden",
+        justifyContent: "flex-end",
+        position: "relative",
+    },
+    liquidFill: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        borderRadius: 98,
+    },
+    liquidTextContainer: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 10,
+    },
+    liquidValue: {
+        fontSize: 42,
+        fontWeight: "700",
+        color: "#1F2937",
+    },
+    liquidGoal: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#0EA5E9",
+        marginTop: 4,
+    },
+    typeIconsRow: {
+        flexDirection: "row",
+        gap: 24,
+        marginBottom: 0,
+    },
+    typeIcon: {
+        alignItems: "center",
+        gap: 8,
+    },
+    typeIconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: "#EFF6FF",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    typeLabel: {
+        fontSize: 11,
+        fontWeight: "600",
+        color: "#6B7280",
+        textTransform: "uppercase",
     },
 });
 
