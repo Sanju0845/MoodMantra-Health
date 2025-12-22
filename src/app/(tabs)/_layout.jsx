@@ -7,6 +7,7 @@ import {
   Stethoscope,
   BookOpen,
   UserCircle,
+  Users,
 } from "lucide-react-native";
 
 // Tab colors matching the design
@@ -38,9 +39,9 @@ export default function TabLayout() {
           right: 0,
           backgroundColor: "#FFFFFF",
           borderTopWidth: 0,
-          height: 70 + insets.bottom,
-          paddingBottom: insets.bottom,
-          paddingTop: 10,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom + 8,
+          paddingTop: 6,
           paddingHorizontal: 10,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -4 },
@@ -53,13 +54,13 @@ export default function TabLayout() {
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
-          marginTop: 4,
-          marginBottom: 4,
+          marginTop: 1,
+          marginBottom: 1,
         },
         tabBarItemStyle: {
-          paddingVertical: 8,
+          paddingVertical: 4,
         },
       }}
     >
@@ -101,6 +102,23 @@ export default function TabLayout() {
       <Tabs.Screen name="doctors/payment" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="doctors/nearme" options={{ href: null }} />
 
+      {/* Community Tab */}
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: "Community",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={Users} focused={focused} />
+          ),
+        }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            // Navigate to community index when tab is pressed
+            navigation.navigate('community', { screen: 'index' });
+          },
+        })}
+      />
+
       {/* Journal Tab */}
       <Tabs.Screen
         name="journal"
@@ -118,11 +136,11 @@ export default function TabLayout() {
       <Tabs.Screen name="mood/dashboard" options={{ href: null }} />
       <Tabs.Screen name="mood/calendar" options={{ href: null }} />
 
-      {/* Hidden chat route - HIDE TAB BAR */}
+      {/* Hidden chat route - NOT SHOWN IN TAB BAR */}
       <Tabs.Screen
         name="chat"
         options={{
-          href: null,
+          href: null, // This hides the tab from the bottom navigation
           tabBarStyle: { display: "none" },
         }}
       />
@@ -130,10 +148,11 @@ export default function TabLayout() {
       {/* Hidden goals route */}
       <Tabs.Screen name="goals" options={{ href: null }} />
 
-      {/* Profile Tab */}
+      {/* Profile Tab - Hidden from footer, accessible from home screen */}
       <Tabs.Screen
         name="profile/index"
         options={{
+          href: null, // Hidden from tab bar
           title: "Profile",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={UserCircle} focused={focused} />

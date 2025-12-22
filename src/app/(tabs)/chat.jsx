@@ -37,6 +37,8 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [voiceCredits, setVoiceCredits] = useState(0);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingData, setBookingData] = useState(null);
 
   useEffect(() => {
     loadChatHistory();
@@ -148,10 +150,24 @@ export default function ChatScreen() {
       const response = await api.sendChatMessage(fullMessage, userId);
 
       if (response.success && response.reply) {
-        setMessages([
-          ...newMessages,
-          { role: "assistant", content: response.reply },
-        ]);
+        const assistantMessage = { role: "assistant", content: response.reply };
+        setMessages([...newMessages, assistantMessage]);
+
+        // Detect if AI is suggesting an appointment booking
+        const bookingPattern = /BOOK_APPOINTMENT:\s*(\{[^}]+\})/i;
+        const match = response.reply.match(bookingPattern);
+
+        if (match) {
+          try {
+            const bookingInfo = JSON.parse(match[1]);
+            if (bookingInfo.doctorId && bookingInfo.date && bookingInfo.time) {
+              setBookingData(bookingInfo);
+              setShowBookingModal(true);
+            }
+          } catch (e) {
+            console.log('[Chat] Failed to parse booking data:', e);
+          }
+        }
       } else {
         throw new Error(response.message || "Failed to get response");
       }
@@ -185,6 +201,47 @@ export default function ChatScreen() {
           content: "Hi, I am Raska your Mental Wellness Assistant. How are you feeling today?",
         },
       ]);
+    }
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!bookingData) return;
+
+    try {
+      setShowBookingModal(false);
+      const response = await api.bookAppointment(
+        bookingData.doctorId,
+        bookingData.date,
+        bookingData.time,
+        {
+          reasonForVisit: bookingData.reason || "General Consultation",
+          sessionType: bookingData.sessionType || "Online",
+          communicationMethod: bookingData.communicationMethod || "Zoom",
+        }
+      );
+
+      if (response.success) {
+        Alert.alert(
+          "Success!",
+          "Your appointment has been booked successfully.",
+          [{ text: "OK" }]
+        );
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "✅ Great! I've successfully booked your appointment. You'll receive a confirmation shortly."
+        }]);
+      } else {
+        throw new Error(response.message || "Booking failed");
+      }
+    } catch (error) {
+      console.error("Booking error:", error);
+      Alert.alert(
+        "Booking Failed",
+        error.message || "Unable to book appointment. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setBookingData(null);
     }
   };
 
@@ -287,8 +344,82 @@ export default function ChatScreen() {
                     : styles.botText,
                 ]}
               >
-                {message.content}
+                {/* Remove both markdown links, web URLs, and appointment links */}
+                {message.content
+                  .replace(/\[Doctor: ([^\]]+)\]\([^)]+\)/g, '$1')
+                  .replace(/https?:\/\/[^\s]+\/doctor\/[^\s]+/g, '')
+                  .replace(/\(Book Appointment\)\([^)]+\)/g, '')
+                  .replace(/\[Book Appointment\]\([^)]+\)/g, '')
+                  .replace(/https?:\/\/[^\s]+\/appointment\/[^\s]+/g, '')
+                  .trim()}
               </Text>
+
+              {message.role === "assistant" && (() => {
+                // Try to match markdown format first
+                let doctorMatch = message.content.match(/\[Doctor: ([^\]]+)\]\(([^)]+)\)/);
+                let doctorName = null;
+                let doctorId = null;
+
+                if (doctorMatch) {
+                  doctorName = doctorMatch[1];
+                  doctorId = doctorMatch[2];
+                } else {
+                  // Try to match URL format: https://raskamon.com/doctor/doctorId
+                  const urlMatch = message.content.match(/https?:\/\/[^\s]+\/doctor\/([a-zA-Z0-9]+)/);
+                  if (urlMatch) {
+                    doctorId = urlMatch[1];
+                    doctorName = "Doctor"; // Default name if not specified
+
+                    // Try to find doctor name in the text before the URL
+                    const nameMatch = message.content.match(/(Dr\.\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+                    if (nameMatch) {
+                      doctorName = nameMatch[1];
+                    }
+                  } else {
+                    // Try to match appointment booking link format: (/appointment/doctorId) or [Book Appointment](/appointment/doctorId)
+                    const apptMatch = message.content.match(/\(?\/?appointment\/([a-zA-Z0-9]+)\)?/);
+                    if (apptMatch) {
+                      doctorId = apptMatch[1];
+
+                      // Try to find doctor name in the message
+                      const drNameMatch = message.content.match(/Dr\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+                      if (drNameMatch) {
+                        doctorName = drNameMatch[0]; // Full "Dr. Name"
+                      } else {
+                        doctorName = "this Doctor";
+                      }
+                    }
+                  }
+                }
+
+                if (doctorId) {
+                  return (
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 12,
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        backgroundColor: "#4A9B7F",
+                        borderRadius: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                      }}
+                      onPress={() => {
+                        router.push(`/doctors/${doctorId}`);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+                        View {doctorName}'s Profile
+                      </Text>
+                      <Text style={{ color: "#FFFFFF", fontSize: 16 }}>→</Text>
+                    </TouchableOpacity>
+                  );
+                }
+                return null;
+              })()}
             </View>
           </View>
         ))}
@@ -440,6 +571,69 @@ export default function ChatScreen() {
             >
               <Text style={styles.closeModalText}>Maybe Later</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Booking Confirmation Modal */}
+      <Modal
+        visible={showBookingModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowBookingModal(false);
+          setBookingData(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <LinearGradient
+              colors={["#4A9B7F", "#3B8068"]}
+              style={styles.modalHeaderGradient}
+            >
+              <Text style={styles.modalTitle}>📅 Confirm Appointment</Text>
+            </LinearGradient>
+
+            {bookingData && (
+              <View style={{ padding: 24 }}>
+                <Text style={{ fontSize: 16, color: "#1F2937", marginBottom: 16, lineHeight: 24 }}>
+                  Would you like to book this appointment?
+                </Text>
+
+                <View style={{ backgroundColor: "#F9FAFB", padding: 16, borderRadius: 12, gap: 12 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ color: "#6B7280", fontSize: 14 }}>Date:</Text>
+                    <Text style={{ color: "#1F2937", fontSize: 14, fontWeight: "600" }}>{bookingData.date}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ color: "#6B7280", fontSize: 14 }}>Time:</Text>
+                    <Text style={{ color: "#1F2937", fontSize: 14, fontWeight: "600" }}>{bookingData.time}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ color: "#6B7280", fontSize: 14 }}>Type:</Text>
+                    <Text style={{ color: "#1F2937", fontSize: 14, fontWeight: "600" }}>{bookingData.sessionType || "Online"}</Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB" }}
+                    onPress={() => {
+                      setShowBookingModal(false);
+                      setBookingData(null);
+                    }}
+                  >
+                    <Text style={{ textAlign: "center", color: "#6B7280", fontWeight: "600" }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#4A9B7F" }}
+                    onPress={handleConfirmBooking}
+                  >
+                    <Text style={{ textAlign: "center", color: "#FFFFFF", fontWeight: "600" }}>Confirm Booking</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </Modal>

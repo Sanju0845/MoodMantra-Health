@@ -78,7 +78,9 @@ export default function LoginScreen() {
                     try {
                         const profileResponse = await api.getProfile();
                         if (profileResponse.success && profileResponse.userData) {
+                            console.log('[Login] Saving user data:', profileResponse.userData);
                             await AsyncStorage.setItem("userId", profileResponse.userData._id);
+                            await AsyncStorage.setItem("userData", JSON.stringify(profileResponse.userData));
                             setUserData(profileResponse.userData);
                         }
                     } catch (profileError) {

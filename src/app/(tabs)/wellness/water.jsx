@@ -7,14 +7,17 @@ import {
     StyleSheet,
     Animated,
     Easing,
+    Modal,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Droplets, Plus, Minus, Info, Coffee, Leaf } from "lucide-react-native";
+import { ArrowLeft, Droplets, Plus, Minus, Info, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useWellness } from "@/context/WellnessContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from '@/utils/supabaseClient';
 
 const DAILY_GOAL = 2000; // 2000ml = 2L
 const CUP_SIZE = 200; // 200ml per cup
@@ -31,6 +34,11 @@ export default function WaterTracker() {
     const history = water.history;
 
     const [showConfetti, setShowConfetti] = useState(false);
+    const [waterSessions, setWaterSessions] = useState([]);
+    const [userId, setUserId] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [showDateModal, setShowDateModal] = useState(false);
+    const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
     const fillAnim = useRef(new Animated.Value(0)).current;
     const liquidHeight = useRef(new Animated.Value(0)).current;
@@ -130,9 +138,102 @@ export default function WaterTracker() {
         setTimeout(() => setShowConfetti(false), 3000);
     };
 
+    // Helper to get local date string (not UTC)
+    const getLocalDateString = (date = new Date()) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Helper function to show toast
+    const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+        setTimeout(() => {
+            setToast({ show: false, message: '', type: 'success' });
+        }, 3000);
+    };
+
+    // Fetch user sessions on mount
+    useEffect(() => {
+        const fetchSessions = async () => {
+            try {
+                const userDataStr = await AsyncStorage.getItem("userData");
+                const user = userDataStr ? JSON.parse(userDataStr) : null;
+                const userId = user?.userId || user?._id || user?.id || user?.mongo_id;
+
+                if (userId) {
+                    setUserId(userId);
+
+                    const { data, error } = await supabase
+                        .from('water_logs')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        console.error('[Water] Supabase error:', error);
+                    } else {
+                        console.log('[Water] Fetched data sample:', data?.[0]); // See actual columns
+                        setWaterSessions(data || []);
+
+                        if (data && data.length > 0) {
+                            // Update today's total from database
+                            const today = getLocalDateString();
+                            const todayData = data.filter(s => s.date === today);
+                            const todayTotal = todayData.reduce((sum, s) => sum + s.amount_ml, 0);
+                            updateWater(todayTotal);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[Water] Fetch error:', err);
+            }
+        };
+
+        fetchSessions();
+    }, []);
+
+    // Save water to Supabase
+    const saveWaterIntake = async (amount) => {
+        try {
+            if (userId && amount > 0) {
+                const intakeData = {
+                    user_id: userId,
+                    amount_ml: amount,
+                    date: getLocalDateString(),
+                    daily_goal: DAILY_GOAL
+                };
+
+                const { data, error } = await supabase
+                    .from('water_logs')
+                    .insert(intakeData)
+                    .select();
+
+                if (error) {
+                    console.error('[Water] Supabase error:', error);
+                } else {
+                    console.log('[Water] Saved to Supabase');
+                    // Refresh sessions
+                    const { data: updated } = await supabase
+                        .from('water_logs')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .order('created_at', { ascending: false });
+
+                    if (updated) setWaterSessions(updated);
+                }
+            }
+        } catch (err) {
+            console.error('[Water] Save error:', err);
+        }
+    };
+
+    // Water functions
     const addWater = (amount) => {
         const newAmount = Math.min(mlToday + amount, 5000);
         updateWater(newAmount);
+        saveWaterIntake(amount);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
 
@@ -161,18 +262,22 @@ export default function WaterTracker() {
             days.push(null);
         }
         for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = new Date(year, month, day).toDateString();
-            const dayData = history.find(h => h.date === dateStr);
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = dateStr === getLocalDateString();
+            // Use live mlToday for today, waterSessions for other days
+            const dayTotal = isToday ? mlToday : waterSessions
+                .filter(s => s.date === dateStr)
+                .reduce((sum, s) => sum + s.amount_ml, 0);
+
             days.push({
                 day,
-                completed: dayData && dayData.ml >= DAILY_GOAL,
-                ml: dayData?.ml || 0,
+                completed: dayTotal >= DAILY_GOAL,
+                ml: dayTotal,
             });
         }
         return days;
     };
 
-    const calendarDays = getCalendarDays();
     const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
     return (
@@ -328,6 +433,55 @@ export default function WaterTracker() {
                     </AnimatedTouchable>
                 </View>
 
+                {/* Weekly Progress Graph */}
+                <View style={styles.graphCard}>
+                    <Text style={styles.graphTitle}>Weekly Progress</Text>
+                    <View style={styles.barsContainer}>
+                        {(() => {
+                            const last7Days = [];
+                            const now = new Date();
+                            for (let i = 6; i >= 0; i--) {
+                                const date = new Date(now);
+                                date.setDate(now.getDate() - i);
+                                const dateStr = getLocalDateString(date);
+                                const dayName = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][date.getDay()];
+                                const isToday = dateStr === getLocalDateString();
+                                // Use live mlToday for today, waterSessions for past days
+                                const dayTotal = isToday ? mlToday : waterSessions
+                                    .filter(s => s.date === dateStr)
+                                    .reduce((sum, s) => sum + s.amount_ml, 0);
+                                last7Days.push({ day: dayName, ml: dayTotal });
+                            }
+
+                            const maxMl = Math.max(...last7Days.map(d => d.ml), DAILY_GOAL, 1);
+
+                            return last7Days.map((day, idx) => {
+                                // Calculate actual pixel height (max 150px out of 180px container)
+                                const barHeight = Math.max((day.ml / maxMl) * 150, day.ml > 0 ? 8 : 0);
+                                const isGoalMet = day.ml >= DAILY_GOAL;
+
+                                return (
+                                    <View key={idx} style={styles.barWrapper}>
+                                        <View style={styles.barColumn}>
+                                            {day.ml > 0 && (
+                                                <Text style={styles.barValue}>{Math.round(day.ml / 100) / 10}L</Text>
+                                            )}
+                                            {/* Bar with calculated height */}
+                                            <View style={{ width: '100%', height: barHeight, borderRadius: 8, overflow: 'hidden' }}>
+                                                <LinearGradient
+                                                    colors={isGoalMet ? ['#10B981', '#059669'] : ['#60A5FA', '#3B82F6']}
+                                                    style={StyleSheet.absoluteFill}
+                                                />
+                                            </View>
+                                        </View>
+                                        <Text style={[styles.barDay, isGoalMet && styles.barDayCompleted]}>{day.day}</Text>
+                                    </View>
+                                );
+                            });
+                        })()}
+                    </View>
+                </View>
+
                 {/* Mini Calendar */}
                 <View style={styles.calendarContainer}>
                     <Text style={styles.calendarTitle}>History</Text>
@@ -335,7 +489,7 @@ export default function WaterTracker() {
                         {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
                             <Text key={i} style={styles.calendarDayHeader}>{day}</Text>
                         ))}
-                        {calendarDays.map((day, i) => (
+                        {getCalendarDays().map((day, i) => (
                             <View key={i} style={styles.calendarDay}>
                                 {day && (
                                     <>
@@ -764,6 +918,63 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#6B7280",
         textTransform: "uppercase",
+    },
+    graphCard: {
+        backgroundColor: "#FFFFFF",
+        marginHorizontal: 20,
+        marginBottom: 24,
+        borderRadius: 24,
+        padding: 24,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    graphTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: "#1F2937",
+        marginBottom: 20,
+    },
+    barsContainer: {
+        flexDirection: "row",
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        height: 180,
+        gap: 8,
+    },
+    barWrapper: {
+        flex: 1,
+        height: 180,
+        alignItems: "center",
+        justifyContent: "flex-end",
+        gap: 8,
+    },
+    barColumn: {
+        width: "100%",
+        alignItems: "center",
+    },
+    bar: {
+        width: "100%",
+        borderRadius: 8,
+        overflow: "hidden",
+        minHeight: 4,
+    },
+    barValue: {
+        fontSize: 10,
+        fontWeight: "600",
+        color: "#3B82F6",
+        marginBottom: 4,
+    },
+    barDay: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#9CA3AF",
+    },
+    barDayCompleted: {
+        color: "#10B981",
+        fontWeight: "700",
     },
 });
 

@@ -12,6 +12,7 @@ import {
   Animated,
   PanResponder,
   Dimensions,
+  FlatList,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -40,6 +41,9 @@ import {
   Moon,
   CheckSquare,
   Check,
+  ChevronRight,
+  Smartphone,
+  Calendar as CalendarIcon,
 } from "lucide-react-native";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -138,7 +142,16 @@ export default function HomeScreen() {
   const [userAssessments, setUserAssessments] = useState([]);
   const [moodDashboard, setMoodDashboard] = useState(null);
   const [moodEntries, setMoodEntries] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [loggingStreak, setLoggingStreak] = useState(0);
+
+  // Carousel Animation
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const { width: SCREEN_WIDTH } = Dimensions.get('window');
+  const CARD_WIDTH = SCREEN_WIDTH * 0.75;
+  const SPACING = 12;
+  const SPACER_WIDTH = (SCREEN_WIDTH - CARD_WIDTH) / 2;
+
   const [dailyQuote, setDailyQuote] = useState(DAILY_QUOTES[0]);
   const [showChatTooltip, setShowChatTooltip] = useState(true);
   const { t, i18n } = useTranslation();
@@ -314,9 +327,10 @@ export default function HomeScreen() {
     try {
       const userId = await AsyncStorage.getItem("userId");
 
-      const [profileResponse, appointmentsResponse] = await Promise.all([
+      const [profileResponse, appointmentsResponse, doctorsResponse] = await Promise.all([
         api.getProfile().catch(() => ({ success: false })),
         api.getUserAppointments().catch(() => ({ appointments: [] })),
+        api.getDoctors().catch(() => ({ doctors: [] })),
       ]);
 
       if (profileResponse.success) {
@@ -328,6 +342,10 @@ export default function HomeScreen() {
           .filter((apt) => !apt.cancelled && !apt.isCompleted)
           .slice(0, 3);
         setAppointments(upcoming);
+      }
+
+      if (doctorsResponse.success && Array.isArray(doctorsResponse.doctors)) {
+        setDoctors(doctorsResponse.doctors);
       }
 
       // Fetch user data from server
@@ -661,6 +679,118 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
+        {/* Therapist Carousel */}
+        {doctors.length > 0 && (
+          <View style={styles.section}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
+              <Text style={styles.sectionTitle}>Our Experts</Text>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")}>
+                <Text style={{ color: '#4A9B7F', fontWeight: '600' }}>View All</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Animated.FlatList
+              data={doctors}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={CARD_WIDTH + SPACING}
+              decelerationRate="fast"
+              contentContainerStyle={{
+                paddingLeft: 20,
+                paddingRight: 20,
+                paddingVertical: 10
+              }}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                { useNativeDriver: true }
+              )}
+              scrollEventThrottle={16}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item, index }) => {
+                const inputRange = [
+                  (CARD_WIDTH + SPACING) * (index - 1),
+                  (CARD_WIDTH + SPACING) * index,
+                  (CARD_WIDTH + SPACING) * (index + 1),
+                ];
+
+                const scale = scrollX.interpolate({
+                  inputRange,
+                  outputRange: [0.9, 1, 0.9],
+                  extrapolate: 'clamp',
+                });
+
+                const opacity = scrollX.interpolate({
+                  inputRange,
+                  outputRange: [0.6, 1, 0.6],
+                  extrapolate: 'clamp',
+                });
+
+                return (
+                  <Animated.View style={{
+                    width: CARD_WIDTH,
+                    transform: [{ scale }],
+                    opacity,
+                    marginRight: SPACING,
+                  }}>
+                    <TouchableOpacity
+                      style={[styles.therapistCard, { width: '100%', marginRight: 0 }]}
+                      activeOpacity={0.9}
+                      onPress={() => router.push({ pathname: "/(tabs)/doctors", params: { doctorId: item._id } })}
+                    >
+                      <View style={styles.therapistContentRow}>
+                        <View style={styles.therapistLeft}>
+                          <View style={styles.therapistImageDecor} />
+                          <Image
+                            source={{ uri: item.image || 'https://via.placeholder.com/100' }}
+                            style={styles.therapistImage}
+                            resizeMode="cover"
+                            onError={() => console.log('Image load error:', item.name)}
+                          />
+                        </View>
+
+                        <View style={styles.therapistInfo}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
+                            <Text style={styles.therapistName} numberOfLines={1}>{item.name}</Text>
+                            <View style={styles.therapistArrow}>
+                              <ChevronRight size={14} color="#94A3B8" />
+                            </View>
+                          </View>
+
+                          <View style={styles.therapistDetailRow}>
+                            <Smartphone size={12} color="#64748B" />
+                            <Text style={styles.therapistDetailText} numberOfLines={1}>
+                              {item.degree || item.specialty || 'Psychologist'}
+                            </Text>
+                          </View>
+
+                          <View style={styles.therapistDetailRow}>
+                            <CalendarIcon size={12} color="#64748B" />
+                            <Text style={styles.therapistDetailText}>
+                              {item.experience ? `${item.experience} yrs exp` : '5+ yrs exp'}
+                            </Text>
+                          </View>
+
+                          <View style={styles.therapistDetailRow}>
+                            <MessageCircle size={12} color="#64748B" />
+                            <Text style={styles.therapistDetailText} numberOfLines={1}>
+                              {item.languages || item.language || 'English, Hindi'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  </Animated.View>
+                );
+              }}
+            />
+          </View>
+        )}
+
+        {/* Today's Logs Section */}
+        <View style={{ paddingHorizontal: 20, marginTop: 8, marginBottom: 4 }}>
+          <Text style={styles.sectionTitle}>Today's Logs</Text>
+        </View>
+
         {/* New 2-Column Layout */}
         <View style={styles.twoColumnLayout}>
           {/* Left Column - 2 Stacked Cards */}
@@ -967,45 +1097,43 @@ export default function HomeScreen() {
         </View>
 
         {/* Analytics - Navigation Buttons */}
-        {moodAnalytics && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Analytics</Text>
-              <Text style={styles.sectionSubtitle}>View detailed insights</Text>
-            </View>
-            <View style={styles.analyticsGrid}>
-              {/* Mood Analytics Button */}
-              <TouchableOpacity
-                style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
-                onPress={() => router.push("/(tabs)/mood/dashboard")}
-                activeOpacity={0.7}
-              >
-                <Activity size={32} color="#4A9B7F" style={{ marginBottom: 12 }} />
-                <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
-                  Mood Analytics
-                </Text>
-                <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
-                  View mood trends & insights
-                </Text>
-              </TouchableOpacity>
-
-              {/* Assessment Analytics Button */}
-              <TouchableOpacity
-                style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
-                onPress={() => router.push("/(tabs)/profile/assessmentanalytics")}
-                activeOpacity={0.7}
-              >
-                <ClipboardList size={32} color="#6366F1" style={{ marginBottom: 12 }} />
-                <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
-                  Assessment Analytics
-                </Text>
-                <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
-                  View assessment results
-                </Text>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Analytics</Text>
+            <Text style={styles.sectionSubtitle}>View detailed insights</Text>
           </View>
-        )}
+          <View style={styles.analyticsGrid}>
+            {/* Mood Analytics Button */}
+            <TouchableOpacity
+              style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
+              onPress={() => router.push("/(tabs)/mood/dashboard")}
+              activeOpacity={0.7}
+            >
+              <Activity size={32} color="#4A9B7F" style={{ marginBottom: 12 }} />
+              <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
+                Mood Analytics
+              </Text>
+              <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                View mood trends & insights
+              </Text>
+            </TouchableOpacity>
+
+            {/* Assessment Analytics Button */}
+            <TouchableOpacity
+              style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
+              onPress={() => router.push("/(tabs)/profile/assessmentanalytics")}
+              activeOpacity={0.7}
+            >
+              <ClipboardList size={32} color="#6366F1" style={{ marginBottom: 12 }} />
+              <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
+                Assessment Analytics
+              </Text>
+              <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                View assessment results
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Upcoming Appointments - from server */}
         <View style={styles.section}>
@@ -1639,8 +1767,8 @@ const styles = StyleSheet.create({
   // Floating Chat Button
   floatingChatButton: {
     position: "absolute",
-    right: 16,
-    bottom: 100,
+    right: 20,
+    bottom: 80,
     alignItems: "center",
   },
   floatingChatGradient: {
@@ -2165,5 +2293,91 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#4A9B7F",
     textAlign: "center",
+  },
+  // Therapist Cards
+  // Therapist Cards - Redesigned
+  therapistCard: {
+    width: 280,
+    backgroundColor: '#EFF6FF', // Light blueish bg
+    borderRadius: 24,
+    padding: 16,
+    marginRight: 16,
+    borderWidth: 1.5,
+    borderColor: '#64748B', // Dark thin border
+  },
+  therapistContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  therapistLeft: {
+    position: 'relative',
+    width: 70,
+    height: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  therapistImageDecor: {
+    position: 'absolute',
+    bottom: 0,
+    left: -5,
+    width: 50,
+    height: 35,
+    backgroundColor: '#EA580C', // Orange
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    transform: [{ rotate: '-45deg' }],
+    opacity: 0.9,
+  },
+  therapistImage: {
+    width: 65,
+    height: 65,
+    borderRadius: 33,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    zIndex: 2,
+  },
+  therapistInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  therapistName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    flex: 1,
+  },
+  therapistArrow: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  therapistDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  therapistDetailText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '500',
+    flex: 1,
+  },
+  chatButton: {
+    backgroundColor: '#0EA5E9', // Sky blue/Cyan
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    width: '100%',
+  },
+  chatButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 1,
   },
 });

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { supabase } from './supabaseClient';
 
 // Backend URL - same as the webapp
 const API_BASE_URL = "https://backend.raskamon.com";
@@ -160,8 +161,25 @@ class API {
     // ==================== AUTH ENDPOINTS ====================
 
     async syncUserToSupabase(user) {
-        // [REMOVED] Supabase disabled
-        return;
+        if (!user || !user._id) return;
+
+        try {
+            console.log("[API] Syncing user to Supabase:", user._id);
+            const { error } = await supabase
+                .from('users_sync')
+                .upsert({
+                    mongo_id: user._id,
+                    email: user.email,
+                    name: user.name,
+                    avatar: user.image,
+                    last_synced_at: new Date().toISOString()
+                }, { onConflict: 'mongo_id' });
+
+            if (error) throw error;
+            console.log("[API] User synced to Supabase successfully");
+        } catch (error) {
+            console.error("[API] Failed to sync user to Supabase:", error);
+        }
     }
 
     async register(name, email, password) {
@@ -175,8 +193,8 @@ class API {
             await AsyncStorage.setItem("token", response.token);
             // Fetch profile and sync
             const profile = await this.getProfile();
-            // Sync disabled
-            // if (profile.success) this.syncUserToSupabase(profile.userData);
+            // Sync user to Supabase
+            if (profile.success) this.syncUserToSupabase(profile.userData);
         }
 
         return response;
@@ -193,8 +211,8 @@ class API {
             await AsyncStorage.setItem("token", response.token);
             // Fetch profile and sync
             const profile = await this.getProfile();
-            // Sync disabled
-            // if (profile.success && profile.userData) this.syncUserToSupabase(profile.userData);
+            // Sync user to Supabase
+            if (profile.success && profile.userData) this.syncUserToSupabase(profile.userData);
         }
 
         return response;
@@ -228,8 +246,8 @@ class API {
                 console.log("[API] Updated stored userId:", response.userData._id);
             }
 
-            // Background sync every time app fetches profile (DISABLED)
-            // this.syncUserToSupabase(response.userData);
+            // Background sync every time app fetches profile
+            this.syncUserToSupabase(response.userData);
         }
 
         return response;
@@ -326,12 +344,66 @@ class API {
         }
     }
 
+    async syncDoctorsToSupabase(doctors) {
+        if (!doctors || doctors.length === 0) return;
+
+        try {
+            console.log(`[API] Syncing ${doctors.length} doctors to Supabase...`);
+
+            const doctorsToUpsert = doctors.map(doc => ({
+                mongo_id: doc._id,
+                name: doc.name,
+                email: doc.email,
+                phone: doc.phone,
+                specialty: doc.specialty,
+                image: doc.image,
+                about: doc.about,
+                experience: doc.experience?.toString(), // Handle mixed types
+                consultation_fee: doc.consultationFee,
+                address_line1: doc.address?.line1,
+                address_line2: doc.address?.line2,
+                latitude: doc.latitude,
+                longitude: doc.longitude,
+                is_available: doc.isAvailable !== false,
+                last_synced_at: new Date().toISOString()
+            }));
+
+            const { error } = await supabase
+                .from('doctors_sync')
+                .upsert(doctorsToUpsert, { onConflict: 'mongo_id' });
+
+            if (error) throw error;
+            console.log("[API] Doctors synced successfully ✅");
+        } catch (error) {
+            console.error("[API] Failed to sync doctors:", error);
+        }
+    }
+
     /**
-     * Get all doctors with geocoded locations
-     * Prioritizes coordinates from address.line2 (format: "lat:X,lng:Y")
-     * Falls back to geocoding address.line1 if no coordinates exist
+     * Get all doctors directly from backend API
+     * No Supabase - fetch from MongoDB backend
      */
     async getDoctors() {
+        try {
+            console.log("[API] Fetching doctors from backend API...");
+            const response = await this.request("/api/doctor/list", { method: "GET" });
+
+            if (response.success && response.doctors) {
+                console.log(`[API] ✅ Found ${response.doctors.length} doctors`);
+            }
+
+            return response;
+        } catch (error) {
+            console.error("[API] Get doctors error:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Fetch doctors from API and sync to Supabase
+     * This is now a separate function called only when needed
+     */
+    async fetchAndSyncDoctorsFromAPI() {
         try {
             console.log("[API] Fetching doctors from Raskamon Backend...");
             const response = await this.request("/api/doctor/list", { method: "GET" });
@@ -382,6 +454,9 @@ class API {
                 const withCoords = doctorsWithLocations.filter(d => d.latitude && d.longitude).length;
                 console.log(`[API] Processed ${withCoords}/${response.doctors.length} doctors with coordinates`);
 
+                // SYNC TO SUPABASE
+                await this.syncDoctorsToSupabase(doctorsWithLocations);
+
                 return {
                     ...response,
                     doctors: doctorsWithLocations
@@ -390,7 +465,7 @@ class API {
 
             return response;
         } catch (error) {
-            console.error("[API] Get doctors error:", error);
+            console.error("[API] Fetch from API error:", error);
             throw error;
         }
     }
@@ -741,8 +816,12 @@ class API {
     // --- FEATURE SYNC METHODS ---
 
     async syncWaterLog(userId, glasses, goal) {
-        // [REMOVED] Supabase sync. Future: Use Backend API
-        return;
+        try {
+            // Keep local/async storage logic primarily, but backup to Supabase
+            // This is optional if we want to save wellness data too
+            // For now, let's just log it
+            return;
+        } catch (e) { console.error(e); }
     }
 
     async syncSleepLog(userId, start, end, quality, notes = "") {
@@ -764,6 +843,133 @@ class API {
         // [REMOVED] Supabase sync. Future: Use Backend API
         return;
     }
+
+    // ==================== JOURNAL & MEDIA (SUPABASE DIRECT) ====================
+
+    async getJournalEntries(userId) {
+        try {
+            console.log("[API] Fetching journal entries for:", userId);
+
+            // Fetch entries with their media
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .select(`
+                    *,
+                    media:journal_media(*)
+                `)
+                .eq('user_id', userId)
+                .order('entry_date', { ascending: false });
+
+            if (error) throw error;
+            return { success: true, entries: data };
+        } catch (error) {
+            console.error("[API] Get journal entries error:", error);
+            // Return empty list on error to avoid crashing UI
+            return { success: false, entries: [] };
+        }
+    }
+
+    async addJournalEntry(userId, entryData) {
+        try {
+            console.log("[API] Adding journal entry:", entryData);
+
+            // 1. Insert Entry
+            const { data: entry, error: entryError } = await supabase
+                .from('journal_entries')
+                .insert({
+                    user_id: userId,
+                    title: entryData.title,
+                    content: entryData.content,
+                    mood_emoji: entryData.mood_emoji,
+                    mood_label: entryData.mood_label,
+                    tags: entryData.tags || [],
+                    entry_date: entryData.entry_date || new Date(),
+                    is_favorite: entryData.is_favorite || false
+                })
+                .select()
+                .single();
+
+            if (entryError) throw entryError;
+
+            // 2. Insert Media (if any)
+            if (entryData.media && entryData.media.length > 0) {
+                const mediaToInsert = entryData.media.map(m => ({
+                    entry_id: entry.id,
+                    user_id: userId,
+                    file_url: m.url,
+                    file_type: m.type,
+                    file_path: m.path
+                }));
+
+                const { error: mediaError } = await supabase
+                    .from('journal_media')
+                    .insert(mediaToInsert);
+
+                if (mediaError) console.error("Media insert error:", mediaError);
+            }
+
+            return { success: true, entry };
+        } catch (error) {
+            console.error("[API] Add journal entry error:", error);
+            return { success: false, message: error.message };
+        }
+    }
+
+    async deleteJournalEntry(entryId) {
+        try {
+            const { error } = await supabase
+                .from('journal_entries')
+                .delete()
+                .eq('id', entryId);
+
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error("[API] Delete journal error:", error);
+            return { success: false };
+        }
+    }
+
+    // Helper to upload file to Supabase Storage
+    async uploadJournalMedia(userId, fileUri, fileType = 'image') {
+        try {
+            // Create a unique file path: userId/timestamp_random.ext
+            const ext = fileUri.split('.').pop() || 'jpg';
+            const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+            const bucketName = 'journal_uploads'; // We need to create this bucket
+
+            // Read file as ArrayBuffer or use FormData depending on environment
+            // React Native 'fetch' can handle 'uri' in FormData for file uploads
+            const formData = new FormData();
+            formData.append('file', {
+                uri: fileUri,
+                name: fileName,
+                type: fileType === 'image' ? 'image/jpeg' : 'audio/mpeg',
+            });
+
+            console.log(`[API] Uploading ${fileType} to ${bucketName}/${fileName}`);
+
+            const { data, error } = await supabase.storage
+                .from(bucketName)
+                .upload(fileName, formData, {
+                    contentType: fileType === 'image' ? 'image/jpeg' : 'audio/mpeg',
+                    upsert: false // Don't overwrite
+                });
+
+            if (error) throw error;
+
+            // Get Public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from(bucketName)
+                .getPublicUrl(fileName);
+
+            return { success: true, url: publicUrl, path: fileName };
+        } catch (error) {
+            console.error("[API] Upload media error:", error);
+            return { success: false };
+        }
+    }
+
 
     // ==================== MOOD TRACKING (WEB COMPATIBLE) ====================
 
