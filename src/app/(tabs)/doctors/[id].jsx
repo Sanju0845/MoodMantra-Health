@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   Image,
   TextInput,
   StyleSheet,
+  Modal,
 } from "react-native";
+import { Video } from 'expo-av';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +20,7 @@ import {
   MapPin,
   Star,
   Clock,
-  Video,
+  Video as VideoIcon,
   Building,
   Phone,
   User,
@@ -30,14 +32,14 @@ import api from "../../../utils/api";
 
 // Session types
 const SESSION_TYPES = [
-  { id: "Online", label: "Online", icon: Video },
+  { id: "Online", label: "Online", icon: VideoIcon },
   { id: "In-person", label: "In-Person", icon: Building },
 ];
 
 // Communication methods for online sessions
 const COMMUNICATION_METHODS = [
-  { id: "Zoom", label: "Zoom", icon: Video },
-  { id: "Google Meet", label: "Google Meet", icon: Video },
+  { id: "Zoom", label: "Zoom", icon: VideoIcon },
+  { id: "Google Meet", label: "Google Meet", icon: VideoIcon },
   { id: "Phone Call", label: "Phone Call", icon: Phone },
 ];
 
@@ -56,11 +58,15 @@ export default function DoctorDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const videoRef = useRef(null);
 
   // States
   const [loading, setLoading] = useState(true);
   const [doctor, setDoctor] = useState(null);
   const [booking, setBooking] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("about"); // "about" or "booking"
 
   // Booking form states
   const [selectedDate, setSelectedDate] = useState(null);
@@ -107,6 +113,18 @@ export default function DoctorDetailScreen() {
         console.log("[DoctorDetail] Searching for doctor ID:", id);
         const foundDoctor = response.doctors.find((d) => d._id === id);
         console.log("[DoctorDetail] Found doctor:", foundDoctor?.name || "NOT FOUND");
+
+        // Debug: Check doctor video field AND all fields
+        if (foundDoctor) {
+          console.log("[DoctorDetail] Doctor video field:", {
+            video: foundDoctor.video,
+            hasVideo: !!foundDoctor.video,
+          });
+          console.log("[DoctorDetail] ALL doctor fields:", Object.keys(foundDoctor));
+          console.log("[DoctorDetail] doctor.name:", foundDoctor.name);
+          console.log("[DoctorDetail] doctor.image:", foundDoctor.image);
+        }
+
         setDoctor(foundDoctor || null);
       }
     } catch (error) {
@@ -114,6 +132,26 @@ export default function DoctorDetailScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTabChange = (tab) => {
+    if (tab === activeTab) return;
+
+    // Fade out
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      // Change tab
+      setActiveTab(tab);
+      // Fade in
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    });
   };
 
   const handleBookAppointment = async () => {
@@ -270,259 +308,345 @@ export default function DoctorDetailScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "about" && styles.tabActive]}
+          onPress={() => setActiveTab("about")}
+        >
+          <Text style={[styles.tabText, activeTab === "about" && styles.tabTextActive]}>
+            About Doctor
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "booking" && styles.tabActive]}
+          onPress={() => setActiveTab("booking")}
+        >
+          <Text style={[styles.tabText, activeTab === "booking" && styles.tabTextActive]}>
+            Book Appointment
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Doctor Info Card */}
-        <View style={styles.doctorCard}>
-          <View style={styles.doctorRow}>
-            <Image
-              source={{ uri: doctor.image || "https://via.placeholder.com/100" }}
-              style={styles.doctorImage}
-            />
-            <View style={styles.doctorInfo}>
-              <Text style={styles.doctorName}>{doctor.name}</Text>
-              <Text style={styles.doctorSpecialty}>{doctor.speciality}</Text>
-              <Text style={styles.doctorDegree}>{doctor.degree}</Text>
-              <View style={styles.experienceRow}>
-                <Clock size={14} color="#6B7280" />
-                <Text style={styles.experienceText}>{doctor.experience}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Rating & Availability */}
-          <View style={styles.ratingRow}>
-            <View style={styles.ratingContainer}>
-              <Star color="#F59E0B" size={16} fill="#F59E0B" />
-              <Text style={styles.ratingText}>4.8</Text>
-              <Text style={styles.reviewsText}>(200+ reviews)</Text>
-            </View>
-            {doctor.available && (
-              <View style={styles.availableBadge}>
-                <Text style={styles.availableText}>Available</Text>
-              </View>
-            )}
-          </View>
-
-          {/* About Doctor */}
-          {doctor.about && (
-            <View style={styles.aboutSection}>
-              <Text style={styles.aboutTitle}>About</Text>
-              <Text style={styles.aboutText}>{doctor.about}</Text>
-            </View>
-          )}
-
-          {/* Languages */}
-          {doctor.languageSpoken && (
-            <View style={styles.languagesSection}>
-              <Text style={styles.languagesTitle}>Languages Spoken</Text>
-              <Text style={styles.languagesText}>{doctor.languageSpoken}</Text>
-            </View>
-          )}
-
-          {/* Fee */}
-          <View style={styles.feeCard}>
-            <Text style={styles.feeLabel}>Consultation Fee</Text>
-            <Text style={styles.feeAmount}>₹{doctor.fees}</Text>
-          </View>
-        </View>
-
-        {/* Date Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
-            {dates.map((dateObj) => (
-              <TouchableOpacity
-                key={dateObj.value}
-                style={[
-                  styles.dateItem,
-                  selectedDate === dateObj.value && styles.dateItemSelected,
-                ]}
-                onPress={() => setSelectedDate(dateObj.value)}
-              >
-                <Text style={[styles.dateDay, selectedDate === dateObj.value && styles.dateDaySelected]}>
-                  {dateObj.day}
-                </Text>
-                <Text style={[styles.dateNum, selectedDate === dateObj.value && styles.dateNumSelected]}>
-                  {dateObj.date}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Time Selection */}
-        {selectedDate && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Select Time</Text>
-            <View style={styles.timeGrid}>
-              {timeSlots.map((time) => {
-                const isBooked = bookedSlots.includes(time);
-                return (
+        {/* About Tab Content */}
+        {activeTab === "about" && (
+          <>
+            {/* Doctor Info Card */}
+            <View style={styles.doctorCard}>
+              <View style={styles.doctorRow}>
+                {/* Video or Image */}
+                {doctor.video ? (
                   <TouchableOpacity
-                    key={time}
-                    disabled={isBooked}
-                    style={[
-                      styles.timeItem,
-                      selectedTime === time && styles.timeItemSelected,
-                      isBooked && styles.timeItemBooked
-                    ]}
-                    onPress={() => setSelectedTime(time)}
+                    style={styles.videoContainer}
+                    onPress={() => setShowVideoModal(true)}
+                    activeOpacity={0.9}
                   >
-                    <Text style={[
-                      styles.timeText,
-                      selectedTime === time && styles.timeTextSelected,
-                      isBooked && styles.timeTextBooked
-                    ]}>
-                      {time}
-                    </Text>
-                    {isBooked && (
-                      <Text style={styles.bookedLabel}>Booked</Text>
-                    )}
+                    <Image
+                      source={{ uri: doctor.image || "https://via.placeholder.com/100" }}
+                      style={styles.doctorVideo}
+                    />
+                    <View style={styles.playButton}>
+                      <VideoIcon size={24} color="#FFFFFF" />
+                    </View>
                   </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Session Type */}
-        {selectedDate && selectedTime && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Session Type</Text>
-            <View style={styles.sessionRow}>
-              {SESSION_TYPES.map((type) => (
-                <TouchableOpacity
-                  key={type.id}
-                  style={[
-                    styles.sessionItem,
-                    sessionType === type.id && styles.sessionItemSelected,
-                  ]}
-                  onPress={() => setSessionType(type.id)}
-                >
-                  <type.icon size={20} color={sessionType === type.id ? "#FFFFFF" : "#6B7280"} />
-                  <Text style={[styles.sessionText, sessionType === type.id && styles.sessionTextSelected]}>
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Communication Method (for Online) */}
-        {selectedDate && selectedTime && sessionType === "Online" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Communication Method</Text>
-            <View style={styles.commGrid}>
-              {COMMUNICATION_METHODS.map((method) => (
-                <TouchableOpacity
-                  key={method.id}
-                  style={[
-                    styles.commItem,
-                    communicationMethod === method.id && styles.commItemSelected,
-                  ]}
-                  onPress={() => setCommunicationMethod(method.id)}
-                >
-                  <method.icon size={18} color={communicationMethod === method.id ? "#FFFFFF" : "#6B7280"} />
-                  <Text style={[styles.commText, communicationMethod === method.id && styles.commTextSelected]}>
-                    {method.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Reason for Visit */}
-        {selectedDate && selectedTime && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reason for Visit *</Text>
-            <View style={styles.reasonGrid}>
-              {REASONS_FOR_VISIT.map((reason) => (
-                <TouchableOpacity
-                  key={reason}
-                  style={[
-                    styles.reasonItem,
-                    reasonForVisit === reason && styles.reasonItemSelected,
-                  ]}
-                  onPress={() => setReasonForVisit(reason)}
-                >
-                  <Text style={[styles.reasonText, reasonForVisit === reason && styles.reasonTextSelected]}>
-                    {reason}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {reasonForVisit === "Other" && (
-              <TextInput
-                style={styles.textInput}
-                placeholder="Please specify your reason..."
-                placeholderTextColor="#9CA3AF"
-                value={otherReason}
-                onChangeText={setOtherReason}
-              />
-            )}
-          </View>
-        )}
-
-        {/* Brief Notes */}
-        {selectedDate && selectedTime && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Brief Notes (Optional)</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              placeholder="Any additional information you'd like to share..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={3}
-              value={briefNotes}
-              onChangeText={setBriefNotes}
-            />
-          </View>
-        )}
-
-        {/* Emergency Contact - REMOVED to match web simplicity */}
-
-        {/* Consent */}
-        {selectedDate && selectedTime && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.consentRow}
-              onPress={() => setConsentGiven(!consentGiven)}
-            >
-              <View style={[styles.checkbox, consentGiven && styles.checkboxChecked]}>
-                {consentGiven && <CheckCircle size={16} color="#FFFFFF" />}
+                ) : (
+                  <Image
+                    source={{ uri: doctor.image || "https://via.placeholder.com/100" }}
+                    style={styles.doctorImage}
+                  />
+                )}
+                <View style={styles.doctorInfo}>
+                  <Text style={styles.doctorName}>{doctor.name}</Text>
+                  <Text style={styles.doctorSpecialty}>{doctor.speciality}</Text>
+                  <Text style={styles.doctorDegree}>{doctor.degree}</Text>
+                  <View style={styles.experienceRow}>
+                    <Clock size={14} color="#6B7280" />
+                    <Text style={styles.experienceText}>{doctor.experience}</Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.consentText}>
-                I agree to the cancellation policy and consent to telehealth consultation
-              </Text>
-            </TouchableOpacity>
-          </View>
+
+              {/* Rating & Availability */}
+              <View style={styles.ratingRow}>
+                <View style={styles.ratingContainer}>
+                  <Star color="#F59E0B" size={16} fill="#F59E0B" />
+                  <Text style={styles.ratingText}>4.8</Text>
+                  <Text style={styles.reviewsText}>(200+ reviews)</Text>
+                </View>
+                {doctor.available && (
+                  <View style={styles.availableBadge}>
+                    <Text style={styles.availableText}>Available</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* About Doctor */}
+              {doctor.about && (
+                <View style={styles.aboutSection}>
+                  <Text style={styles.aboutTitle}>About</Text>
+                  <Text style={styles.aboutText}>{doctor.about}</Text>
+                </View>
+              )}
+
+              {/* Languages */}
+              {doctor.languageSpoken && (
+                <View style={styles.languagesSection}>
+                  <Text style={styles.languagesTitle}>Languages Spoken</Text>
+                  <Text style={styles.languagesText}>{doctor.languageSpoken}</Text>
+                </View>
+              )}
+
+              {/* Fee */}
+              <View style={styles.feeCard}>
+                <Text style={styles.feeLabel}>Consultation Fee</Text>
+                <Text style={styles.feeAmount}>₹{doctor.fees}</Text>
+              </View>
+            </View>
+
+          </>
         )}
 
-        {/* Book Button */}
-        {selectedDate && selectedTime && (
-          <View style={styles.bookBtnContainer}>
-            <TouchableOpacity
-              style={[
-                styles.bookBtn,
-                (!reasonForVisit || !consentGiven) && styles.bookBtnDisabled,
-              ]}
-              onPress={handleBookAppointment}
-              disabled={booking || !reasonForVisit || !consentGiven}
-            >
-              {booking ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.bookBtnText}>Proceed to Payment - ₹{doctor.fees}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+        {/* Booking Tab Content */}
+        {activeTab === "booking" && (
+          <>
+            {/* Date Selection */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Select Date</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
+                {dates.map((dateObj) => (
+                  <TouchableOpacity
+                    key={dateObj.value}
+                    style={[
+                      styles.dateItem,
+                      selectedDate === dateObj.value && styles.dateItemSelected,
+                    ]}
+                    onPress={() => setSelectedDate(dateObj.value)}
+                  >
+                    <Text style={[styles.dateDay, selectedDate === dateObj.value && styles.dateDaySelected]}>
+                      {dateObj.day}
+                    </Text>
+                    <Text style={[styles.dateNum, selectedDate === dateObj.value && styles.dateNumSelected]}>
+                      {dateObj.date}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Time Selection */}
+            {selectedDate && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Select Time</Text>
+                <View style={styles.timeGrid}>
+                  {timeSlots.map((time) => {
+                    const isBooked = bookedSlots.includes(time);
+                    return (
+                      <TouchableOpacity
+                        key={time}
+                        disabled={isBooked}
+                        style={[
+                          styles.timeItem,
+                          selectedTime === time && styles.timeItemSelected,
+                          isBooked && styles.timeItemBooked
+                        ]}
+                        onPress={() => setSelectedTime(time)}
+                      >
+                        <Text style={[
+                          styles.timeText,
+                          selectedTime === time && styles.timeTextSelected,
+                          isBooked && styles.timeTextBooked
+                        ]}>
+                          {time}
+                        </Text>
+                        {isBooked && (
+                          <Text style={styles.bookedLabel}>Booked</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Session Type */}
+            {selectedDate && selectedTime && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Session Type</Text>
+                <View style={styles.sessionRow}>
+                  {SESSION_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type.id}
+                      style={[
+                        styles.sessionItem,
+                        sessionType === type.id && styles.sessionItemSelected,
+                      ]}
+                      onPress={() => setSessionType(type.id)}
+                    >
+                      <type.icon size={20} color={sessionType === type.id ? "#FFFFFF" : "#6B7280"} />
+                      <Text style={[styles.sessionText, sessionType === type.id && styles.sessionTextSelected]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Communication Method (for Online) */}
+            {selectedDate && selectedTime && sessionType === "Online" && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Communication Method</Text>
+                <View style={styles.commGrid}>
+                  {COMMUNICATION_METHODS.map((method) => (
+                    <TouchableOpacity
+                      key={method.id}
+                      style={[
+                        styles.commItem,
+                        communicationMethod === method.id && styles.commItemSelected,
+                      ]}
+                      onPress={() => setCommunicationMethod(method.id)}
+                    >
+                      <method.icon size={18} color={communicationMethod === method.id ? "#FFFFFF" : "#6B7280"} />
+                      <Text style={[styles.commText, communicationMethod === method.id && styles.commTextSelected]}>
+                        {method.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Reason for Visit */}
+            {selectedDate && selectedTime && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Reason for Visit *</Text>
+                <View style={styles.reasonGrid}>
+                  {REASONS_FOR_VISIT.map((reason) => (
+                    <TouchableOpacity
+                      key={reason}
+                      style={[
+                        styles.reasonItem,
+                        reasonForVisit === reason && styles.reasonItemSelected,
+                      ]}
+                      onPress={() => setReasonForVisit(reason)}
+                    >
+                      <Text style={[styles.reasonText, reasonForVisit === reason && styles.reasonTextSelected]}>
+                        {reason}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {reasonForVisit === "Other" && (
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Please specify your reason..."
+                    placeholderTextColor="#9CA3AF"
+                    value={otherReason}
+                    onChangeText={setOtherReason}
+                  />
+                )}
+              </View>
+            )}
+
+            {/* Brief Notes */}
+            {selectedDate && selectedTime && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Brief Notes (Optional)</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  placeholder="Any additional information you'd like to share..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={3}
+                  value={briefNotes}
+                  onChangeText={setBriefNotes}
+                />
+              </View>
+            )}
+
+            {/* Emergency Contact - REMOVED to match web simplicity */}
+
+            {/* Consent */}
+            {selectedDate && selectedTime && (
+              <View style={styles.section}>
+                <TouchableOpacity
+                  style={styles.consentRow}
+                  onPress={() => setConsentGiven(!consentGiven)}
+                >
+                  <View style={[styles.checkbox, consentGiven && styles.checkboxChecked]}>
+                    {consentGiven && <CheckCircle size={16} color="#FFFFFF" />}
+                  </View>
+                  <Text style={styles.consentText}>
+                    I agree to the cancellation policy and consent to telehealth consultation
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Book Button */}
+            {selectedDate && selectedTime && (
+              <View style={styles.bookBtnContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.bookBtn,
+                    (!reasonForVisit || !consentGiven) && styles.bookBtnDisabled,
+                  ]}
+                  onPress={handleBookAppointment}
+                  disabled={booking || !reasonForVisit || !consentGiven}
+                >
+                  {booking ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.bookBtnText}>Proceed to Payment - ₹{doctor.fees}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
+
+      {/* Fullscreen Video Modal */}
+      <Modal
+        visible={showVideoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowVideoModal(false);
+          setVideoPlaying(false);
+          videoRef.current?.pauseAsync();
+        }}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setShowVideoModal(false);
+            setVideoPlaying(false);
+            videoRef.current?.pauseAsync();
+          }}
+        >
+          {/* Video content area */}
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <Video
+              ref={videoRef}
+              source={{ uri: doctor?.video }}
+              rate={1.0}
+              volume={1.0}
+              isMuted={false}
+              resizeMode="contain"
+              shouldPlay={true}
+              isLooping
+              style={styles.fullscreenVideo}
+              useNativeControls
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -607,6 +731,30 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 16,
     marginRight: 16,
+  },
+  videoContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 16,
+    marginRight: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  doctorVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  playButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -20 }, { translateY: -20 }],
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   doctorInfo: {
     flex: 1,
@@ -950,5 +1098,50 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '100%',
+    height: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#10B981',
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  tabTextActive: {
+    color: '#10B981',
   },
 });

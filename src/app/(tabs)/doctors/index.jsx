@@ -284,11 +284,11 @@ export default function DoctorsListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
   loadingContent: {
     flex: 1,
@@ -320,8 +320,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     paddingBottom: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerContent: {
     flexDirection: "row",
@@ -353,6 +356,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
   },
   searchBar: {
     flex: 1,
@@ -378,7 +382,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginBottom: 12,
+    paddingBottom: 12,
+    backgroundColor: "#FFFFFF",
   },
   resultsCount: {
     fontSize: 15,

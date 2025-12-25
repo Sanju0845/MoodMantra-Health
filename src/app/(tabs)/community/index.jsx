@@ -1,245 +1,358 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { supabase } from '../../../utils/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Heart, Brain, Users, Star, Briefcase, Sun, Apple, Moon, Baby, MessageCircle, ChevronRight, MessageSquare } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from "react";
+import {
+    View,
+    Text,
+    ScrollView,
+    TouchableOpacity,
+    StyleSheet,
+    useColorScheme,
+    ActivityIndicator,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import * as Haptics from "expo-haptics";
+import {
+    Heart,
+    Brain,
+    Users,
+    Star,
+    Briefcase,
+    Sun,
+    Apple,
+    Moon,
+    Baby,
+    MessageCircle,
+} from "lucide-react-native";
+import {
+    useFonts,
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
+} from "@expo-google-fonts/inter";
+import { supabase } from "../../../utils/supabaseClient";
 
-const { width } = Dimensions.get('window');
-
-// Icon mapping
-const ICON_MAP = {
-    'Heart': Heart,
-    'Brain': Brain,
-    'Users': Users,
-    'Star': Star,
-    'Briefcase': Briefcase,
-    'Sun': Sun,
-    'Apple': Apple,
-    'Moon': Moon,
-    'Baby': Baby,
-    'MessageCircle': MessageCircle,
+// Theme configuration
+const themes = {
+    light: {
+        background: "#FFFFFF",
+        headerBackground: "#FFFFFF",
+        text: "#1A1A1A",
+        textSecondary: "#8E8E93",
+        cardBackground: "#FFFFFF",
+        cardBorder: "#E6E6E6",
+        headerBorder: "#E5E5E5",
+        statusBarStyle: "dark",
+    },
+    dark: {
+        background: "#121212",
+        headerBackground: "#121212",
+        text: "#FFFFFF",
+        textSecondary: "#A0A0A0",
+        cardBackground: "#1E1E1E",
+        cardBorder: "#2A2A2A",
+        headerBorder: "#2A2A2A",
+        statusBarStyle: "light",
+    },
 };
 
+// Icon mapping with colors
+const ICON_CONFIG = {
+    Heart: { component: Heart, color: "#E04C7A" },
+    Brain: { component: Brain, color: "#665AE1" },
+    Users: { component: Users, color: "#B3418B" },
+    Star: { component: Star, color: "#F59E0B" },
+    Briefcase: { component: Briefcase, color: "#565A70" },
+    Sun: { component: Sun, color: "#F97316" },
+    Apple: { component: Apple, color: "#7E8452" },
+    Moon: { component: Moon, color: "#6366F1" },
+    Baby: { component: Baby, color: "#EC4899" },
+    MessageCircle: { component: MessageCircle, color: "#8B5CF6" },
+};
+
+// Fallback community rooms (if Supabase fails)
+const FALLBACK_ROOMS = [
+    {
+        id: "wellbeing-warriors",
+        name: "Wellbeing Warriors",
+        description: "General mental health and wellbeing support",
+        icon: "Heart",
+    },
+    {
+        id: "mental-support",
+        name: "Mental Support",
+        description: "A safe space to discuss mental health challenges",
+        icon: "Brain",
+    },
+    {
+        id: "relationship-advice",
+        name: "Relationship Advice",
+        description: "Discussing healthy relationships and advice",
+        icon: "Users",
+    },
+    {
+        id: "user-experiences",
+        name: "User Experiences",
+        description: "Share your journey and experiences with others",
+        icon: "Star",
+    },
+    {
+        id: "career-stress",
+        name: "Career Stress",
+        description: "Support for work-related stress and burnout",
+        icon: "Briefcase",
+    },
+    {
+        id: "mindfulness-place",
+        name: "Mindfulness Place",
+        description: "Tips and discussions on mindfulness and meditation",
+        icon: "Sun",
+    },
+    {
+        id: "health-nutrition",
+        name: "Health & Nutrition",
+        description: "Discussing physical health, diet, and nutrition",
+        icon: "Apple",
+    },
+    {
+        id: "sleep-hygiene",
+        name: "Sleep Hygiene",
+        description: "Tips for better sleep and overcoming insomnia",
+        icon: "Moon",
+    },
+    {
+        id: "parenting-support",
+        name: "Parenting Support",
+        description: "Support and advice for parents",
+        icon: "Baby",
+    },
+    {
+        id: "general-chat",
+        name: "General Chat",
+        description: "Off-topic discussions and hanging out",
+        icon: "MessageCircle",
+    },
+];
+
+// RoomCard Component
+function RoomCard({ room, onPress, theme }) {
+    const iconConfig = ICON_CONFIG[room.icon] || ICON_CONFIG.MessageCircle;
+    const IconComponent = iconConfig.component;
+    const iconColor = iconConfig.color;
+
+    return (
+        <TouchableOpacity
+            style={[
+                styles.roomCard,
+                {
+                    backgroundColor: theme.cardBackground,
+                    borderColor: theme.cardBorder,
+                },
+            ]}
+            onPress={onPress}
+            activeOpacity={0.7}
+            accessibilityLabel={`Open ${room.name} room`}
+        >
+            <View style={styles.iconContainer}>
+                <IconComponent size={24} color={iconColor} strokeWidth={2} />
+            </View>
+            <View style={styles.textContainer}>
+                <Text style={[styles.roomName, { color: theme.text }]}>
+                    {room.name}
+                </Text>
+                <Text
+                    style={[styles.roomDescription, { color: theme.textSecondary }]}
+                    numberOfLines={1}
+                >
+                    {room.description}
+                </Text>
+            </View>
+        </TouchableOpacity>
+    );
+}
+
 export default function CommunityHub() {
+    const insets = useSafeAreaInsets();
     const router = useRouter();
-    const [rooms, setRooms] = useState([]);
+    const colorScheme = useColorScheme();
+    const theme = themes[colorScheme] || themes.light;
+    const [showHeaderBorder, setShowHeaderBorder] = useState(false);
+    const [rooms, setRooms] = useState(FALLBACK_ROOMS);
     const [loading, setLoading] = useState(true);
 
+    const [fontsLoaded] = useFonts({
+        Inter_400Regular,
+        Inter_600SemiBold,
+        Inter_700Bold,
+    });
+
+    // Fetch rooms from Supabase
     useEffect(() => {
         fetchRooms();
     }, []);
 
     const fetchRooms = async () => {
         try {
+            console.log('[Community] Fetching rooms from Supabase...');
             const { data, error } = await supabase
                 .from('community_rooms')
                 .select('*')
                 .order('created_at', { ascending: true });
 
             if (error) {
-                console.error('Error fetching rooms:', error);
-                // Fallback data if table doesn't exist yet or fails
+                console.error('[Community] Error fetching rooms:', error);
+                // Use fallback rooms
                 setRooms(FALLBACK_ROOMS);
+            } else if (data && data.length > 0) {
+                console.log('[Community] Loaded', data.length, 'rooms from Supabase');
+                setRooms(data);
             } else {
-                if (data && data.length > 0) {
-                    setRooms(data);
-                } else {
-                    setRooms(FALLBACK_ROOMS);
-                }
+                console.log('[Community] No rooms in database, using fallback');
+                setRooms(FALLBACK_ROOMS);
             }
         } catch (err) {
-            console.error('Unexpected error:', err);
+            console.error('[Community] Fetch error:', err);
             setRooms(FALLBACK_ROOMS);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleRoomPress = (roomId, roomName, roomIcon) => {
-        router.push({
-            pathname: '/community/chat/[id]',
-            params: { id: roomId, name: roomName, icon: roomIcon }
-        });
-    };
-
-    const renderRoomItem = ({ item }) => {
-        const IconComponent = ICON_MAP[item.icon] || MessageCircle;
-
+    if (!fontsLoaded || loading) {
         return (
-            <TouchableOpacity
-                style={styles.roomCard}
-                activeOpacity={0.9}
-                onPress={() => handleRoomPress(item.id, item.name, item.icon)}
-            >
-                <LinearGradient
-                    colors={['#FFFFFF', '#F9FAFB']}
-                    style={styles.cardGradient}
-                >
-                    <View style={styles.iconContainer}>
-                        <LinearGradient
-                            colors={['#E6F7F2', '#D1F0E6']}
-                            style={styles.iconBackground}
-                        >
-                            <IconComponent size={24} color="#4A9B7F" strokeWidth={2.5} />
-                        </LinearGradient>
-                    </View>
-
-                    <View style={styles.textContainer}>
-                        <Text style={styles.roomName}>{item.name}</Text>
-                        <Text style={styles.roomDescription} numberOfLines={1}>
-                            {item.description}
-                        </Text>
-                    </View>
-
-                    <View style={styles.arrowContainer}>
-                        <ChevronRight size={20} color="#9CA3AF" />
-                    </View>
-                </LinearGradient>
-            </TouchableOpacity>
-        );
-    };
-
-    if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4A9B7F" />
+            <View style={{ flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#8B5CF6" />
             </View>
         );
     }
 
+    const handleRoomPress = async (room) => {
+        await Haptics.selectionAsync();
+        // Navigate to chat room
+        router.push({
+            pathname: "/community/chat/[id]",
+            params: { id: room.id, name: room.name, icon: room.icon },
+        });
+    };
+
+    const handleScroll = (event) => {
+        const offsetY = event.nativeEvent.contentOffset.y;
+        setShowHeaderBorder(offsetY > 0);
+    };
+
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Community Hub</Text>
-                <Text style={styles.headerSubtitle}>
-                    Connect, share, and grow together in our safe spaces.
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+            <StatusBar style={theme.statusBarStyle} />
+
+            {/* Header */}
+            <View
+                style={[
+                    styles.headerContainer,
+                    {
+                        paddingTop: insets.top + 12,
+                        backgroundColor: theme.headerBackground,
+                    },
+                    showHeaderBorder && [
+                        styles.headerWithBorder,
+                        { borderBottomColor: theme.headerBorder },
+                    ],
+                ]}
+            >
+                <Text style={[styles.title, { color: theme.text }]}>Community Hub</Text>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                    Connect, share, and grow together in our safe spaces
                 </Text>
             </View>
 
-            <FlatList
-                data={rooms}
-                renderItem={renderRoomItem}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={styles.listContent}
+            {/* Room List */}
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: insets.bottom + 20 },
+                ]}
                 showsVerticalScrollIndicator={false}
-                ListFooterComponent={<View style={{ height: 80 }} />} // Spacing for bottom tab bar
-            />
-        </SafeAreaView>
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+            >
+                {rooms.map((room) => (
+                    <RoomCard
+                        key={room.id}
+                        room={room}
+                        onPress={() => handleRoomPress(room)}
+                        theme={theme}
+                    />
+                ))}
+            </ScrollView>
+        </View>
     );
 }
-
-// Fallback data in case DB is empty or not connected yet
-const FALLBACK_ROOMS = [
-    { id: '1', name: 'Wellbeing Warriors', description: 'General mental health and wellbeing support.', icon: 'Heart', category: 'Wellbeing' },
-    { id: '2', name: 'Mental Support', description: 'A safe space to discuss mental health challenges.', icon: 'Brain', category: 'Support' },
-    { id: '3', name: 'Relationship Advice', description: 'Discussing healthy relationships and advice.', icon: 'Users', category: 'Relationships' },
-    { id: '4', name: 'User Experiences', description: 'Share your journey and experiences with others.', icon: 'Star', category: 'Community' },
-    { id: '5', name: 'Career Stress', description: 'Support for work-related stress and burnout.', icon: 'Briefcase', category: 'Career' },
-    { id: '6', name: 'Mindfulness Place', description: 'Tips and discussions on mindfulness and meditation.', icon: 'Sun', category: 'Mindfulness' },
-    { id: '7', name: 'Health & Nutrition', description: 'Discussing physical health, diet, and nutrition.', icon: 'Apple', category: 'Health' },
-    { id: '8', name: 'Sleep Hygiene', description: 'Tips for better sleep and overcoming insomnia.', icon: 'Moon', category: 'Health' },
-    { id: '9', name: 'Parenting Support', description: 'Support and advice for parents.', icon: 'Baby', category: 'Family' },
-    { id: '10', name: 'General Chat', description: 'Off-topic discussions and hanging out.', icon: 'MessageCircle', category: 'General' },
-];
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F3F4F6',
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F3F4F6',
-    },
-    header: {
+    headerContainer: {
         paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
+        paddingBottom: 20,
+        zIndex: 1000,
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#1F2937',
-        marginBottom: 4,
+    headerWithBorder: {
+        borderBottomWidth: 1,
     },
-    headerSubtitle: {
-        fontSize: 13,
-        color: '#9CA3AF',
+    title: {
+        fontFamily: "Inter_700Bold",
+        fontSize: 28,
+        marginBottom: 8,
     },
-    listContent: {
-        padding: 16,
+    subtitle: {
+        fontFamily: "Inter_400Regular",
+        fontSize: 15,
+        lineHeight: 22,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 24,
+        gap: 12,
     },
     roomCard: {
-        marginBottom: 16,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-        overflow: 'hidden',
-    },
-    cardGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+        elevation: 1,
     },
     iconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: "#F9FAFB",
+        justifyContent: "center",
+        alignItems: "center",
         marginRight: 16,
-    },
-    iconBackground: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     textContainer: {
         flex: 1,
-        marginRight: 8,
     },
     roomName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#111827',
-        marginBottom: 2,
+        fontFamily: "Inter_600SemiBold",
+        fontSize: 16,
+        marginBottom: 4,
     },
     roomDescription: {
-        fontSize: 12,
-        color: '#9CA3AF',
-    },
-    metaContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    activeTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#ECFDF5',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    activeDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#10B981',
-        marginRight: 6,
-    },
-    activeText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#059669',
-    },
-    arrowContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
+        fontFamily: "Inter_400Regular",
+        fontSize: 14,
+        lineHeight: 20,
     },
 });
+
+
+

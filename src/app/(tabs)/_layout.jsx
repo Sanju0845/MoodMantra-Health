@@ -8,6 +8,7 @@ import {
   BookOpen,
   UserCircle,
   Users,
+  StickyNote,
 } from "lucide-react-native";
 
 // Tab colors matching the design
@@ -119,13 +120,25 @@ export default function TabLayout() {
         })}
       />
 
-      {/* Journal Tab */}
+      {/* Journal Tab - Hidden from footer, accessible from home screen */}
       <Tabs.Screen
         name="journal"
         options={{
+          href: null, // Hidden from tab bar
           title: "Journal",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={BookOpen} focused={focused} />
+          ),
+        }}
+      />
+
+      {/* Notes Tab */}
+      <Tabs.Screen
+        name="notes"
+        options={{
+          title: "Notes",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon={StickyNote} focused={focused} />
           ),
         }}
       />

@@ -44,6 +44,7 @@ import {
   ChevronRight,
   Smartphone,
   Calendar as CalendarIcon,
+  FileText,
 } from "lucide-react-native";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -683,7 +684,7 @@ export default function HomeScreen() {
         {doctors.length > 0 && (
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
-              <Text style={styles.sectionTitle}>Our Experts</Text>
+              <Text style={styles.sectionTitle}>Our Therapists</Text>
               <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")}>
                 <Text style={{ color: '#4A9B7F', fontWeight: '600' }}>View All</Text>
               </TouchableOpacity>
@@ -898,26 +899,6 @@ export default function HomeScreen() {
 
             <AnimatedButton
               style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/journal")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FEF3C7" }]}>
-                <BookOpen size={32} color="#F59E0B" />
-              </View>
-              <Text style={styles.quickActionText}>{t('journal')}</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/assessment")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#E0F2FE" }]}>
-                <ClipboardList size={32} color="#0EA5E9" />
-              </View>
-              <Text style={styles.quickActionText}>{t('assessment')}</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.quickActionCard}
               onPress={() => router.push("/(tabs)/chat")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#FCE7F3" }]}>
@@ -928,22 +909,42 @@ export default function HomeScreen() {
 
             <AnimatedButton
               style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/doctors")}
+              onPress={() => router.push("/(tabs)/notes")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#DBEAFE" }]}>
-                <Stethoscope size={32} color="#3B82F6" />
+              <View style={[styles.quickActionIcon, { backgroundColor: "#F0F9FF" }]}>
+                <FileText size={32} color="#0284C7" />
               </View>
-              <Text style={styles.quickActionText}>{t('doctors')}</Text>
+              <Text style={styles.quickActionText}>Notes</Text>
             </AnimatedButton>
 
             <AnimatedButton
               style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/goals")}
+              onPress={() => router.push("/(tabs)/wellness/water")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FEE2E2" }]}>
-                <Target size={32} color="#EF4444" />
+              <View style={[styles.quickActionIcon, { backgroundColor: "#DBEAFE" }]}>
+                <Droplets size={32} color="#3B82F6" />
               </View>
-              <Text style={styles.quickActionText}>{t('goals')}</Text>
+              <Text style={styles.quickActionText}>{t('water')}</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/wellness/sleep")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: "#F3E8FF" }]}>
+                <Moon size={32} color="#8B5CF6" />
+              </View>
+              <Text style={styles.quickActionText}>{t('sleep')}</Text>
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/wellness/habits")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: "#DCFCE7" }]}>
+                <CheckSquare size={32} color="#22C55E" />
+              </View>
+              <Text style={styles.quickActionText}>{t('habits')}</Text>
             </AnimatedButton>
           </View>
         </View>
@@ -1016,7 +1017,7 @@ export default function HomeScreen() {
                 <Wind size={24} color="#10B981" />
               </CircleProgress>
               <Text style={styles.progressLabel}>Breathing</Text>
-              <Text style={styles.progressValue}>{breathing.today}/3 sessions</Text>
+              <Text style={styles.progressValue}>{breathing.today}/3 Reps</Text>
             </View>
 
             {/* Habits */}
@@ -1048,52 +1049,6 @@ export default function HomeScreen() {
         <View style={styles.quoteCardCompact}>
           <Text style={styles.quoteEmoji}>✨</Text>
           <Text style={styles.quoteTextCompact}>"{dailyQuote}"</Text>
-        </View>
-
-        {/* Wellness Tools Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('wellness_tools')}</Text>
-          <View style={styles.wellnessGrid}>
-            <AnimatedButton
-              style={styles.wellnessCard}
-              onPress={() => router.push("/(tabs)/wellness/water")}
-            >
-              <View style={[styles.wellnessIcon, { backgroundColor: "#DBEAFE" }]}>
-                <Droplets size={24} color="#3B82F6" />
-              </View>
-              <Text style={styles.wellnessLabel}>{t('water')}</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.wellnessCard}
-              onPress={() => router.push("/(tabs)/wellness/sleep")}
-            >
-              <View style={[styles.wellnessIcon, { backgroundColor: "#F3E8FF" }]}>
-                <Moon size={24} color="#8B5CF6" />
-              </View>
-              <Text style={styles.wellnessLabel}>{t('sleep')}</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.wellnessCard}
-              onPress={() => router.push("/(tabs)/wellness/habits")}
-            >
-              <View style={[styles.wellnessIcon, { backgroundColor: "#DCFCE7" }]}>
-                <CheckSquare size={24} color="#22C55E" />
-              </View>
-              <Text style={styles.wellnessLabel}>{t('habits')}</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.wellnessCard}
-              onPress={() => router.push("/(tabs)/mood/calendar")}
-            >
-              <View style={[styles.wellnessIcon, { backgroundColor: "#FEF3C7" }]}>
-                <Calendar size={24} color="#F59E0B" />
-              </View>
-              <Text style={styles.wellnessLabel}>{t('calendar')}</Text>
-            </AnimatedButton>
-          </View>
         </View>
 
         {/* Analytics - Navigation Buttons */}
@@ -1768,8 +1723,9 @@ const styles = StyleSheet.create({
   floatingChatButton: {
     position: "absolute",
     right: 20,
-    bottom: 80,
+    bottom: 110, // Increased to ensure it stays well above footer
     alignItems: "center",
+    zIndex: 999, // Ensure it stays above other elements
   },
   floatingChatGradient: {
     width: 48,

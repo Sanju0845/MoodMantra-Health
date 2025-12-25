@@ -21,6 +21,19 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import api from "../../utils/api";
 
+// Helper to parse markdown to plain text with formatting
+const parseMarkdown = (text) => {
+  return text
+    // Remove bold ** markers
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    // Remove italic * markers  
+    .replace(/\*(.+?)\*/g, '$1')
+    // Clean up list markers
+    .replace(/^[\s-]*\*\*/gm, '•')
+    .replace(/^[\s]*-\s\*\*/gm, '• ')
+    .trim();
+};
+
 export default function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -344,14 +357,15 @@ export default function ChatScreen() {
                     : styles.botText,
                 ]}
               >
-                {/* Remove both markdown links, web URLs, and appointment links */}
-                {message.content
-                  .replace(/\[Doctor: ([^\]]+)\]\([^)]+\)/g, '$1')
-                  .replace(/https?:\/\/[^\s]+\/doctor\/[^\s]+/g, '')
-                  .replace(/\(Book Appointment\)\([^)]+\)/g, '')
-                  .replace(/\[Book Appointment\]\([^)]+\)/g, '')
-                  .replace(/https?:\/\/[^\s]+\/appointment\/[^\s]+/g, '')
-                  .trim()}
+                {/* Parse markdown and remove links */}
+                {parseMarkdown(
+                  message.content
+                    .replace(/\[Doctor: ([^\]]+)\]\([^)]+\)/g, '$1')
+                    .replace(/https?:\/\/[^\s]+\/doctor\/[^\s]+/g, '')
+                    .replace(/\(Book Appointment\)\([^)]+\)/g, '')
+                    .replace(/\[Book Appointment\]\([^)]+\)/g, '')
+                    .replace(/https?:\/\/[^\s]+\/appointment\/[^\s]+/g, '')
+                )}
               </Text>
 
               {message.role === "assistant" && (() => {

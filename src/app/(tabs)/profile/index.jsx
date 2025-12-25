@@ -26,6 +26,7 @@ import {
   MapPin,
   Bell,
   BarChart3,
+  BookOpen,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../../utils/api";
@@ -94,6 +95,13 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
+    {
+      icon: BookOpen,
+      title: "Log Mood",
+      subtitle: "Track your daily feelings",
+      route: "/(tabs)/journal",
+      color: "#4A9B7F",
+    },
     {
       icon: Edit,
       title: "Edit Profile",
