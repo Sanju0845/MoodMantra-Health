@@ -15,24 +15,42 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Plus, Check, Trash2, X, Star, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react-native";
+import {
+    ArrowLeft,
+    Plus,
+    Check,
+    Trash2,
+    X,
+    Star,
+    Calendar as CalendarIcon,
+    ChevronLeft,
+    ChevronRight,
+} from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useWellness } from "@/context/WellnessContext";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 const PRESET_HABITS = [
-    { title: "Read 15 mins", icon: "📖", color: "#60A5FA" },
-    { title: "Meditate", icon: "🧘", color: "#A78BFA" },
-    { title: "Walk", icon: "🚶", color: "#34D399" },
-    { title: "No Sugar", icon: "🍬", color: "#F472B6" },
-    { title: "Journal", icon: "✍️", color: "#FBBF24" },
+    { title: "Read 15 mins", icon: "📖", color: "#3B82F6" },
+    { title: "Meditate", icon: "🧘", color: "#8B5CF6" },
+    { title: "Walk", icon: "🚶", color: "#10B981" },
+    { title: "No Sugar", icon: "🍬", color: "#EC4899" },
+    { title: "Journal", icon: "✍️", color: "#F59E0B" },
 ];
 
 // Swipeable Habit Card Component
-const SwipeableHabitCard = ({ habit, isCompleted, onToggle, onDelete, isRevealed, onReveal, onHide }) => {
+const SwipeableHabitCard = ({
+    habit,
+    isCompleted,
+    onToggle,
+    onDelete,
+    isRevealed,
+    onReveal,
+    onHide,
+}) => {
     const translateX = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const [isDeleting, setIsDeleting] = useState(false);
@@ -86,7 +104,7 @@ const SwipeableHabitCard = ({ habit, isCompleted, onToggle, onDelete, isRevealed
                     onHide();
                 }
             },
-        })
+        }),
     ).current;
 
     const handleDelete = () => {
@@ -135,38 +153,53 @@ const SwipeableHabitCard = ({ habit, isCompleted, onToggle, onDelete, isRevealed
     return (
         <View style={styles.swipeableContainer}>
             <View style={styles.deleteButtonContainer}>
-                <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.8}>
-                    <Trash2 size={20} color="#FFFFFF" />
+                <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={handleDelete}
+                    activeOpacity={0.8}
+                >
+                    <Trash2 size={18} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
-            <Animated.View style={[styles.habitCardWrapper, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
+            <Animated.View
+                style={[styles.habitCardWrapper, { transform: [{ translateX }] }]}
+                {...panResponder.panHandlers}
+            >
                 <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                     <TouchableOpacity
-                        style={[
-                            styles.habitCard,
-                            isCompleted && styles.habitCardCompleted
-                        ]}
+                        style={[styles.habitCard, isCompleted && styles.habitCardCompleted]}
                         onPress={handleCardPress}
                         activeOpacity={1}
                         disabled={isDeleting}
                     >
-                        <View style={[
-                            styles.habitIcon,
-                            { backgroundColor: isCompleted ? "#FFFFFF" : habit.color + "20" }
-                        ]}>
+                        <View
+                            style={[
+                                styles.habitIcon,
+                                {
+                                    backgroundColor: isCompleted ? "#FFFFFF" : habit.color + "20",
+                                },
+                            ]}
+                        >
                             <Text style={{ fontSize: 20 }}>{habit.icon}</Text>
                         </View>
-                        <Text style={[
-                            styles.habitTitle,
-                            isCompleted && styles.habitTitleCompleted
-                        ]}>
+                        <Text
+                            style={[
+                                styles.habitTitle,
+                                isCompleted && styles.habitTitleCompleted,
+                            ]}
+                        >
                             {habit.title}
                         </Text>
-                        <View style={[
-                            styles.checkbox,
-                            isCompleted && { backgroundColor: habit.color, borderColor: habit.color }
-                        ]}>
+                        <View
+                            style={[
+                                styles.checkbox,
+                                isCompleted && {
+                                    backgroundColor: habit.color,
+                                    borderColor: habit.color,
+                                },
+                            ]}
+                        >
                             {isCompleted && <Check size={14} color="#FFFFFF" />}
                         </View>
                     </TouchableOpacity>
@@ -190,16 +223,22 @@ export default function HabitsTracker() {
     const [revealedCardId, setRevealedCardId] = useState(null);
 
     const selectedDateString = selectedDate.toDateString();
-    const completedIds = habitsData.logs.find(l => l.date === selectedDateString)?.completedIds || [];
+    const completedIds =
+        habitsData.logs.find((l) => l.date === selectedDateString)?.completedIds ||
+        [];
 
-    // Animation for confetti - larger and smoother
+    // Optimized confetti - 25 particles spawning across screen
     const confettiAnims = useRef(
-        Array.from({ length: 60 }, () => ({
-            y: new Animated.Value(0),
-            x: new Animated.Value(0),
-            opacity: new Animated.Value(1),
-            rotate: new Animated.Value(0),
-        }))
+        Array.from({ length: 25 }, () => {
+            const startX = Math.random() * width; // Random start position
+            return {
+                x: new Animated.Value(startX),
+                y: new Animated.Value(0),
+                opacity: new Animated.Value(1),
+                rotate: new Animated.Value(0),
+                startX, // Store for reset
+            };
+        }),
     ).current;
 
     const toggleHabit = async (id) => {
@@ -207,17 +246,18 @@ export default function HabitsTracker() {
 
         let newCompleted = [];
         if (completedIds.includes(id)) {
-            newCompleted = completedIds.filter(c => c !== id);
+            newCompleted = completedIds.filter((c) => c !== id);
         } else {
             newCompleted = [...completedIds, id];
             // Trigger confetti if all habits completed
             if (habits.length > 0 && newCompleted.length === habits.length) {
-                triggerConfetti();
+                // Delay confetti slightly to reduce lag
+                setTimeout(() => triggerConfetti(), 100);
             }
         }
 
         let logs = [...habitsData.logs];
-        const todayIndex = logs.findIndex(l => l.date === selectedDateString);
+        const todayIndex = logs.findIndex((l) => l.date === selectedDateString);
 
         if (todayIndex >= 0) {
             logs[todayIndex] = { ...logs[todayIndex], completedIds: newCompleted };
@@ -235,7 +275,8 @@ export default function HabitsTracker() {
             id: Date.now().toString(),
             title: newHabitTitle,
             icon: "✨",
-            color: PRESET_HABITS[Math.floor(Math.random() * PRESET_HABITS.length)].color
+            color:
+                PRESET_HABITS[Math.floor(Math.random() * PRESET_HABITS.length)].color,
         };
 
         updateHabits([...habits, newHabit], null);
@@ -244,42 +285,37 @@ export default function HabitsTracker() {
     };
 
     const deleteHabit = async (id) => {
-        const updatedHabits = habits.filter(h => h.id !== id);
+        const updatedHabits = habits.filter((h) => h.id !== id);
         updateHabits(updatedHabits, null);
     };
 
     const triggerConfetti = () => {
         setShowConfetti(true);
         confettiAnims.forEach((anim, index) => {
-            anim.y.setValue(0);
-            anim.x.setValue(0);
+            // Reset position to top of screen
+            anim.x.setValue(anim.startX);
+            anim.y.setValue(-100); // Start above screen
             anim.opacity.setValue(1);
             anim.rotate.setValue(0);
 
-            const delay = index * 15; // Stagger the confetti
+            const delay = index * 20;
 
             Animated.parallel([
                 Animated.timing(anim.y, {
-                    toValue: 500 + Math.random() * 300,
-                    duration: 2500 + Math.random() * 1000,
-                    delay,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(anim.x, {
-                    toValue: (Math.random() - 0.5) * 400,
-                    duration: 2500 + Math.random() * 1000,
+                    toValue: height + 100, // Fall to bottom of screen
+                    duration: 2000 + Math.random() * 800,
                     delay,
                     useNativeDriver: true,
                 }),
                 Animated.timing(anim.rotate, {
                     toValue: Math.random() * 720,
-                    duration: 2500 + Math.random() * 1000,
+                    duration: 2000 + Math.random() * 800,
                     delay,
                     useNativeDriver: true,
                 }),
                 Animated.timing(anim.opacity, {
                     toValue: 0,
-                    duration: 3000,
+                    duration: 2500,
                     delay,
                     useNativeDriver: true,
                 }),
@@ -287,7 +323,7 @@ export default function HabitsTracker() {
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTimeout(() => setShowConfetti(false), 4000);
+        setTimeout(() => setShowConfetti(false), 3500);
     };
 
     // Calendar functions
@@ -316,17 +352,20 @@ export default function HabitsTracker() {
     const getHabitsForDate = (date) => {
         if (!date) return 0;
         const dateString = date.toDateString();
-        const log = habitsData.logs.find(l => l.date === dateString);
+        const log = habitsData.logs.find((l) => l.date === dateString);
         return log?.completedIds?.length || 0;
     };
 
-    const completionRate = habits.length > 0 ? Math.round((completedIds.length / habits.length) * 100) : 0;
+    const completionRate =
+        habits.length > 0
+            ? Math.round((completedIds.length / habits.length) * 100)
+            : 0;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <StatusBar style="dark" />
 
-            {/* Confetti Overlay */}
+            {/* Confetti Overlay - now spawns across entire top */}
             {showConfetti && (
                 <View style={styles.confettiContainer}>
                     {confettiAnims.map((anim, i) => (
@@ -335,20 +374,25 @@ export default function HabitsTracker() {
                             style={[
                                 styles.confetti,
                                 {
-                                    backgroundColor: ["#F87171", "#60A5FA", "#34D399", "#FBBF24", "#A78BFA", "#FB923C"][i % 6],
+                                    backgroundColor: [
+                                        "#F87171",
+                                        "#60A5FA",
+                                        "#34D399",
+                                        "#FBBF24",
+                                        "#A78BFA",
+                                        "#FB923C",
+                                    ][i % 6],
                                     transform: [
                                         { translateY: anim.y },
                                         { translateX: anim.x },
                                         {
                                             rotate: anim.rotate.interpolate({
                                                 inputRange: [0, 720],
-                                                outputRange: ['0deg', '720deg']
-                                            })
-                                        }
+                                                outputRange: ["0deg", "720deg"],
+                                            }),
+                                        },
                                     ],
                                     opacity: anim.opacity,
-                                    left: "50%",
-                                    top: -20,
                                 },
                             ]}
                         />
@@ -358,11 +402,17 @@ export default function HabitsTracker() {
 
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                >
                     <ArrowLeft size={24} color="#1F2937" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Daily Habits</Text>
-                <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.addButton}>
+                <TouchableOpacity
+                    onPress={() => setShowAddModal(true)}
+                    style={styles.addButton}
+                >
                     <Plus size={24} color="#1F2937" />
                 </TouchableOpacity>
             </View>
@@ -376,22 +426,45 @@ export default function HabitsTracker() {
                 {/* Calendar Section */}
                 <View style={styles.calendarSection}>
                     <View style={styles.calendarHeader}>
-                        <TouchableOpacity onPress={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} style={styles.monthButton}>
+                        <TouchableOpacity
+                            onPress={() =>
+                                setCurrentMonth(
+                                    new Date(
+                                        currentMonth.getFullYear(),
+                                        currentMonth.getMonth() - 1,
+                                    ),
+                                )
+                            }
+                            style={styles.monthButton}
+                        >
                             <ChevronLeft size={20} color="#4A9B7F" />
                         </TouchableOpacity>
                         <View style={styles.monthInfo}>
                             <Text style={styles.monthTitle}>
-                                {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                {currentMonth.toLocaleDateString("en-US", {
+                                    month: "long",
+                                    year: "numeric",
+                                })}
                             </Text>
                         </View>
-                        <TouchableOpacity onPress={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} style={styles.monthButton}>
+                        <TouchableOpacity
+                            onPress={() =>
+                                setCurrentMonth(
+                                    new Date(
+                                        currentMonth.getFullYear(),
+                                        currentMonth.getMonth() + 1,
+                                    ),
+                                )
+                            }
+                            style={styles.monthButton}
+                        >
                             <ChevronRight size={20} color="#4A9B7F" />
                         </TouchableOpacity>
                     </View>
 
                     {/* Weekday Headers */}
                     <View style={styles.weekdayHeader}>
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => (
                             <View key={i} style={styles.weekdayCell}>
                                 <Text style={styles.weekdayText}>{day}</Text>
                             </View>
@@ -401,10 +474,12 @@ export default function HabitsTracker() {
                     {/* Calendar Grid */}
                     <View style={styles.calendarGrid}>
                         {getDaysInMonth(currentMonth).map((day, index) => {
-                            if (!day) return <View key={`empty-${index}`} style={styles.dayCell} />;
+                            if (!day)
+                                return <View key={`empty-${index}`} style={styles.dayCell} />;
 
                             const isToday = day.toDateString() === new Date().toDateString();
-                            const isSelected = day.toDateString() === selectedDate.toDateString();
+                            const isSelected =
+                                day.toDateString() === selectedDate.toDateString();
                             const habitsCount = getHabitsForDate(day);
                             const hasHabits = habitsCount > 0;
 
@@ -415,14 +490,28 @@ export default function HabitsTracker() {
                                     onPress={() => setSelectedDate(day)}
                                     activeOpacity={0.7}
                                 >
-                                    <View style={[styles.dayCircle, isToday && styles.dayCircleToday, isSelected && styles.dayCircleSelected]}>
-                                        <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected, isToday && !isSelected && styles.dayNumberToday]}>
+                                    <View
+                                        style={[
+                                            styles.dayCircle,
+                                            isToday && styles.dayCircleToday,
+                                            isSelected && styles.dayCircleSelected,
+                                        ]}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.dayNumber,
+                                                isSelected && styles.dayNumberSelected,
+                                                isToday && !isSelected && styles.dayNumberToday,
+                                            ]}
+                                        >
                                             {day.getDate()}
                                         </Text>
                                     </View>
                                     {hasHabits && (
                                         <View style={styles.habitIndicator}>
-                                            <Text style={styles.habitIndicatorText}>{habitsCount}</Text>
+                                            <Text style={styles.habitIndicatorText}>
+                                                {habitsCount}
+                                            </Text>
                                         </View>
                                     )}
                                 </TouchableOpacity>
@@ -435,7 +524,11 @@ export default function HabitsTracker() {
                 <View style={styles.selectedDateInfo}>
                     <CalendarIcon size={18} color="#6B7280" />
                     <Text style={styles.selectedDateText}>
-                        {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        {selectedDate.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            month: "long",
+                            day: "numeric",
+                        })}
                     </Text>
                 </View>
 
@@ -458,7 +551,9 @@ export default function HabitsTracker() {
                         </View>
                     </View>
                     <View style={styles.progressBarBg}>
-                        <View style={[styles.progressBarFill, { width: `${completionRate}%` }]} />
+                        <View
+                            style={[styles.progressBarFill, { width: `${completionRate}%` }]}
+                        />
                     </View>
                 </LinearGradient>
 
@@ -528,16 +623,15 @@ export default function HabitsTracker() {
                                         style={styles.presetTag}
                                         onPress={() => setNewHabitTitle(h.title)}
                                     >
-                                        <Text style={styles.presetTagText}>{h.icon} {h.title}</Text>
+                                        <Text style={styles.presetTagText}>
+                                            {h.icon} {h.title}
+                                        </Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
                         </View>
 
-                        <TouchableOpacity
-                            style={styles.createButton}
-                            onPress={addNewHabit}
-                        >
+                        <TouchableOpacity style={styles.createButton} onPress={addNewHabit}>
                             <Text style={styles.createButtonText}>Create Habit</Text>
                         </TouchableOpacity>
                     </View>
@@ -550,7 +644,7 @@ export default function HabitsTracker() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#F8FAFC",
     },
     header: {
         flexDirection: "row",
@@ -560,13 +654,13 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         backgroundColor: "#FFFFFF",
         borderBottomWidth: 1,
-        borderBottomColor: "#F3F4F6",
+        borderBottomColor: "#E2E8F0",
     },
     backButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "#F3F4F6",
+        backgroundColor: "#F1F5F9",
         justifyContent: "center",
         alignItems: "center",
     },
@@ -574,58 +668,63 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "#E0E7FF",
+        backgroundColor: "#EEF2FF",
         justifyContent: "center",
         alignItems: "center",
     },
     headerTitle: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: "700",
-        color: "#1F2937",
+        color: "#0F172A",
+        letterSpacing: -0.5,
     },
     // Calendar Styles
     calendarSection: {
         backgroundColor: "#FFFFFF",
-        marginHorizontal: 20,
-        marginTop: 8,
+        marginHorizontal: 16,
+        marginTop: 12,
         marginBottom: 16,
-        padding: 16,
-        borderRadius: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        padding: 20,
+        borderRadius: 24,
+        shadowColor: "#64748B",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
     },
     calendarHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 20,
+        marginBottom: 24,
     },
     monthButton: {
         padding: 8,
+        borderRadius: 12,
+        backgroundColor: "#F8FAFC",
     },
     monthInfo: {
         alignItems: "center",
     },
     monthTitle: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: "700",
-        color: "#1F2937",
+        color: "#0F172A",
+        letterSpacing: -0.3,
     },
     weekdayHeader: {
         flexDirection: "row",
-        marginBottom: 12,
+        marginBottom: 16,
     },
     weekdayCell: {
         flex: 1,
         alignItems: "center",
     },
     weekdayText: {
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: "600",
-        color: "#9CA3AF",
+        color: "#64748B",
+        letterSpacing: 0.5,
     },
     calendarGrid: {
         flexDirection: "row",
@@ -633,32 +732,37 @@ const styles = StyleSheet.create({
     },
     dayCell: {
         width: "14.28%",
-        height: 48,
+        height: 52,
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
     },
     dayCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         justifyContent: "center",
         alignItems: "center",
         overflow: "hidden",
     },
     dayCircleToday: {
-        backgroundColor: "#D1FAE5",
+        backgroundColor: "#DBEAFE",
     },
     dayCircleSelected: {
-        backgroundColor: "#4A9B7F",
+        backgroundColor: "#3B82F6",
+        shadowColor: "#3B82F6",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
     },
     dayNumber: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: "600",
-        color: "#1F2937",
+        color: "#334155",
     },
     dayNumberToday: {
-        color: "#4A9B7F",
+        color: "#3B82F6",
         fontWeight: "700",
     },
     dayNumberSelected: {
@@ -667,19 +771,25 @@ const styles = StyleSheet.create({
     },
     habitIndicator: {
         position: "absolute",
-        top: 2,
+        top: 4,
         right: 8,
-        backgroundColor: "#14B8A6",
-        borderRadius: 8,
-        minWidth: 16,
-        height: 16,
+        backgroundColor: "#10B981",
+        borderRadius: 10,
+        minWidth: 18,
+        height: 18,
         justifyContent: "center",
         alignItems: "center",
-        paddingHorizontal: 4,
+        paddingHorizontal: 5,
+        shadowColor: "#10B981",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+        elevation: 2,
+        zIndex: 10,
     },
     habitIndicatorText: {
-        fontSize: 9,
-        fontWeight: "700",
+        fontSize: 10,
+        fontWeight: "800",
         color: "#FFFFFF",
     },
     selectedDateInfo: {
@@ -690,20 +800,20 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     selectedDateText: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: "600",
-        color: "#1F2937",
+        color: "#475569",
     },
     progressCard: {
-        marginHorizontal: 20,
+        marginHorizontal: 16,
         marginBottom: 20,
         padding: 24,
-        borderRadius: 24,
-        shadowColor: "#4F46E5",
+        borderRadius: 28,
+        shadowColor: "#6366F1",
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 10,
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+        elevation: 12,
     },
     progressInfo: {
         flexDirection: "row",
@@ -712,44 +822,49 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     progressTitle: {
-        fontSize: 20,
-        fontWeight: "700",
+        fontSize: 22,
+        fontWeight: "800",
         color: "#FFFFFF",
-        marginBottom: 6,
+        marginBottom: 8,
+        letterSpacing: -0.5,
     },
     progressSubtitle: {
-        fontSize: 14,
-        color: "rgba(255,255,255,0.9)",
-        fontWeight: "500",
+        fontSize: 15,
+        color: "rgba(255,255,255,0.95)",
+        fontWeight: "600",
     },
     percentageCircle: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: "rgba(255,255,255,0.2)",
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: "rgba(255,255,255,0.25)",
         justifyContent: "center",
         alignItems: "center",
-        borderWidth: 2,
-        borderColor: "rgba(255,255,255,0.3)",
+        borderWidth: 3,
+        borderColor: "rgba(255,255,255,0.4)",
     },
     percentageText: {
         color: "#FFFFFF",
-        fontWeight: "800",
-        fontSize: 18,
+        fontWeight: "900",
+        fontSize: 20,
     },
     progressBarBg: {
-        height: 10,
-        backgroundColor: "rgba(255,255,255,0.2)",
-        borderRadius: 5,
+        height: 12,
+        backgroundColor: "rgba(255,255,255,0.25)",
+        borderRadius: 6,
         overflow: "hidden",
     },
     progressBarFill: {
         height: "100%",
         backgroundColor: "#FFFFFF",
-        borderRadius: 5,
+        borderRadius: 6,
+        shadowColor: "#FFFFFF",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 4,
     },
     habitsList: {
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         gap: 12,
     },
     swipeableContainer: {
@@ -758,49 +873,56 @@ const styles = StyleSheet.create({
     },
     deleteButtonContainer: {
         position: "absolute",
-        right: 0,
+        right: 8,
         top: 0,
         bottom: 0,
-        width: 80,
+        width: 60,
         justifyContent: "center",
         alignItems: "center",
     },
     deleteButton: {
         backgroundColor: "#EF4444",
-        width: 64,
-        height: "100%",
-        borderRadius: 20,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
         justifyContent: "center",
         alignItems: "center",
+        shadowColor: "#EF4444",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
     },
     habitCardWrapper: {
         width: "100%",
         overflow: "hidden",
         zIndex: 1,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#F8FAFC",
     },
     habitCard: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#FFFFFF",
-        padding: 18,
-        borderRadius: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
+        padding: 20,
+        borderRadius: 22,
+        shadowColor: "#64748B",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
         shadowRadius: 12,
-        elevation: 3,
-        borderWidth: 1,
-        borderColor: "rgba(243, 244, 246, 0.6)",
+        elevation: 2,
+        borderWidth: 1.5,
+        borderColor: "#F1F5F9",
     },
     habitCardCompleted: {
         backgroundColor: "#F0FDF4",
-        borderColor: "#DCFCE7",
+        borderColor: "#BBF7D0",
+        shadowColor: "#10B981",
+        shadowOpacity: 0.1,
     },
     habitIcon: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
+        width: 56,
+        height: 56,
+        borderRadius: 18,
         justifyContent: "center",
         alignItems: "center",
         marginRight: 16,
@@ -809,105 +931,133 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 17,
         fontWeight: "700",
-        color: "#1F2937",
+        color: "#0F172A",
+        letterSpacing: -0.3,
     },
     habitTitleCompleted: {
-        color: "#15803D",
+        color: "#16A34A",
         textDecorationLine: "line-through",
-        opacity: 0.7,
+        opacity: 0.75,
     },
     checkbox: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        borderWidth: 2,
-        borderColor: "#E5E7EB",
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        borderWidth: 2.5,
+        borderColor: "#CBD5E1",
         justifyContent: "center",
         alignItems: "center",
         marginLeft: 12,
     },
     emptyState: {
         alignItems: "center",
-        marginTop: 60,
-        gap: 16,
+        marginTop: 80,
+        gap: 20,
+        paddingHorizontal: 40,
     },
     emptyText: {
-        fontSize: 16,
-        color: "#9CA3AF",
+        fontSize: 17,
+        color: "#64748B",
+        textAlign: "center",
+        fontWeight: "500",
     },
     emptyButton: {
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        backgroundColor: "#1F2937",
-        borderRadius: 24,
+        paddingHorizontal: 28,
+        paddingVertical: 14,
+        backgroundColor: "#0F172A",
+        borderRadius: 28,
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
     },
     emptyButtonText: {
         color: "#FFFFFF",
-        fontWeight: "600",
+        fontWeight: "700",
+        fontSize: 16,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        backgroundColor: "rgba(15, 23, 42, 0.6)",
         justifyContent: "center",
         padding: 20,
     },
     modalContent: {
         backgroundColor: "#FFFFFF",
-        borderRadius: 24,
-        padding: 24,
+        borderRadius: 28,
+        padding: 28,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 10,
     },
     modalHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 20,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: "700",
-        color: "#1F2937",
-    },
-    input: {
-        backgroundColor: "#F3F4F6",
-        padding: 16,
-        borderRadius: 16,
-        fontSize: 16,
-        marginBottom: 20,
-    },
-    presetContainer: {
         marginBottom: 24,
     },
+    modalTitle: {
+        fontSize: 24,
+        fontWeight: "800",
+        color: "#0F172A",
+        letterSpacing: -0.5,
+    },
+    input: {
+        backgroundColor: "#F8FAFC",
+        padding: 18,
+        borderRadius: 18,
+        fontSize: 16,
+        marginBottom: 24,
+        borderWidth: 1.5,
+        borderColor: "#E2E8F0",
+        color: "#0F172A",
+    },
+    presetContainer: {
+        marginBottom: 28,
+    },
     presetLabel: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#6B7280",
-        marginBottom: 12,
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#475569",
+        marginBottom: 14,
     },
     presetTags: {
         flexDirection: "row",
         flexWrap: "wrap",
-        gap: 8,
+        gap: 10,
     },
     presetTag: {
-        backgroundColor: "#F3F4F6",
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 12,
+        backgroundColor: "#F1F5F9",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 16,
+        borderWidth: 1.5,
+        borderColor: "#E2E8F0",
     },
     presetTagText: {
-        color: "#4B5563",
-        fontSize: 14,
+        color: "#334155",
+        fontSize: 15,
+        fontWeight: "600",
     },
     createButton: {
-        backgroundColor: "#4F46E5",
-        paddingVertical: 16,
-        borderRadius: 16,
+        backgroundColor: "#3B82F6",
+        paddingVertical: 18,
+        borderRadius: 18,
         alignItems: "center",
+        shadowColor: "#3B82F6",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
     },
     createButtonText: {
         color: "#FFFFFF",
-        fontSize: 16,
-        fontWeight: "600",
+        fontSize: 17,
+        fontWeight: "700",
+        letterSpacing: 0.2,
     },
     confettiContainer: {
         position: "absolute",
@@ -925,3 +1075,6 @@ const styles = StyleSheet.create({
         borderRadius: 7,
     },
 });
+
+
+

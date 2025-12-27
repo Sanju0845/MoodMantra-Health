@@ -55,6 +55,7 @@ import { useTranslation } from "react-i18next";
 import { Modal } from "react-native";
 import { Globe } from "lucide-react-native";
 import { useWellness } from "@/context/WellnessContext";
+import { supabase } from "../../utils/supabaseClient";
 
 
 // Mood Emoji Mapping (matching journal.jsx)
@@ -158,13 +159,15 @@ export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [analytics, setAnalytics] = useState(null);
+  const [waterToday, setWaterToday] = useState(0);
+  const [breathingToday, setBreathingToday] = useState(0);
 
   const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  // Wellness Data
-  const waterProgress = water.today / 2000;
+  // Wellness Data - use direct Supabase data
+  const waterProgress = waterToday / 2000;
   const sleepProgress = sleep.today / 8;
-  const breathingProgress = breathing.today / 3;
+  const breathingProgress = breathingToday / 3;
   const completedHabits = habits.logs.find(l => l.date === new Date().toDateString())?.completedIds?.length || 0;
   const totalHabits = habits.list.length;
   const habitsProgress = totalHabits > 0 ? completedHabits / totalHabits : 0;
@@ -359,6 +362,62 @@ export default function HomeScreen() {
           }
         } catch (e) {
           console.log("[Home] No user assessments");
+        }
+
+        // Load Water from Supabase
+        try {
+          const { data: waterLogs, error: waterError } = await supabase
+            .from('water_logs')
+            .select('*')
+            .eq('user_id', userId);
+
+          if (!waterError && waterLogs) {
+            const todayStr = new Date().toDateString();
+            const todayLogs = waterLogs.filter(log => {
+              const logDateStr = new Date(log.logged_at).toDateString();
+              return logDateStr === todayStr;
+            });
+            const todayTotal = todayLogs.reduce((sum, log) => sum + log.amount_ml, 0);
+            setWaterToday(todayTotal);
+          }
+        } catch (e) {
+          console.log("[Home] Error loading water:", e);
+        }
+
+        // Load Breathing from Supabase
+        try {
+          console.log('[Home] Loading breathing sessions for userId:', userId);
+
+          const { data: breathingSessions, error: breathingError } = await supabase
+            .from('breathing_sessions')
+            .select('*')
+            .eq('user_id', userId);
+
+          if (breathingError) {
+            console.error('[Home] Breathing error:', breathingError);
+          } else {
+            console.log('[Home] Fetched breathing sessions:', breathingSessions?.length || 0);
+            console.log('[Home] Sample sessions:', breathingSessions?.slice(0, 3));
+
+            // Get today's date in YYYY-MM-DD format (local timezone)
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+
+            console.log('[Home] Looking for sessions on date:', todayStr);
+
+            const todaySessions = breathingSessions?.filter(session => {
+              console.log('[Home] Checking session:', session.session_date, '===', todayStr, '?', session.session_date === todayStr);
+              return session.session_date === todayStr;
+            }) || [];
+
+            setBreathingToday(todaySessions.length);
+            console.log('[Home] ✅ Breathing sessions today:', todaySessions.length, 'of', breathingSessions?.length || 0, 'total');
+          }
+        } catch (e) {
+          console.log("[Home] Error loading breathing:", e);
         }
 
         // Get mood dashboard analytics

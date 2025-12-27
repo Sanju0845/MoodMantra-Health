@@ -34,11 +34,50 @@ export const WellnessProvider = ({ children }) => {
       const today = new Date().toDateString();
       const userId = await AsyncStorage.getItem("userId");
 
-      // Load Water
+      // Load Water from Supabase
+      let finalWaterHistory = [];
       const waterData = await AsyncStorage.getItem('waterData');
-      const parsedWater = waterData ? JSON.parse(waterData) : [];
-      const todayWater = parsedWater.find(d => d.date === today)?.ml || 0;
-      setWater({ today: todayWater, history: parsedWater });
+      const localWater = waterData ? JSON.parse(waterData) : [];
+
+      if (userId) {
+        try {
+          const { data: dbWater, error: waterError } = await supabase
+            .from('water_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .order('logged_at', { ascending: false });
+
+          if (!waterError && dbWater) {
+            // Group water logs by date and sum them
+            const waterByDate = {};
+            dbWater.forEach(log => {
+              const logDate = new Date(log.logged_at).toDateString();
+              if (!waterByDate[logDate]) {
+                waterByDate[logDate] = 0;
+              }
+              waterByDate[logDate] += log.amount_ml;
+            });
+
+            finalWaterHistory = Object.entries(waterByDate).map(([date, ml]) => ({
+              date,
+              ml
+            }));
+
+            // Save to local storage
+            await AsyncStorage.setItem('waterData', JSON.stringify(finalWaterHistory));
+          } else {
+            finalWaterHistory = localWater;
+          }
+        } catch (err) {
+          console.error("Supabase water sync error:", err);
+          finalWaterHistory = localWater;
+        }
+      } else {
+        finalWaterHistory = localWater;
+      }
+
+      const todayWater = finalWaterHistory.find(d => d.date === today)?.ml || 0;
+      setWater({ today: todayWater, history: finalWaterHistory });
 
       // Load Sleep
       let finalSleepHistory = [];
@@ -83,11 +122,50 @@ export const WellnessProvider = ({ children }) => {
       setSleep({ today: todaySleep, history: finalSleepHistory });
       await AsyncStorage.setItem('sleepData', JSON.stringify(finalSleepHistory));
 
-      // Load Breathing
+      // Load Breathing from Supabase
+      let finalBreathingHistory = [];
       const breathingData = await AsyncStorage.getItem('breathingData');
-      const parsedBreathing = breathingData ? JSON.parse(breathingData) : [];
-      const todayBreathing = parsedBreathing.find(d => d.date === today)?.sessions || 0;
-      setBreathing({ today: todayBreathing, history: parsedBreathing });
+      const localBreathing = breathingData ? JSON.parse(breathingData) : [];
+
+      if (userId) {
+        try {
+          const { data: dbBreathing, error: breathingError } = await supabase
+            .from('breathing_sessions')
+            .select('*')
+            .eq('user_id', userId)
+            .order('completed_at', { ascending: false });
+
+          if (!breathingError && dbBreathing) {
+            // Group breathing sessions by date and count them
+            const sessionsByDate = {};
+            dbBreathing.forEach(session => {
+              const sessionDate = new Date(session.completed_at).toDateString();
+              if (!sessionsByDate[sessionDate]) {
+                sessionsByDate[sessionDate] = 0;
+              }
+              sessionsByDate[sessionDate]++;
+            });
+
+            finalBreathingHistory = Object.entries(sessionsByDate).map(([date, sessions]) => ({
+              date,
+              sessions
+            }));
+
+            // Save to local storage
+            await AsyncStorage.setItem('breathingData', JSON.stringify(finalBreathingHistory));
+          } else {
+            finalBreathingHistory = localBreathing;
+          }
+        } catch (err) {
+          console.error("Supabase breathing sync error:", err);
+          finalBreathingHistory = localBreathing;
+        }
+      } else {
+        finalBreathingHistory = localBreathing;
+      }
+
+      const todayBreathing = finalBreathingHistory.find(d => d.date === today)?.sessions || 0;
+      setBreathing({ today: todayBreathing, history: finalBreathingHistory });
 
       // Load Habits
       let finalHabits = [];
