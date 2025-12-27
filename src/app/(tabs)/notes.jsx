@@ -21,7 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { supabase } from "../../utils/supabaseClient";
 
@@ -223,13 +223,12 @@ export default function NotesScreen() {
 
             const userId = await AsyncStorage.getItem("userId");
             if (!userId) {
-                console.log('No user ID, keeping file local');
-                return uri;
+                throw new Error('You must be logged in to upload attachments');
             }
 
             // Read file as base64
             const base64 = await FileSystem.readAsStringAsync(uri, {
-                encoding: FileSystem.EncodingType.Base64,
+                encoding: 'base64',
             });
 
             // Generate unique filename
@@ -260,7 +259,7 @@ export default function NotesScreen() {
 
             if (error) {
                 console.error('Upload error:', error);
-                return uri; // Fallback to local
+                throw new Error(`Failed to upload file: ${error.message}`);
             }
 
             // Get public URL
@@ -272,7 +271,7 @@ export default function NotesScreen() {
             return publicUrl;
         } catch (error) {
             console.error("Upload error:", error);
-            return uri; // Fallback to local
+            throw error; // Propagate error instead of silently failing
         }
     };
 
@@ -434,7 +433,7 @@ export default function NotesScreen() {
             handleCloseModal();
         } catch (error) {
             console.error("Save error:", error);
-            Alert.alert("Error", "Failed to save note");
+            Alert.alert("Error", error.message || "Failed to save note");
         } finally {
             setSaving(false);
         }
