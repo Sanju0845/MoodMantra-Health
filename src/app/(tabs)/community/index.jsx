@@ -200,7 +200,7 @@ export default function CommunityHub() {
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.container}>
             <StatusBar style="light" />
 
             {/* Pink Gradient Header */}
@@ -208,7 +208,7 @@ export default function CommunityHub() {
                 colors={["#EC4899", "#DB2777", "#BE185D"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={[styles.header, { paddingTop: 20 }]}
+                style={[styles.header, { paddingTop: insets.top + 20 }]}
             >
                 <View style={styles.headerContent}>
                     <View style={styles.headerLeft}>
