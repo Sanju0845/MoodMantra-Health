@@ -83,6 +83,31 @@ const MOOD_EMOJIS = {
   "Ashamed": "😳",
 };
 
+// Mood Data with Colors (for recent moods preview)
+const MOOD_DATA = [
+  { id: "joyful", emoji: "😁", label: "Joyful", color: "#4A9B7F" },
+  { id: "happy", emoji: "😊", label: "Happy", color: "#16A34A" },
+  { id: "calm", emoji: "😌", label: "Calm", color: "#14B8A6" },
+  { id: "grateful", emoji: "🙏", label: "Grateful", color: "#F59E0B" },
+  { id: "motivated", emoji: "💪", label: "Motivated", color: "#10B981" },
+  { id: "loved", emoji: "❤️", label: "Loved", color: "#EC4899" },
+  { id: "inspired", emoji: "🌟", label: "Inspired", color: "#6366F1" },
+  { id: "sad", emoji: "😢", label: "Sad", color: "#3B82F6" },
+  { id: "angry", emoji: "😡", label: "Angry", color: "#EF4444" },
+  { id: "anxious", emoji: "😰", label: "Anxious", color: "#F59E0B" },
+  { id: "tired", emoji: "😩", label: "Tired", color: "#94A3B8" },
+  { id: "overwhelmed", emoji: "😖", label: "Overwhelmed", color: "#F97316" },
+  { id: "awful", emoji: "😭", label: "Awful", color: "#A855F7" },
+  { id: "neutral", emoji: "😐", label: "Neutral", color: "#64748B" },
+  { id: "confused", emoji: "😕", label: "Confused", color: "#8B5CF6" },
+  { id: "bored", emoji: "🥱", label: "Bored", color: "#6B7280" },
+  { id: "okay", emoji: "🙂", label: "Okay", color: "#22C55E" },
+  { id: "nostalgic", emoji: "🥹", label: "Nostalgic", color: "#EC4899" },
+  { id: "hopeful", emoji: "🌈", label: "Hopeful", color: "#10B981" },
+  { id: "guilty", emoji: "😔", label: "Guilty", color: "#F59E0B" },
+  { id: "ashamed", emoji: "😳", label: "Ashamed", color: "#EF4444" },
+];
+
 // Daily inspirational quotes
 const DAILY_QUOTES = [
   "Embrace the journey of healing, one small step at a time.",
@@ -150,8 +175,8 @@ export default function HomeScreen() {
   // Carousel Animation
   const scrollX = useRef(new Animated.Value(0)).current;
   const { width: SCREEN_WIDTH } = Dimensions.get('window');
-  const CARD_WIDTH = SCREEN_WIDTH * 0.75;
-  const SPACING = 12;
+  const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced to show peek of side cards
+  const SPACING = 8; // Tighter spacing for better peek visibility
   const SPACER_WIDTH = (SCREEN_WIDTH - CARD_WIDTH) / 2;
 
   const [dailyQuote, setDailyQuote] = useState(DAILY_QUOTES[0]);
@@ -665,75 +690,100 @@ export default function HomeScreen() {
         </Modal>
 
 
-        {/* Mood Card - Slide to Log */}
+        {/* Mood Card - Slide to Log - ENHANCED WITH MORE CONTENT */}
         <LinearGradient
-          colors={["#4A9B7F", "#3B8068"]}
+          colors={["#4A9B7F", "#14B8A6", "#10B981"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.moodCard}
         >
-          {/* Background Pattern */}
-          <View style={{ position: 'absolute', right: -20, top: -20, opacity: 0.1 }}>
-            <Smile size={140} color="#FFFFFF" />
+          {/* Animated Background Pattern */}
+          <View style={{ position: 'absolute', right: -30, top: -30, opacity: 0.08 }}>
+            <Animated.View style={{ transform: [{ rotate: pulseAnim.interpolate({ inputRange: [1, 1.1], outputRange: ['0deg', '5deg'] }) }] }}>
+              <Smile size={180} color="#FFFFFF" />
+            </Animated.View>
           </View>
 
           <View style={styles.moodCardContent}>
             <View style={styles.moodCardLeft}>
-              <Text style={styles.moodCardTitle}>{t('how_are_you')}</Text>
-              <Text style={styles.moodCardSubtitle}>{t('slide_to_log')}</Text>
-            </View>
-            <View style={styles.moodCardRight}>
-              {loggingStreak > 0 && (
-                <View style={styles.streakBadge}>
-                  <Flame size={14} color="#F59E0B" />
-                  <Text style={styles.streakBadgeText}>{loggingStreak}</Text>
+              <View style={styles.moodCardHeader}>
+                <Text style={styles.moodCardEmoji}>😊</Text>
+                <View>
+                  <Text style={styles.moodCardTitle}>{t('how_are_you')}</Text>
+                  <Text style={styles.moodCardSubtitle}>Track your emotions today</Text>
                 </View>
-              )}
-              <View style={styles.moodEmojisRow}>
-                <Text style={styles.moodEmoji}>😊</Text>
-                <Text style={styles.moodEmoji}>😌</Text>
-                <Text style={styles.moodEmoji}>😢</Text>
-                <Text style={styles.moodEmoji}>😤</Text>
+              </View>
+
+              {/* Mini Stats Row with Animated Fire */}
+              <View style={styles.miniStatsRow}>
+                {loggingStreak > 0 && (
+                  <LinearGradient
+                    colors={['#FF6B35', '#F59E0B']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.miniStatCardFire}
+                  >
+                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                      <Flame size={16} color="#FFF" fill="#FFF" />
+                    </Animated.View>
+                    <Text style={styles.miniStatTextFire}>{loggingStreak} day{loggingStreak > 1 ? 's' : ''}</Text>
+                  </LinearGradient>
+                )}
+                {moodEntries && moodEntries.length > 0 && (
+                  <View style={styles.miniStatCard}>
+                    <Calendar size={14} color="#FFF" />
+                    <Text style={styles.miniStatText}>{moodEntries.length} logged</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
 
-          {/* Slide to Log Mood Slider */}
-          <View style={styles.sliderContainer}>
-            <View style={styles.sliderTrack}>
-              {/* Background text with animated arrow */}
-              <View style={styles.sliderTextContainer}>
-                <Text style={styles.sliderText}>{t('slide_to_log')}</Text>
-                <Animated.Text
-                  style={[
-                    styles.sliderArrow,
-                    { transform: [{ scale: pulseAnim }] }
-                  ]}
-                >
-                  →→
-                </Animated.Text>
+          {/* Improved Slide to Log Slider */}
+          <View style={styles.sliderContainerNew}>
+            <View style={styles.sliderTrackNew}>
+              {/* Animated gradient background */}
+              <LinearGradient
+                colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sliderTrackGradient}
+              />
+
+              {/* Slide text with animated arrow */}
+              <View style={styles.sliderTextContainerNew}>
+                <Animated.View style={{ opacity: slideX.interpolate({ inputRange: [0, SLIDER_WIDTH * 0.5], outputRange: [1, 0] }) }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.sliderTextNew}>Slide to log mood</Text>
+                    <Animated.Text style={[styles.sliderArrowNew, { transform: [{ translateX: pulseAnim.interpolate({ inputRange: [1, 1.1], outputRange: [0, 4] }) }] }]}>
+                      →
+                    </Animated.Text>
+                  </View>
+                </Animated.View>
               </View>
 
-              {/* Draggable thumb with glow */}
+              {/* Premium Draggable Thumb */}
               <Animated.View
                 {...panResponder.panHandlers}
                 style={[
-                  styles.sliderThumb,
+                  styles.sliderThumbNew,
                   {
                     transform: [
                       { translateX: slideX },
-                      {
-                        scale: pulseAnim.interpolate({
-                          inputRange: [1, 1.1],
-                          outputRange: [1, 1.05],
-                        })
-                      },
+                      { scale: pulseAnim }
                     ],
                   },
                 ]}
               >
-                <View style={styles.sliderThumbGlow} />
-                <Smile size={28} color="#4A9B7F" />
+                {/* Glow effect */}
+                <View style={styles.sliderThumbGlowNew} />
+                {/* Inner content */}
+                <LinearGradient
+                  colors={['#FFFFFF', '#F0FDF4']}
+                  style={styles.sliderThumbInner}
+                >
+                  <Smile size={28} color="#4A9B7F" strokeWidth={2.5} />
+                </LinearGradient>
               </Animated.View>
             </View>
           </View>
@@ -755,9 +805,15 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               snapToInterval={CARD_WIDTH + SPACING}
               decelerationRate="fast"
+              initialScrollIndex={doctors.length > 1 ? 1 : 0}
+              getItemLayout={(data, index) => ({
+                length: CARD_WIDTH + SPACING,
+                offset: (CARD_WIDTH + SPACING) * index,
+                index,
+              })}
               contentContainerStyle={{
-                paddingLeft: 20,
-                paddingRight: 20,
+                paddingLeft: SPACER_WIDTH - (SPACING * 2),
+                paddingRight: SPACER_WIDTH + (SPACING * 2),
                 paddingVertical: 10
               }}
               onScroll={Animated.event(
@@ -942,71 +998,109 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Quick Actions - Now includes Breathing */}
+        {/* Quick Actions - Redesigned */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
-          <View style={styles.quickActionsGrid}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
+            <Text style={styles.sectionSubtitle}>Your daily wellness tools</Text>
+          </View>
+          <View style={styles.quickActionsGridNew}>
             <AnimatedButton
-              style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/wellness/breathing")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#E6F4F0" }]}>
-                <Wind size={32} color="#4A9B7F" />
-              </View>
-              <Text style={styles.quickActionText}>{t('breathing')}</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.quickActionCard}
+              style={styles.quickActionCardNew}
               onPress={() => router.push("/(tabs)/chat")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FCE7F3" }]}>
-                <MessageCircle size={32} color="#EC4899" />
+              <Image
+                source={{ uri: 'https://swcajhaxbtvnpjvuaefa.supabase.co/storage/v1/object/public/assets/raskaai.jpg' }}
+                style={[styles.quickActionBgImage, { opacity: 0.7 }]}
+                resizeMode="cover"
+              />
+              <View style={styles.quickActionOverlay} />
+              <View style={styles.quickActionContent}>
+                <View style={styles.quickActionTextContainer}>
+                  <Text style={styles.quickActionTitleNew}>{t('raska_ai')}</Text>
+                  <Text style={styles.quickActionSubtitle}>Chat with AI</Text>
+                </View>
               </View>
-              <Text style={styles.quickActionText}>{t('raska_ai')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
-              style={styles.quickActionCard}
-              onPress={() => router.push("/(tabs)/notes")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#F0F9FF" }]}>
-                <FileText size={32} color="#0284C7" />
-              </View>
-              <Text style={styles.quickActionText}>Notes</Text>
-            </AnimatedButton>
-
-            <AnimatedButton
-              style={styles.quickActionCard}
+              style={styles.quickActionCardNew}
               onPress={() => router.push("/(tabs)/wellness/water")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#DBEAFE" }]}>
-                <Droplets size={32} color="#3B82F6" />
+              <Image
+                source={{ uri: 'https://swcajhaxbtvnpjvuaefa.supabase.co/storage/v1/object/public/assets/water.jpg' }}
+                style={styles.quickActionBgImage}
+                resizeMode="cover"
+              />
+              <View style={styles.quickActionOverlay} />
+              <View style={styles.quickActionContent}>
+                <View style={styles.quickActionTextContainer}>
+                  <Text style={styles.quickActionTitleNew}>{t('water')}</Text>
+                  <Text style={styles.quickActionSubtitle}>Track intake</Text>
+                </View>
               </View>
-              <Text style={styles.quickActionText}>{t('water')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
-              style={styles.quickActionCard}
+              style={styles.quickActionCardNew}
               onPress={() => router.push("/(tabs)/wellness/sleep")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#F3E8FF" }]}>
-                <Moon size={32} color="#8B5CF6" />
+              <Image
+                source={{ uri: 'https://swcajhaxbtvnpjvuaefa.supabase.co/storage/v1/object/public/assets/sleep.jpg' }}
+                style={styles.quickActionBgImage}
+                resizeMode="cover"
+              />
+              <View style={styles.quickActionOverlay} />
+              <View style={styles.quickActionContent}>
+                <View style={styles.quickActionTextContainer}>
+                  <Text style={styles.quickActionTitleNew}>{t('sleep')}</Text>
+                  <Text style={styles.quickActionSubtitle}>Log hours</Text>
+                </View>
               </View>
-              <Text style={styles.quickActionText}>{t('sleep')}</Text>
             </AnimatedButton>
 
             <AnimatedButton
-              style={styles.quickActionCard}
+              style={styles.quickActionCardNew}
               onPress={() => router.push("/(tabs)/wellness/habits")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#DCFCE7" }]}>
-                <CheckSquare size={32} color="#22C55E" />
+              <Image
+                source={{ uri: 'https://swcajhaxbtvnpjvuaefa.supabase.co/storage/v1/object/public/assets/habit.jpg' }}
+                style={styles.quickActionBgImage}
+                resizeMode="cover"
+              />
+              <View style={styles.quickActionOverlay} />
+              <View style={styles.quickActionContent}>
+                <View style={styles.quickActionTextContainer}>
+                  <Text style={styles.quickActionTitleNew}>{t('habits')}</Text>
+                  <Text style={styles.quickActionSubtitle}>Daily tracking</Text>
+                </View>
               </View>
-              <Text style={styles.quickActionText}>{t('habits')}</Text>
             </AnimatedButton>
           </View>
         </View>
+
+        {/* Featured Notes Card */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push("/(tabs)/notes")}
+        >
+          <View style={styles.notesFeatureCard}>
+            <Image
+              source={{ uri: 'https://swcajhaxbtvnpjvuaefa.supabase.co/storage/v1/object/public/assets/notes.jpg?v=2' }}
+              style={styles.notesFeatureBgImage}
+              resizeMode="cover"
+            />
+
+            <View style={styles.notesFeatureContent}>
+              <View style={styles.notesFeatureText}>
+                <Text style={styles.notesFeatureTitle}>MY notes</Text>
+                <Text style={styles.notesFeatureSubtitle}>
+                  Capture thoughts,{'\n'}ideas{'\n'}and memories
+                </Text>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Today's Focus Card */}
         <LinearGradient
@@ -2394,5 +2488,324 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
     letterSpacing: 1,
+  },
+  // Quick Actions - New Styles
+  quickActionsGridNew: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickActionCardNew: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    minHeight: 120,
+    overflow: 'hidden',
+  },
+  quickActionBgImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '120%',
+    top: -20,
+    left: 0,
+  },
+  quickActionOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0)',
+  },
+  quickActionBgGradient: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+  },
+  quickActionContent: {
+    position: 'relative',
+    zIndex: 2,
+    padding: 16,
+    minHeight: 120,
+    justifyContent: 'flex-end',
+  },
+  quickActionIconNew: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickActionTextContainer: {
+    gap: 4,
+  },
+  quickActionTitleNew: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+    letterSpacing: 0.5,
+  },
+  quickActionSubtitle: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '600',
+  },
+  // Featured Notes Card
+  notesFeatureCard: {
+    marginBottom: 20,
+    borderRadius: 24,
+    minHeight: 180,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  notesFeatureBgImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+  },
+  notesFeatureContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    position: 'relative',
+    zIndex: 2,
+    flex: 1,
+    padding: 20,
+  },
+  notesFeatureIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notesFeatureText: {
+    flex: 1,
+  },
+  notesFeatureTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1F2937',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  notesFeatureSubtitle: {
+    fontSize: 14,
+    color: '#4B5563',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  notesFeatureAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notesStatsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    position: 'relative',
+    zIndex: 2,
+  },
+  notesStatsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  // New Mood Slider Styles
+  moodCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  moodCardEmoji: {
+    fontSize: 42,
+  },
+  streakBadgeNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  streakBadgeTextNew: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sliderContainerNew: {
+    marginTop: 16,
+  },
+  sliderTrackNew: {
+    position: 'relative',
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  sliderTrackGradient: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  sliderTextContainerNew: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  sliderTextNew: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    letterSpacing: 0.5,
+  },
+  sliderArrowNew: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '700',
+  },
+  sliderThumbNew: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 60,
+    height: 60,
+    zIndex: 3,
+  },
+  sliderThumbGlowNew: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.3,
+    transform: [{ scale: 1.2 }],
+  },
+  sliderThumbInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4A9B7F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  // Mini Stats Row
+  miniStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  miniStatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  miniStatCardFire: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  miniStatText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  miniStatTextFire: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Recent Moods Preview
+  recentMoodsContainer: {
+    marginTop: 14,
+  },
+  recentMoodsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  recentMoodsEmojis: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  moodEmojiContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  moodEmojiText: {
+    fontSize: 20,
+  },
+  // Legacy dot styles (keeping for compatibility)
+  recentMoodsDots: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  moodDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
 });

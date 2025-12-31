@@ -398,9 +398,15 @@ export default function NotesScreen() {
 
         setSaving(true);
         try {
+            console.log('[Notes] 💾 Starting save process...');
+            console.log('[Notes] User ID:', userId);
+            console.log('[Notes] Has images:', imageUris.length, 'Has audio:', audioUris.length);
+
             // Upload files
             const uploadedAudioUris = await Promise.all(audioUris.map(uri => uploadFile(uri)));
             const uploadedImageUris = await Promise.all(imageUris.map(uri => uploadFile(uri)));
+
+            console.log('[Notes] ✅ Files uploaded. Images:', uploadedImageUris.length, 'Audio:', uploadedAudioUris.length);
 
             const noteData = {
                 user_id: userId,
@@ -413,6 +419,8 @@ export default function NotesScreen() {
                 updated_at: selectedDate.toISOString(),
             };
 
+            console.log('[Notes] 📤 Saving to Supabase...', editingNote ? 'UPDATE' : 'INSERT');
+
             let error;
             if (editingNote) {
                 const { error: updateError } = await supabase
@@ -421,18 +429,24 @@ export default function NotesScreen() {
                     .eq('id', editingNote.id);
                 error = updateError;
             } else {
-                const { error: insertError } = await supabase
+                const { data: insertData, error: insertError } = await supabase
                     .from('notes')
-                    .insert([noteData]);
+                    .insert([noteData])
+                    .select();
                 error = insertError;
+                console.log('[Notes] Insert result:', insertData, 'Error:', insertError);
             }
 
-            if (error) throw error;
+            if (error) {
+                console.error('[Notes] ❌ Supabase error:', error);
+                throw error;
+            }
 
+            console.log('[Notes] ✅ Save SUCCESS!');
             await loadNotes();
             handleCloseModal();
         } catch (error) {
-            console.error("Save error:", error);
+            console.error("[Notes] ❌ Save error:", error);
             Alert.alert("Error", error.message || "Failed to save note");
         } finally {
             setSaving(false);

@@ -11,7 +11,8 @@ import {
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { ArrowLeft, Edit as EditIcon } from "lucide-react-native";
 import api from "../../../utils/api";
 
 export default function EditProfileScreen() {
@@ -101,42 +102,51 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <StatusBar style="dark" />
+    <View style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
+      <StatusBar style="light" />
 
-      {/* Header */}
-      <View
-        style={{
-          paddingTop: insets.top + 16,
-          paddingHorizontal: 24,
-          paddingBottom: 16,
-          backgroundColor: "#fff",
-          borderBottomWidth: 1,
-          borderColor: "#E2E8F0",
-        }}
+      {/* Orange Gradient Header */}
+      <LinearGradient
+        colors={["#F59E0B", "#D97706", "#B45309"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 10, paddingBottom: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }}
       >
-        <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft color="#1E293B" size={24} />
-        </TouchableOpacity>
-      </View>
+        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 12 }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <ArrowLeft color="#FFFFFF" size={24} strokeWidth={2.5} />
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <EditIcon size={20} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={{ fontSize: 24, fontWeight: "800", color: "#FFFFFF", letterSpacing: -0.3 }}>
+                Edit Profile
+              </Text>
+            </View>
+            <Text style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.9)", marginTop: 2, fontWeight: "500" }}>
+              Update your information
+            </Text>
+          </View>
+        </View>
+      </LinearGradient>
 
       <ScrollView
         contentContainerStyle={{
           padding: 24,
-          paddingBottom: insets.bottom + 100,
+          paddingBottom: insets.bottom + 180,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "bold",
-            color: "#1E293B",
-            marginBottom: 24,
-          }}
-        >
-          Edit Profile
-        </Text>
-
         <View style={{ marginBottom: 20 }}>
           <Text
             style={{
@@ -211,9 +221,9 @@ export default function EditProfileScreen() {
                 key={option}
                 style={{
                   flex: 1,
-                  paddingVertical: 12,
+                  paddingVertical: 14,
                   borderRadius: 12,
-                  backgroundColor: gender === option ? "#6366F1" : "#F1F5F9",
+                  backgroundColor: gender === option ? "#F59E0B" : "#F1F5F9",
                   alignItems: "center",
                 }}
                 onPress={() => setGender(option)}
@@ -333,7 +343,7 @@ export default function EditProfileScreen() {
       >
         <TouchableOpacity
           style={{
-            backgroundColor: "#6366F1",
+            backgroundColor: "#F59E0B",
             borderRadius: 12,
             padding: 16,
             alignItems: "center",

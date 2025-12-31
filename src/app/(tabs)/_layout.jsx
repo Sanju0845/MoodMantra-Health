@@ -1,8 +1,8 @@
 import { Tabs } from "expo-router";
-import { StyleSheet } from "react-native";
+import { View, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  Home,
+  House,
   ClipboardList,
   Stethoscope,
   BookOpen,
@@ -10,19 +10,57 @@ import {
   Users,
   StickyNote,
 } from "lucide-react-native";
+import React from "react";
 
-// Tab colors matching the design
-const ACTIVE_COLOR = "#4A9B7F"; // Green to match app theme
-const INACTIVE_COLOR = "#9CA3AF"; // Gray for inactive
+// Smooth Material Design colors
+const ACTIVE_COLOR = "#4A9B7F";
+const INACTIVE_COLOR = "#B0B8C1";
 
-// Custom Tab Bar Icon
-const TabIcon = ({ icon: Icon, focused }) => {
+// Ultra-smooth Material Tab Icon
+const SmoothTabIcon = ({ icon: Icon, focused }) => {
+  const scaleAnim = React.useRef(new Animated.Value(focused ? 1 : 0.9)).current;
+  const opacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0.6)).current;
+  const bgOpacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: focused ? 1 : 0.9,
+        useNativeDriver: true,
+        friction: 8,
+        tension: 100,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: focused ? 1 : 0.6,
+        duration: 200,
+        easing: Easing.bezier(0.4, 0.0, 0.2, 1),
+        useNativeDriver: true,
+      }),
+      Animated.timing(bgOpacityAnim, {
+        toValue: focused ? 1 : 0,
+        duration: 250,
+        easing: Easing.bezier(0.4, 0.0, 0.2, 1),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [focused]);
+
   return (
-    <Icon
-      color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
-      size={24}
-      strokeWidth={focused ? 2.5 : 2}
-    />
+    <View style={{ alignItems: "center", justifyContent: "center", height: 48 }}>
+      {/* Smooth Icon */}
+      <Animated.View
+        style={{
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim,
+        }}
+      >
+        <Icon
+          color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+          size={24}
+          strokeWidth={focused ? 2.5 : 2}
+        />
+      </Animated.View>
+    </View>
   );
 };
 
@@ -40,29 +78,29 @@ export default function TabLayout() {
           right: 0,
           backgroundColor: "#FFFFFF",
           borderTopWidth: 0,
-          height: 60 + insets.bottom,
+          height: 68 + insets.bottom,
           paddingBottom: insets.bottom + 8,
-          paddingTop: 6,
-          paddingHorizontal: 10,
+          paddingTop: 12,
+          paddingHorizontal: 4,
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 20,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.06,
+          shadowRadius: 20,
+          elevation: 16,
         },
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: "600",
-          marginTop: 1,
-          marginBottom: 1,
+          marginTop: 4,
+          letterSpacing: 0,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 0,
+          paddingHorizontal: 0,
         },
+        tabBarHideOnKeyboard: true,
       }}
     >
       {/* Home Tab */}
@@ -71,7 +109,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon={Home} focused={focused} />
+            <SmoothTabIcon icon={House} focused={focused} />
           ),
         }}
       />
@@ -82,7 +120,7 @@ export default function TabLayout() {
         options={{
           title: "Assess",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon={ClipboardList} focused={focused} />
+            <SmoothTabIcon icon={ClipboardList} focused={focused} />
           ),
         }}
       />
@@ -91,17 +129,14 @@ export default function TabLayout() {
 
       {/* Doctor Tab */}
       <Tabs.Screen
-        name="doctors/index"
+        name="doctors"
         options={{
           title: "Care",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon={Stethoscope} focused={focused} />
+            <SmoothTabIcon icon={Stethoscope} focused={focused} />
           ),
         }}
       />
-      <Tabs.Screen name="doctors/[id]" options={{ href: null }} />
-      <Tabs.Screen name="doctors/payment" options={{ href: null, tabBarStyle: { display: "none" } }} />
-      <Tabs.Screen name="doctors/nearme" options={{ href: null }} />
 
       {/* Community Tab */}
       <Tabs.Screen
@@ -109,75 +144,48 @@ export default function TabLayout() {
         options={{
           title: "Community",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon={Users} focused={focused} />
+            <SmoothTabIcon icon={Users} focused={focused} />
           ),
         }}
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => {
-            // Navigate to community index when tab is pressed
+        listeners={({ navigation }) => ({
+          tabPress: () => {
             navigation.navigate('community', { screen: 'index' });
           },
         })}
       />
 
-      {/* Journal Tab - Hidden from footer, accessible from home screen */}
+      {/* Journal Tab - Hidden */}
       <Tabs.Screen
         name="journal"
         options={{
-          href: null, // Hidden from tab bar
+          href: null,
           title: "Journal",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon icon={BookOpen} focused={focused} />
-          ),
         }}
       />
 
-      {/* Notes Tab */}
+      {/* Profile Tab */}
       <Tabs.Screen
-        name="notes"
+        name="profile/index"
         options={{
-          title: "Notes",
+          title: "Profile",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon={StickyNote} focused={focused} />
+            <SmoothTabIcon icon={UserCircle} focused={focused} />
           ),
         }}
       />
 
-      {/* Hidden mood routes */}
+      {/* Hidden Routes */}
       <Tabs.Screen name="mood/index" options={{ href: null }} />
       <Tabs.Screen name="mood/tracker" options={{ href: null }} />
       <Tabs.Screen name="mood/dashboard" options={{ href: null }} />
       <Tabs.Screen name="mood/calendar" options={{ href: null }} />
-
-      {/* Hidden chat route - NOT SHOWN IN TAB BAR */}
-      <Tabs.Screen
-        name="chat"
-        options={{
-          href: null, // This hides the tab from the bottom navigation
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* Hidden goals route */}
+      <Tabs.Screen name="chat" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="goals" options={{ href: null }} />
-
-      {/* Profile Tab - Hidden from footer, accessible from home screen */}
-      <Tabs.Screen
-        name="profile/index"
-        options={{
-          href: null, // Hidden from tab bar
-          title: "Profile",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon icon={UserCircle} focused={focused} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="notes" options={{ href: null }} />
       <Tabs.Screen name="profile/edit" options={{ href: null }} />
       <Tabs.Screen name="profile/appointments" options={{ href: null }} />
       <Tabs.Screen name="profile/assessmentanalytics" options={{ href: null }} />
       <Tabs.Screen name="profile/settings" options={{ href: null }} />
-
-      {/* Wellness Routes */}
       <Tabs.Screen name="wellness/breathing" options={{ href: null }} />
       <Tabs.Screen name="wellness/water" options={{ href: null }} />
       <Tabs.Screen name="wellness/sleep" options={{ href: null }} />

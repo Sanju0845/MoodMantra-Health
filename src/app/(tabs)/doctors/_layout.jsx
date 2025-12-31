@@ -1,8 +1,7 @@
 import { Stack } from 'expo-router';
-import { useNavigation } from 'expo-router';
-import { useLayoutEffect } from 'react';
+import { View } from 'react-native';
 
-export default function CommunityLayout() {
+export default function DoctorsLayout() {
     return (
         <Stack
             screenOptions={{
@@ -10,20 +9,28 @@ export default function CommunityLayout() {
                 animation: 'slide_from_right',
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
+                contentStyle: { backgroundColor: '#FFFFFF' },
             }}
         >
             <Stack.Screen
                 name="index"
                 options={{
-                    title: 'Community Hub',
+                    headerShown: false,
                 }}
             />
             <Stack.Screen
-                name="chat/[id]"
+                name="[id]"
                 options={{
-                    title: 'Chat',
+                    headerShown: false,
                     animation: 'slide_from_right',
                     presentation: 'card',
+                }}
+            />
+            <Stack.Screen
+                name="payment"
+                options={{
+                    headerShown: false,
+                    animation: 'slide_from_right',
                 }}
             />
         </Stack>

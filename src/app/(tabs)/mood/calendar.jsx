@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { ArrowLeft, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus, Grid, Calendar } from "lucide-react-native";
@@ -135,12 +136,12 @@ export default function MoodCalendarScreen() {
     const loadMoodData = async () => {
         setLoading(true);
         try {
-            // Get weekly mood analytics (same as dashboard)
-            const weeklyResponse = await api.getWeeklyMoodAnalytics(userId);
-            console.log("[Calendar] Weekly response:", JSON.stringify(weeklyResponse));
+            // Use SAME API as dashboard
+            const weeklyMoodRes = await api.getWeeklyMoodAnalytics(userId);
+            console.log("[Calendar] Weekly Mood API Response:", JSON.stringify(weeklyMoodRes, null, 2));
 
-            // Extract mood entries from weekly data
-            const entries = weeklyResponse?.moodData || [];
+            // Extract mood entries (same as dashboard line 144)
+            const entries = weeklyMoodRes?.moodEntries || [];
             setMoodEntries(entries);
 
             // Filter entries for current month and organize by day
@@ -149,7 +150,7 @@ export default function MoodCalendarScreen() {
 
             const byDay = {};
             entries.forEach((entry) => {
-                const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
+                const entryDate = new Date(entry.date || entry.timestamp || entry.created_at || entry.createdAt);
                 if (entryDate.getFullYear() === year && entryDate.getMonth() === month) {
                     const day = entryDate.getDate();
                     if (!byDay[day]) {
@@ -164,16 +165,7 @@ export default function MoodCalendarScreen() {
             });
             setEntriesByDay(byDay);
             console.log("[Calendar] Entries for month:", Object.keys(byDay).length);
-
-            // Try to get analytics
-            try {
-                const analyticsResponse = await api.getUserAnalytics(userId, { days: 30 });
-                if (analyticsResponse?.analytics) {
-                    setAnalytics(analyticsResponse.analytics);
-                }
-            } catch (e) {
-                console.log("[Calendar] No analytics available");
-            }
+            console.log("[Calendar] Total entries:", entries.length);
 
         } catch (error) {
             console.log("[Calendar] Error loading mood data:", error.message);
@@ -212,10 +204,7 @@ export default function MoodCalendarScreen() {
 
         const days = [];
 
-        // Add empty cells for days before the 1st
-        for (let i = 0; i < firstDay; i++) {
-            days.push({ day: null, key: `empty-${i}` });
-        }
+        // Empty cells removed for cleaner calendar layout
 
         // Add actual days
         for (let day = 1; day <= daysInMonth; day++) {
@@ -278,55 +267,81 @@ export default function MoodCalendarScreen() {
             style={[
                 styles.container,
                 {
-                    paddingTop: insets.top,
                     transform: [{ translateX: slideAnim }],
                 },
             ]}
         >
-            <StatusBar style="dark" />
+            <StatusBar style="light" />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.backButton}>
-                    <ArrowLeft size={22} color="#1F2937" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>
-                    {viewMode === "year" ? "Year in Pixels" : "Mood Calendar"}
-                </Text>
+            {/* Gradient Header */}
+            <LinearGradient
+                colors={["#4A9B7F", "#14B8A6"]}
+                start={[0, 0]}
+                end={[1, 1]}
+                style={[styles.headerGradient, { paddingTop: insets.top + 16 }]}
+            >
+                <View style={styles.headerContent}>
+                    <TouchableOpacity onPress={goBack} style={styles.backButtonGradient}>
+                        <ArrowLeft size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View style={styles.headerCenter}>
+                        <Text style={styles.headerTitleGradient}>
+                            Mood Tracker
+                        </Text>
+                        <Text style={styles.headerSubtitle}>
+                            Track your emotional journey
+                        </Text>
+                    </View>
+                    <View style={{ width: 40 }} />
+                </View>
+            </LinearGradient>
+
+            {/* Sliding Tab Menu */}
+            <View style={styles.tabMenuContainer}>
                 <TouchableOpacity
-                    onPress={() => setViewMode(viewMode === "month" ? "year" : "month")}
-                    style={styles.viewToggle}
+                    style={[styles.tabButton, viewMode === "month" && styles.tabButtonActive]}
+                    onPress={() => setViewMode("month")}
+                    activeOpacity={0.7}
                 >
-                    {viewMode === "month" ? (
-                        <Grid size={20} color="#4A9B7F" />
-                    ) : (
-                        <Calendar size={20} color="#4A9B7F" />
-                    )}
+                    <Calendar size={18} color={viewMode === "month" ? "#FFFFFF" : "#4A9B7F"} />
+                    <Text style={[styles.tabButtonText, viewMode === "month" && styles.tabButtonTextActive]}>
+                        Calendar
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, viewMode === "year" && styles.tabButtonActive]}
+                    onPress={() => setViewMode("year")}
+                    activeOpacity={0.7}
+                >
+                    <Grid size={18} color={viewMode === "year" ? "#FFFFFF" : "#4A9B7F"} />
+                    <Text style={[styles.tabButtonText, viewMode === "year" && styles.tabButtonTextActive]}>
+                        Year in Pixels
+                    </Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Month Navigation - only show in month view */}
+            {/* Month Navigation - outside gradient */}
             {viewMode === "month" && (
                 <View style={styles.monthNav}>
                     <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
-                        <ChevronLeft size={24} color="#374151" />
+                        <ChevronLeft size={24} color="#1F2937" />
                     </TouchableOpacity>
                     <Text style={styles.monthText}>{formatMonth()}</Text>
                     <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
-                        <ChevronRight size={24} color="#374151" />
+                        <ChevronRight size={24} color="#1F2937" />
                     </TouchableOpacity>
                 </View>
             )}
 
-            {/* Year Navigation - only show in year view */}
+            {/* Year Navigation - outside gradient */}
             {viewMode === "year" && (
                 <View style={styles.monthNav}>
                     <TouchableOpacity onPress={() => setCurrentDate(new Date(currentDate.getFullYear() - 1, 0, 1))} style={styles.navButton}>
-                        <ChevronLeft size={24} color="#374151" />
+                        <ChevronLeft size={24} color="#1F2937" />
                     </TouchableOpacity>
                     <Text style={styles.monthText}>{currentDate.getFullYear()}</Text>
                     <TouchableOpacity onPress={() => setCurrentDate(new Date(currentDate.getFullYear() + 1, 0, 1))} style={styles.navButton}>
-                        <ChevronRight size={24} color="#374151" />
+                        <ChevronRight size={24} color="#1F2937" />
                     </TouchableOpacity>
                 </View>
             )}
@@ -477,7 +492,8 @@ export default function MoodCalendarScreen() {
 
                     {/* Legend */}
                     <View style={styles.legendContainer}>
-                        <Text style={styles.legendTitle}>Mood Legend</Text>
+                        <Text style={styles.legendTitle}>Mood Color Guide</Text>
+                        <Text style={styles.legendDescription}>Each colored dot represents your mood on that day. Tap any date to see detailed entries.</Text>
                         <View style={styles.legendItems}>
                             {["Joyful", "Happy", "Calm", "Sad", "Anxious", "Tired"].map((mood) => (
                                 <View key={mood} style={styles.legendItem}>
@@ -600,39 +616,105 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#F9FAFB",
     },
-    header: {
+    // New Gradient Header Styles
+    headerGradient: {
+        paddingBottom: 20,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+    },
+    headerContent: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: 20,
+        marginBottom: 16,
+    },
+    backButtonGradient: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    headerCenter: {
+        flex: 1,
+        alignItems: "center",
+        paddingHorizontal: 12,
+    },
+    headerTitleGradient: {
+        fontSize: 22,
+        fontWeight: "700",
+        color: "#FFFFFF",
+        marginBottom: 4,
+    },
+    headerSubtitle: {
+        fontSize: 13,
+        color: "rgba(255, 255, 255, 0.9)",
+        fontWeight: "500",
+    },
+    viewToggleGradient: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    monthNavInHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        marginTop: 8,
+    },
+    navButtonGradient: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    monthTextGradient: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: "#FFFFFF",
+    },
+    // Tab Menu Styles
+    tabMenuContainer: {
+        flexDirection: "row",
         backgroundColor: "#FFFFFF",
-        borderBottomWidth: 1,
-        borderBottomColor: "#F3F4F6",
+        marginHorizontal: 20,
+        marginTop: 16,
+        borderRadius: 12,
+        padding: 4,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#F3F4F6",
-        justifyContent: "center",
+    tabButton: {
+        flex: 1,
+        flexDirection: "row",
         alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        gap: 8,
     },
-    headerTitle: {
-        fontSize: 18,
+    tabButtonActive: {
+        backgroundColor: "#4A9B7F",
+    },
+    tabButtonText: {
+        fontSize: 14,
         fontWeight: "600",
-        color: "#1F2937",
+        color: "#4A9B7F",
     },
-    headerSpacer: {
-        width: 40,
-    },
-    viewToggle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#E6F4F0",
-        justifyContent: "center",
-        alignItems: "center",
+    tabButtonTextActive: {
+        color: "#FFFFFF",
     },
     // Year in Pixels
     yearPixelsContainer: {
@@ -675,8 +757,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: 20,
-        paddingVertical: 16,
-        backgroundColor: "#FFFFFF",
+        paddingVertical: 12,
+        backgroundColor: "transparent",
     },
     navButton: {
         width: 44,
@@ -706,27 +788,29 @@ const styles = StyleSheet.create({
     },
     calendarContainer: {
         backgroundColor: "#FFFFFF",
-        marginHorizontal: 16,
-        marginTop: 16,
+        marginHorizontal: 20,
+        marginTop: 12,
         borderRadius: 20,
         padding: 16,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
     },
     dayHeaders: {
         flexDirection: "row",
         marginBottom: 12,
+        paddingHorizontal: 4,
     },
     dayHeader: {
         flex: 1,
         textAlign: "center",
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#9CA3AF",
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#6B7280",
         textTransform: "uppercase",
+        letterSpacing: 0.5,
     },
     daysGrid: {
         flexDirection: "row",
@@ -734,70 +818,86 @@ const styles = StyleSheet.create({
     },
     dayCell: {
         width: `${100 / 7}%`,
-        aspectRatio: 1,
+        aspectRatio: 0.95,
         justifyContent: "center",
         alignItems: "center",
         borderRadius: 12,
+        marginBottom: 2,
     },
     todayCell: {
         backgroundColor: "#E6F4F0",
     },
     selectedCell: {
-        backgroundColor: "#FEF3C7",
-        borderWidth: 2,
-        borderColor: "#F59E0B",
+        backgroundColor: "#E6F4F0",
+        borderWidth: 1,
+        borderColor: "#4A9B7F",
     },
     dayNumber: {
-        fontSize: 14,
-        fontWeight: "500",
+        fontSize: 15,
+        fontWeight: "600",
         color: "#374151",
     },
     todayNumber: {
         color: "#4A9B7F",
-        fontWeight: "700",
+        fontWeight: "800",
     },
     moodDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        width: 6,
+        height: 6,
+        borderRadius: 3,
         marginTop: 4,
     },
     legendContainer: {
         backgroundColor: "#FFFFFF",
-        marginHorizontal: 16,
-        marginTop: 16,
-        borderRadius: 16,
-        padding: 16,
+        marginHorizontal: 20,
+        marginTop: 20,
+        borderRadius: 20,
+        padding: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     legendTitle: {
-        fontSize: 14,
-        fontWeight: "600",
+        fontSize: 16,
+        fontWeight: "700",
         color: "#1F2937",
-        marginBottom: 12,
+        marginBottom: 8,
+    },
+    legendDescription: {
+        fontSize: 13,
+        color: "#6B7280",
+        lineHeight: 18,
+        marginBottom: 16,
     },
     legendItems: {
         flexDirection: "row",
+        flexWrap: "wrap",
         justifyContent: "space-between",
+        gap: 12,
     },
     legendItem: {
         alignItems: "center",
+        width: "30%",
     },
     legendDot: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        marginBottom: 4,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        marginBottom: 6,
     },
     legendLabel: {
         fontSize: 10,
         color: "#6B7280",
+        textAlign: "center",
     },
     detailsCard: {
         backgroundColor: "#FFFFFF",
-        marginHorizontal: 16,
-        marginTop: 16,
-        borderRadius: 16,
-        padding: 16,
+        marginHorizontal: 20,
+        marginTop: 20,
+        borderRadius: 20,
+        padding: 20,
         borderWidth: 2,
         borderColor: "#4A9B7F",
     },
@@ -842,14 +942,17 @@ const styles = StyleSheet.create({
         fontStyle: "italic",
     },
     statsContainer: {
-        marginHorizontal: 16,
-        marginTop: 16,
+        backgroundColor: "#F9FAFB",
+        marginHorizontal: 20,
+        marginTop: 20,
+        borderRadius: 20,
+        padding: 20,
     },
     statsTitle: {
-        fontSize: 16,
-        fontWeight: "600",
+        fontSize: 18,
+        fontWeight: "700",
         color: "#1F2937",
-        marginBottom: 12,
+        marginBottom: 16,
     },
     statsRow: {
         flexDirection: "row",
@@ -859,18 +962,24 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#FFFFFF",
         borderRadius: 16,
-        padding: 16,
+        padding: 20,
         alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        elevation: 2,
     },
     statValue: {
-        fontSize: 24,
-        fontWeight: "700",
+        fontSize: 28,
+        fontWeight: "800",
         color: "#4A9B7F",
     },
     statLabel: {
-        fontSize: 12,
+        fontSize: 13,
         color: "#6B7280",
-        marginTop: 4,
+        marginTop: 6,
+        fontWeight: "500",
     },
     trendContainer: {
         flexDirection: "row",

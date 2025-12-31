@@ -13,6 +13,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Edit,
   Calendar,
@@ -36,14 +37,11 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [moodLogCount, setMoodLogCount] = useState(0);
-  const [appointmentCount, setAppointmentCount] = useState(0);
 
   // Reload profile whenever screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-      loadStats();
     }, [])
   );
 
@@ -60,25 +58,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const loadStats = async () => {
-    try {
-      const userId = await AsyncStorage.getItem("userId");
-      if (userId) {
-        // Get mood entries count
-        const moodResponse = await api.getMoodEntries(userId, 1, 100);
-        if (moodResponse?.moodEntries) {
-          setMoodLogCount(moodResponse.moodEntries.length);
-        }
-        // Get appointments count
-        const appointmentsResponse = await api.getUserAppointments();
-        if (appointmentsResponse?.appointments) {
-          setAppointmentCount(appointmentsResponse.appointments.length);
-        }
-      }
-    } catch (error) {
-      console.log("Error loading stats:", error);
-    }
-  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -124,6 +103,13 @@ export default function ProfileScreen() {
       color: "#8B5CF6",
     },
     {
+      icon: Calendar,
+      title: "Mood Calendar",
+      subtitle: "View mood history calendar",
+      route: "/(tabs)/mood/calendar",
+      color: "#4A9B7F",
+    },
+    {
       icon: BarChart3,
       title: "My Assessment Analytics",
       subtitle: "View assessment insights",
@@ -164,27 +150,27 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-      <StatusBar style="dark" />
+    <View style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
+      <StatusBar style="light" />
 
-      <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + 20,
-          paddingBottom: insets.bottom + 120, // Extra padding for tab bar
-        }}
-        showsVerticalScrollIndicator={false}
+      {/* Gradient Header with Profile */}
+      <LinearGradient
+        colors={["#F59E0B", "#D97706", "#B45309"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 20, paddingBottom: 32, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }}
       >
-        {/* Profile Header */}
-        <View style={{ alignItems: "center", paddingHorizontal: 20, marginBottom: 24 }}>
+        {/* Profile Info */}
+        <View style={{ alignItems: "center", paddingHorizontal: 20, marginBottom: 20 }}>
           <View style={{ position: "relative", marginBottom: 16 }}>
             <Image
               source={{ uri: user?.image || "https://via.placeholder.com/100" }}
               style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
-                borderWidth: 3,
-                borderColor: "#F59E0B",
+                width: 90,
+                height: 90,
+                borderRadius: 45,
+                borderWidth: 4,
+                borderColor: "rgba(255, 255, 255, 0.3)",
               }}
             />
             <TouchableOpacity
@@ -192,53 +178,33 @@ export default function ProfileScreen() {
                 position: "absolute",
                 bottom: 0,
                 right: 0,
-                backgroundColor: "#F59E0B",
+                backgroundColor: "#FFFFFF",
                 padding: 8,
                 borderRadius: 20,
                 borderWidth: 3,
-                borderColor: "#FFFFFF",
+                borderColor: "#F59E0B",
               }}
               onPress={() => router.push("/(tabs)/profile/edit")}
             >
-              <Edit color="#FFFFFF" size={14} />
+              <Edit color="#F59E0B" size={14} />
             </TouchableOpacity>
           </View>
-          <Text style={{ fontSize: 24, fontWeight: "700", color: "#1F2937", marginBottom: 4 }}>
+          <Text style={{ fontSize: 24, fontWeight: "800", color: "#FFFFFF", marginBottom: 4 }}>
             {user?.name || "User"}
           </Text>
-          <Text style={{ fontSize: 15, color: "#6B7280" }}>
+          <Text style={{ fontSize: 14, color: "rgba(255, 255, 255, 0.9)" }}>
             {user?.email}
           </Text>
         </View>
+      </LinearGradient>
 
-        {/* Stats Card */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-          <View
-            style={{
-              backgroundColor: "#FEF3C7",
-              borderRadius: 20,
-              padding: 20,
-              flexDirection: "row",
-              justifyContent: "space-around",
-            }}
-          >
-            <View style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 28, fontWeight: "700", color: "#F59E0B" }}>{appointmentCount}</Text>
-              <Text style={{ fontSize: 13, color: "#92400E", marginTop: 4 }}>Appointments</Text>
-            </View>
-            <View style={{ width: 1, backgroundColor: "#FCD34D" }} />
-            <View style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 28, fontWeight: "700", color: "#F59E0B" }}>{moodLogCount}</Text>
-              <Text style={{ fontSize: 13, color: "#92400E", marginTop: 4 }}>Mood Logs</Text>
-            </View>
-            <View style={{ width: 1, backgroundColor: "#FCD34D" }} />
-            <View style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 28, fontWeight: "700", color: "#F59E0B" }}>0</Text>
-              <Text style={{ fontSize: 13, color: "#92400E", marginTop: 4 }}>Sessions</Text>
-            </View>
-          </View>
-        </View>
-
+      <ScrollView
+        contentContainerStyle={{
+          paddingTop: 24,
+          paddingBottom: insets.bottom + 120,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Personal Info */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <Text style={{ fontSize: 18, fontWeight: "700", color: "#1F2937", marginBottom: 16 }}>

@@ -1,194 +1,157 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import {
     View,
     Text,
     ScrollView,
     TouchableOpacity,
     StyleSheet,
-    useColorScheme,
     ActivityIndicator,
+    Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import {
     Heart,
     Brain,
     Users,
-    Star,
     Briefcase,
     Sun,
     Apple,
     Moon,
     Baby,
     MessageCircle,
+    Sparkles,
+    TrendingUp,
+    Shield,
 } from "lucide-react-native";
-import {
-    useFonts,
-    Inter_400Regular,
-    Inter_600SemiBold,
-    Inter_700Bold,
-} from "@expo-google-fonts/inter";
 import { supabase } from "../../../utils/supabaseClient";
-
-// Theme configuration
-const themes = {
-    light: {
-        background: "#FFFFFF",
-        headerBackground: "#FFFFFF",
-        text: "#1A1A1A",
-        textSecondary: "#8E8E93",
-        cardBackground: "#FFFFFF",
-        cardBorder: "#E6E6E6",
-        headerBorder: "#E5E5E5",
-        statusBarStyle: "dark",
-    },
-    dark: {
-        background: "#121212",
-        headerBackground: "#121212",
-        text: "#FFFFFF",
-        textSecondary: "#A0A0A0",
-        cardBackground: "#1E1E1E",
-        cardBorder: "#2A2A2A",
-        headerBorder: "#2A2A2A",
-        statusBarStyle: "light",
-    },
-};
 
 // Icon mapping with colors
 const ICON_CONFIG = {
-    Heart: { component: Heart, color: "#E04C7A" },
-    Brain: { component: Brain, color: "#665AE1" },
-    Users: { component: Users, color: "#B3418B" },
-    Star: { component: Star, color: "#F59E0B" },
-    Briefcase: { component: Briefcase, color: "#565A70" },
-    Sun: { component: Sun, color: "#F97316" },
-    Apple: { component: Apple, color: "#7E8452" },
-    Moon: { component: Moon, color: "#6366F1" },
-    Baby: { component: Baby, color: "#EC4899" },
-    MessageCircle: { component: MessageCircle, color: "#8B5CF6" },
+    Heart: { component: Heart, color: "#E04C7A", gradient: ["#E04C7A", "#C93866"] },
+    Brain: { component: Brain, color: "#665AE1", gradient: ["#665AE1", "#5244C7"] },
+    Users: { component: Users, color: "#B3418B", gradient: ["#B3418B", "#993771"] },
+    Briefcase: { component: Briefcase, color: "#565A70", gradient: ["#565A70", "#3F4356"] },
+    Sun: { component: Sun, color: "#F59E0B", gradient: ["#F59E0B", "#D97706"] },
+    Apple: { component: Apple, color: "#7E8452", gradient: ["#7E8452", "#6A7043"] },
+    Moon: { component: Moon, color: "#6366F1", gradient: ["#6366F1", "#4F46E5"] },
+    Baby: { component: Baby, color: "#EC4899", gradient: ["#EC4899", "#DB2777"] },
+    MessageCircle: { component: MessageCircle, color: "#8B5CF6", gradient: ["#8B5CF6", "#7C3AED"] },
 };
 
-// Fallback community rooms (if Supabase fails)
+// Fallback community rooms
 const FALLBACK_ROOMS = [
-    {
-        id: "wellbeing-warriors",
-        name: "Wellbeing Warriors",
-        description: "General mental health and wellbeing support",
-        icon: "Heart",
-    },
-    {
-        id: "mental-support",
-        name: "Mental Support",
-        description: "A safe space to discuss mental health challenges",
-        icon: "Brain",
-    },
-    {
-        id: "relationship-advice",
-        name: "Relationship Advice",
-        description: "Discussing healthy relationships and advice",
-        icon: "Users",
-    },
-    {
-        id: "user-experiences",
-        name: "User Experiences",
-        description: "Share your journey and experiences with others",
-        icon: "Star",
-    },
-    {
-        id: "career-stress",
-        name: "Career Stress",
-        description: "Support for work-related stress and burnout",
-        icon: "Briefcase",
-    },
-    {
-        id: "mindfulness-place",
-        name: "Mindfulness Place",
-        description: "Tips and discussions on mindfulness and meditation",
-        icon: "Sun",
-    },
-    {
-        id: "health-nutrition",
-        name: "Health & Nutrition",
-        description: "Discussing physical health, diet, and nutrition",
-        icon: "Apple",
-    },
-    {
-        id: "sleep-hygiene",
-        name: "Sleep Hygiene",
-        description: "Tips for better sleep and overcoming insomnia",
-        icon: "Moon",
-    },
-    {
-        id: "parenting-support",
-        name: "Parenting Support",
-        description: "Support and advice for parents",
-        icon: "Baby",
-    },
-    {
-        id: "general-chat",
-        name: "General Chat",
-        description: "Off-topic discussions and hanging out",
-        icon: "MessageCircle",
-    },
+    { id: "wellbeing-warriors", name: "Wellbeing Warriors", description: "General mental health and wellbeing support", icon: "Heart" },
+    { id: "mental-support", name: "Mental Support", description: "A safe space to discuss mental health challenges", icon: "Brain" },
+    { id: "relationship-advice", name: "Relationship Advice", description: "Discussing healthy relationships and advice", icon: "Users" },
+    { id: "career-stress", name: "Career Stress", description: "Support for work-related stress and burnout", icon: "Briefcase" },
+    { id: "mindfulness-place", name: "Mindfulness Place", description: "Tips and discussions on mindfulness and meditation", icon: "Sun" },
+    { id: "health-nutrition", name: "Health & Nutrition", description: "Discussing physical health, diet, and nutrition", icon: "Apple" },
+    { id: "sleep-hygiene", name: "Sleep Hygiene", description: "Tips for better sleep and overcoming insomnia", icon: "Moon" },
+    { id: "parenting-support", name: "Parenting Support", description: "Support and advice for parents", icon: "Baby" },
+    { id: "general-chat", name: "General Chat", description: "Off-topic discussions and hanging out", icon: "MessageCircle" },
 ];
 
-// RoomCard Component
-function RoomCard({ room, onPress, theme }) {
+// Modern RoomCard Component
+function ModernRoomCard({ room, onPress }) {
     const iconConfig = ICON_CONFIG[room.icon] || ICON_CONFIG.MessageCircle;
     const IconComponent = iconConfig.component;
-    const iconColor = iconConfig.color;
+    const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+    const handlePressIn = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 0.95,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const handlePressOut = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 3,
+            useNativeDriver: true,
+        }).start();
+    };
 
     return (
-        <TouchableOpacity
-            style={[
-                styles.roomCard,
-                {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.cardBorder,
-                },
-            ]}
-            onPress={onPress}
-            activeOpacity={0.7}
-            accessibilityLabel={`Open ${room.name} room`}
-        >
-            <View style={styles.iconContainer}>
-                <IconComponent size={24} color={iconColor} strokeWidth={2} />
-            </View>
-            <View style={styles.textContainer}>
-                <Text style={[styles.roomName, { color: theme.text }]}>
-                    {room.name}
-                </Text>
-                <Text
-                    style={[styles.roomDescription, { color: theme.textSecondary }]}
-                    numberOfLines={1}
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <TouchableOpacity
+                onPress={onPress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                activeOpacity={0.9}
+                style={styles.roomCard}
+            >
+                <LinearGradient
+                    colors={iconConfig.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.iconGradient}
                 >
-                    {room.description}
-                </Text>
-            </View>
-        </TouchableOpacity>
+                    <IconComponent size={24} color="#FFFFFF" strokeWidth={2.5} />
+                </LinearGradient>
+
+                <View style={styles.roomContent}>
+                    <Text style={styles.roomName}>{room.name}</Text>
+                    <Text style={styles.roomDescription} numberOfLines={2}>
+                        {room.description}
+                    </Text>
+                </View>
+
+                <View style={styles.arrowContainer}>
+                    <Text style={styles.arrow}>→</Text>
+                </View>
+            </TouchableOpacity>
+        </Animated.View>
     );
 }
 
 export default function CommunityHub() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const theme = themes[colorScheme] || themes.light;
-    const [showHeaderBorder, setShowHeaderBorder] = useState(false);
+    const navigation = useNavigation();
     const [rooms, setRooms] = useState(FALLBACK_ROOMS);
     const [loading, setLoading] = useState(true);
+    const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
-    const [fontsLoaded] = useFonts({
-        Inter_400Regular,
-        Inter_600SemiBold,
-        Inter_700Bold,
-    });
+    // Ensure tab bar is visible with correct styles
+    useLayoutEffect(() => {
+        const parentNav = navigation.getParent();
+        if (parentNav) {
+            parentNav.setOptions({
+                tabBarStyle: {
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#FFFFFF",
+                    borderTopWidth: 0,
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom + 8,
+                    paddingTop: 6,
+                    paddingHorizontal: 10,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: -4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 12,
+                    elevation: 20,
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                }
+            });
+        }
+    }, [navigation, insets.bottom]);
 
-    // Fetch rooms from Supabase
     useEffect(() => {
         fetchRooms();
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+        }).start();
     }, []);
 
     const fetchRooms = async () => {
@@ -201,11 +164,13 @@ export default function CommunityHub() {
 
             if (error) {
                 console.error('[Community] Error fetching rooms:', error);
-                // Use fallback rooms
                 setRooms(FALLBACK_ROOMS);
             } else if (data && data.length > 0) {
                 console.log('[Community] Loaded', data.length, 'rooms from Supabase');
-                setRooms(data);
+                // Filter only enabled rooms (is_enabled !== false)
+                const enabledRooms = data.filter(room => room.is_enabled !== false);
+                console.log('[Community] Showing', enabledRooms.length, 'enabled rooms');
+                setRooms(enabledRooms);
             } else {
                 console.log('[Community] No rooms in database, using fallback');
                 setRooms(FALLBACK_ROOMS);
@@ -218,51 +183,66 @@ export default function CommunityHub() {
         }
     };
 
-    if (!fontsLoaded || loading) {
-        return (
-            <View style={{ flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#8B5CF6" />
-            </View>
-        );
-    }
-
     const handleRoomPress = async (room) => {
         await Haptics.selectionAsync();
-        // Navigate to chat room
         router.push({
             pathname: "/community/chat/[id]",
             params: { id: room.id, name: room.name, icon: room.icon },
         });
     };
 
-    const handleScroll = (event) => {
-        const offsetY = event.nativeEvent.contentOffset.y;
-        setShowHeaderBorder(offsetY > 0);
-    };
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.centered]}>
+                <ActivityIndicator size="large" color="#8B5CF6" />
+            </View>
+        );
+    }
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar style={theme.statusBarStyle} />
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+            <StatusBar style="light" />
 
-            {/* Header */}
-            <View
-                style={[
-                    styles.headerContainer,
-                    {
-                        paddingTop: insets.top + 12,
-                        backgroundColor: theme.headerBackground,
-                    },
-                    showHeaderBorder && [
-                        styles.headerWithBorder,
-                        { borderBottomColor: theme.headerBorder },
-                    ],
-                ]}
+            {/* Pink Gradient Header */}
+            <LinearGradient
+                colors={["#EC4899", "#DB2777", "#BE185D"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: 20 }]}
             >
-                <Text style={[styles.title, { color: theme.text }]}>Community Hub</Text>
-                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                    Connect, share, and grow together in our safe spaces
-                </Text>
-            </View>
+                <View style={styles.headerContent}>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.sparkleContainer}>
+                            <Sparkles size={28} color="#FCD34D" strokeWidth={2} />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.headerTitle}>Community</Text>
+                            <Text style={styles.headerSubtitle}>Connect & grow together</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Modern Stats Bar */}
+                <View style={styles.statsBar}>
+                    <View style={styles.statItem}>
+                        <Users size={16} color="#FFFFFF" />
+                        <Text style={styles.statValue}>{rooms.length}</Text>
+                        <Text style={styles.statLabel}>Spaces</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <TrendingUp size={16} color="#FFFFFF" />
+                        <Text style={styles.statValue}>Active</Text>
+                        <Text style={styles.statLabel}>24/7</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Shield size={16} color="#FFFFFF" />
+                        <Text style={styles.statValue}>Safe</Text>
+                        <Text style={styles.statLabel}>Space</Text>
+                    </View>
+                </View>
+            </LinearGradient>
 
             {/* Room List */}
             <ScrollView
@@ -272,17 +252,22 @@ export default function CommunityHub() {
                     { paddingBottom: insets.bottom + 20 },
                 ]}
                 showsVerticalScrollIndicator={false}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
             >
-                {rooms.map((room) => (
-                    <RoomCard
+                <Text style={styles.sectionTitle}>Join a Community</Text>
+                <Text style={styles.sectionSubtitle}>
+                    Find support, share experiences, and connect with others
+                </Text>
+
+                {rooms.map((room, index) => (
+                    <ModernRoomCard
                         key={room.id}
                         room={room}
                         onPress={() => handleRoomPress(room)}
-                        theme={theme}
                     />
                 ))}
+
+                {/* Bottom Spacing */}
+                <View style={{ height: 40 }} />
             </ScrollView>
         </View>
     );
@@ -291,68 +276,151 @@ export default function CommunityHub() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: "#F9FAFB",
     },
-    headerContainer: {
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        zIndex: 1000,
+    centered: {
+        justifyContent: "center",
+        alignItems: "center",
     },
-    headerWithBorder: {
-        borderBottomWidth: 1,
+    header: {
+        paddingBottom: 24,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        shadowColor: "#8B5CF6",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
-    title: {
-        fontFamily: "Inter_700Bold",
-        fontSize: 28,
-        marginBottom: 8,
+    headerContent: {
+        paddingHorizontal: 24,
+        marginBottom: 20,
     },
-    subtitle: {
-        fontFamily: "Inter_400Regular",
+    headerLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    sparkleContainer: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 16,
+    },
+    headerTextContainer: {
+        flex: 1,
+    },
+    headerTitle: {
+        fontSize: 32,
+        fontWeight: "800",
+        color: "#FFFFFF",
+        letterSpacing: -0.5,
+    },
+    headerSubtitle: {
         fontSize: 15,
-        lineHeight: 22,
+        color: "rgba(255, 255, 255, 0.9)",
+        marginTop: 4,
+        fontWeight: "500",
+    },
+    statsBar: {
+        flexDirection: "row",
+        backgroundColor: "rgba(255, 255, 255, 0.15)",
+        marginHorizontal: 24,
+        borderRadius: 16,
+        padding: 16,
+        justifyContent: "space-around",
+    },
+    statItem: {
+        alignItems: "center",
+        flex: 1,
+    },
+    statDivider: {
+        width: 1,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        marginHorizontal: 8,
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#FFFFFF",
+        marginTop: 6,
+    },
+    statLabel: {
+        fontSize: 11,
+        color: "rgba(255, 255, 255, 0.8)",
+        marginTop: 2,
+        fontWeight: "500",
     },
     scrollView: {
         flex: 1,
     },
     scrollContent: {
         paddingHorizontal: 20,
-        paddingTop: 24,
-        gap: 12,
+        paddingTop: 28,
+    },
+    sectionTitle: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#1F2937",
+        marginBottom: 8,
+    },
+    sectionSubtitle: {
+        fontSize: 15,
+        color: "#6B7280",
+        marginBottom: 24,
+        lineHeight: 22,
     },
     roomCard: {
         flexDirection: "row",
         alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
         padding: 16,
-        borderRadius: 16,
-        borderWidth: 1,
+        marginBottom: 12,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-        elevation: 1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: "#F3F4F6",
     },
-    iconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: "#F9FAFB",
+    iconGradient: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
         justifyContent: "center",
         alignItems: "center",
         marginRight: 16,
     },
-    textContainer: {
+    roomContent: {
         flex: 1,
     },
     roomName: {
-        fontFamily: "Inter_600SemiBold",
-        fontSize: 16,
+        fontSize: 17,
+        fontWeight: "700",
+        color: "#1F2937",
         marginBottom: 4,
     },
     roomDescription: {
-        fontFamily: "Inter_400Regular",
         fontSize: 14,
+        color: "#6B7280",
         lineHeight: 20,
     },
+    arrowContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "#F3F4F6",
+        justifyContent: "center",
+        alignItems: "center",
+        marginLeft: 12,
+    },
+    arrow: {
+        fontSize: 18,
+        color: "#8B5CF6",
+        fontWeight: "600",
+    },
 });
-
-
-

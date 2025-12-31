@@ -20,7 +20,8 @@ import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight } from "lucide-rea
 import api from "../../utils/api";
 import { useAuthStore } from "../../utils/auth/store";
 
-export default function RegisterScreen() {
+// Register Screen Component
+function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState("");
@@ -88,6 +89,8 @@ export default function RegisterScreen() {
       setLoading(false);
     }
   };
+
+
 
   return (
     <View style={styles.container}>
@@ -231,6 +234,8 @@ export default function RegisterScreen() {
                 </>
               )}
             </TouchableOpacity>
+
+
           </View>
 
           {/* Login Link */}
@@ -352,6 +357,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
   },
+
   loginSection: {
     flexDirection: "row",
     justifyContent: "center",
@@ -376,3 +382,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+export default RegisterScreen;

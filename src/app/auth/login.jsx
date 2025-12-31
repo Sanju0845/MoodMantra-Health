@@ -20,7 +20,8 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react-native";
 import api from "../../utils/api";
 import { useAuthStore } from "../../utils/auth/store";
 
-export default function LoginScreen() {
+// Login Screen Component
+function LoginScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [email, setEmail] = useState("");
@@ -109,6 +110,8 @@ export default function LoginScreen() {
             setLoading(false);
         }
     };
+
+
 
     return (
         <View style={styles.container}>
@@ -214,6 +217,8 @@ export default function LoginScreen() {
                                 </>
                             )}
                         </TouchableOpacity>
+
+
                     </View>
 
                     {/* Register Link */}
@@ -347,6 +352,7 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: "700",
     },
+
     registerSection: {
         flexDirection: "row",
         justifyContent: "center",
@@ -371,3 +377,5 @@ const styles = StyleSheet.create({
         textAlign: "center",
     },
 });
+
+export default LoginScreen;

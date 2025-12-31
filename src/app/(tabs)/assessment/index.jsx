@@ -11,6 +11,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
     ClipboardList,
@@ -123,7 +124,7 @@ export default function AssessmentScreen() {
         >
             <config.icon
                 size={18}
-                color={selectedTherapyType === type ? config.color : "#9CA3AF"}
+                color={selectedTherapyType === type ? config.color : "rgba(255, 255, 255, 0.9)"}
             />
             <Text
                 style={[
@@ -199,28 +200,36 @@ export default function AssessmentScreen() {
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar style="dark" />
+        <View style={styles.container}>
+            <StatusBar style="light" />
 
-            {/* Header */}
-            <View style={styles.header}>
+            {/* Purple Gradient Header */}
+            <LinearGradient
+                colors={["#8B5CF6", "#7C3AED", "#6366F1"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top + 10 }]}
+            >
                 <View style={styles.headerContent}>
-                    <Brain size={28} color="#8B5CF6" />
+                    <View style={styles.iconContainer}>
+                        <Brain size={22} color="#FFFFFF" strokeWidth={2} />
+                    </View>
                     <View style={styles.headerText}>
                         <Text style={styles.headerTitle}>Assessments</Text>
                         <Text style={styles.headerSubtitle}>Understand your mental health</Text>
                     </View>
                 </View>
-            </View>
 
-            {/* Therapy Type Tabs */}
-            <View style={styles.therapyTabs}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {Object.entries(therapyTypeConfig).map(([type, config]) => (
-                        <TherapyTypeTab key={type} type={type} config={config} />
-                    ))}
-                </ScrollView>
-            </View>
+                {/* Therapy Type Tabs - Inside Header */}
+                <View style={styles.therapyTabsInHeader}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {Object.entries(therapyTypeConfig).map(([type, config]) => (
+                            <TherapyTypeTab key={type} type={type} config={config} />
+                        ))}
+                    </ScrollView>
+                </View>
+            </LinearGradient>
+
 
             {/* Assessments List */}
             <ScrollView
@@ -305,28 +314,48 @@ const styles = StyleSheet.create({
         color: "#6B7280",
     },
     header: {
-        backgroundColor: "#FFFFFF",
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: "#F3F4F6",
+        paddingBottom: 32,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        shadowColor: "#8B5CF6",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
     headerContent: {
         flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+    },
+    iconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
         alignItems: "center",
     },
     headerText: {
         marginLeft: 12,
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#1F2937",
+        fontSize: 26,
+        fontWeight: "800",
+        color: "#FFFFFF",
+        letterSpacing: -0.3,
     },
     headerSubtitle: {
-        fontSize: 14,
-        color: "#6B7280",
+        fontSize: 13,
+        color: "rgba(255, 255, 255, 0.9)",
         marginTop: 2,
+        fontWeight: "500",
+    },
+    therapyTabsInHeader: {
+        paddingTop: 16,
+        paddingBottom: 8,
+        paddingHorizontal: 20,
     },
     therapyTabs: {
         backgroundColor: "#FFFFFF",
@@ -341,15 +370,15 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         marginHorizontal: 6,
         borderRadius: 20,
-        borderWidth: 1,
-        borderColor: "#E5E7EB",
-        backgroundColor: "#FFFFFF",
+        borderWidth: 1.5,
+        borderColor: "rgba(255, 255, 255, 0.3)",
+        backgroundColor: "rgba(255, 255, 255, 0.15)",
     },
     therapyTabText: {
         marginLeft: 6,
         fontSize: 14,
-        fontWeight: "500",
-        color: "#6B7280",
+        fontWeight: "600",
+        color: "rgba(255, 255, 255, 0.9)",
     },
     scrollView: {
         flex: 1,

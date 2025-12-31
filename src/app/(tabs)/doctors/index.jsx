@@ -1,659 +1,420 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  TextInput,
-  RefreshControl,
-  Image,
-  StyleSheet,
+    View,
+    Text,
+    ScrollView,
+    Image,
+    TouchableOpacity,
+    ActivityIndicator,
+    RefreshControl,
+    StyleSheet,
+    Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  Search,
-  Star,
-  ChevronRight,
-  Clock,
-  Award,
-  Stethoscope,
-  Calendar,
-  MapPin,
+    Star,
+    MapPin,
+    ChevronRight,
+    Stethoscope,
+    Map,
 } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import api from "../../../utils/api";
 
-export default function DoctorsListScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [doctors, setDoctors] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [error, setError] = useState(null);
+// Modern Doctor Card Component
+function ModernDoctorCard({ doctor, onPress }) {
+    const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
-  const loadDoctors = useCallback(async () => {
-    try {
-      setError(null);
-      console.log("[DoctorsList] Loading doctors...");
-      const response = await api.getDoctors();
+    const handlePressIn = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 0.95,
+            useNativeDriver: true,
+        }).start();
+    };
 
-      if (response.success && response.doctors) {
-        console.log("[DoctorsList] Found", response.doctors.length, "doctors");
-        setDoctors(response.doctors);
-      } else {
-        setDoctors([]);
-      }
-    } catch (err) {
-      console.error("[DoctorsList] Error:", err);
-      setError(err.message);
-      setDoctors([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    const handlePressOut = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 3,
+            useNativeDriver: true,
+        }).start();
+    };
 
-  useEffect(() => {
-    loadDoctors();
-  }, [loadDoctors]);
-
-  const filteredDoctors = doctors.filter((doc) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const nameMatch = doc.name?.toLowerCase().includes(query);
-      const specialityMatch = doc.speciality?.toLowerCase().includes(query);
-      if (!nameMatch && !specialityMatch) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadDoctors();
-  };
-
-  const navigateToDoctor = (doctorId) => {
-    console.log("[DoctorsList] Navigating to doctor:", doctorId);
-    router.push({
-      pathname: "/(tabs)/doctors/[id]",
-      params: { id: doctorId }
-    });
-  };
-
-
-
-  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <StatusBar style="dark" />
-        <View style={[styles.loadingContent, { paddingTop: insets.top + 60 }]}>
-          <View style={styles.loadingIconContainer}>
-            <Stethoscope size={40} color="#6366F1" />
-          </View>
-          <Text style={styles.loadingTitle}>Finding Best Doctors</Text>
-          <Text style={styles.loadingSubtitle}>Please wait...</Text>
-          <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 24 }} />
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-
-      {/* Clean White Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerSubtitle}>Find Your</Text>
-            <Text style={styles.headerTitle}>Specialists</Text>
-          </View>
-          <View style={styles.headerIconContainer}>
-            <Stethoscope size={24} color="#6366F1" />
-          </View>
-        </View>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Search color="#9CA3AF" size={20} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search doctors by name or specialty..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-      </View>
-
-      {/* Results Count */}
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsCount}>
-          {filteredDoctors.length} {filteredDoctors.length === 1 ? "Doctor" : "Doctors"} Found
-        </Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity
-            style={styles.nearMeButton}
-            onPress={() => router.push("/doctors/nearme")}
-          >
-            <MapPin size={14} color="#FFFFFF" />
-            <Text style={styles.nearMeText}>Near Me</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Doctor List */}
-      <ScrollView
-        contentContainerStyle={[styles.listContainer, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
-        }
-      >
-        {error ? (
-          <View style={styles.errorContainer}>
-            <View style={styles.errorIconContainer}>
-              <Text style={styles.errorIcon}>😔</Text>
-            </View>
-            <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadDoctors}>
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredDoctors.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconContainer}>
-              <Search size={40} color="#9CA3AF" />
-            </View>
-            <Text style={styles.emptyTitle}>No Doctors Found</Text>
-            <Text style={styles.emptyText}>
-              {doctors.length === 0
-                ? "No doctors are currently available"
-                : "Try adjusting your search or filters"}
-            </Text>
-            {doctors.length === 0 && (
-              <TouchableOpacity style={styles.retryButton} onPress={loadDoctors}>
-                <Text style={styles.retryButtonText}>Refresh</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          filteredDoctors.map((doctor, index) => (
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <TouchableOpacity
-              key={doctor._id}
-              style={styles.doctorCard}
-              onPress={() => navigateToDoctor(doctor._id)}
-              activeOpacity={0.9}
+                onPress={onPress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                activeOpacity={0.9}
+                style={styles.doctorCard}
             >
-              {/* Featured Badge for first doctor */}
-              {index === 0 && (
-                <View style={styles.featuredBadge}>
-                  <Award size={12} color="#FFFFFF" />
-                  <Text style={styles.featuredText}>Top Rated</Text>
-                </View>
-              )}
-
-              <View style={styles.cardContent}>
-                {/* Doctor Image */}
-                <View style={styles.imageContainer}>
-                  <Image
-                    source={{ uri: doctor.image || "https://via.placeholder.com/100" }}
+                <Image
+                    source={{ uri: doctor.image || "https://via.placeholder.com/80" }}
                     style={styles.doctorImage}
-                  />
-                  {doctor.available && (
-                    <View style={styles.onlineDot} />
-                  )}
-                </View>
+                />
 
-                {/* Doctor Info */}
                 <View style={styles.doctorInfo}>
-                  <Text style={styles.doctorName} numberOfLines={1}>
-                    {doctor.name}
-                  </Text>
+                    <Text style={styles.doctorName}>{doctor.name}</Text>
 
-                  <View style={styles.specialtyBadge}>
-                    <Text style={styles.specialtyText}>{doctor.speciality}</Text>
-                  </View>
+                    {/* Specialty/Degree - Show degree or specialty */}
+                    {(doctor.degree || doctor.specialty || doctor.specialization) && (
+                        <Text style={styles.doctorSpecialty}>
+                            {doctor.degree || doctor.specialty || doctor.specialization}
+                        </Text>
+                    )}
 
-                  <View style={styles.detailsRow}>
-                    <View style={styles.detailItem}>
-                      <Clock size={12} color="#6B7280" />
-                      <Text style={styles.detailText} numberOfLines={1}>{doctor.experience}</Text>
-                    </View>
-                    <View style={styles.detailDivider} />
-                    <View style={styles.detailItem}>
-                      <Award size={12} color="#6B7280" />
-                      <Text style={styles.detailText} numberOfLines={1}>{doctor.degree}</Text>
-                    </View>
-                  </View>
+                    {/* Qualifications - Show if exists */}
+                    {((doctor.qualifications && doctor.qualifications.length > 0) || doctor.qualification) && (
+                        <Text style={styles.doctorQualifications} numberOfLines={2}>
+                            {doctor.qualifications && doctor.qualifications.length > 0
+                                ? (Array.isArray(doctor.qualifications)
+                                    ? doctor.qualifications.join(' • ')
+                                    : doctor.qualifications)
+                                : doctor.qualification}
+                        </Text>
+                    )}
 
-                  <View style={styles.bottomRow}>
-                    <View style={styles.ratingContainer}>
-                      <Star size={14} color="#F59E0B" fill="#F59E0B" />
-                      <Text style={styles.ratingText}>4.8</Text>
-                      <Text style={styles.reviewsText}>(200+)</Text>
+                    <View style={styles.doctorStats}>
+                        <View style={styles.statItem}>
+                            <Star size={14} color="#F59E0B" fill="#F59E0B" />
+                            <Text style={styles.statText}>{doctor.rating || "4.8"}</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <MapPin size={14} color="#6B7280" />
+                            <Text style={styles.statText}>{doctor.location || "Online"}</Text>
+                        </View>
                     </View>
 
-                    <View style={styles.priceContainer}>
-                      <Text style={styles.priceLabel}>From</Text>
-                      <Text style={styles.priceValue}>₹{doctor.fees}</Text>
-                    </View>
-                  </View>
+                    {doctor.available && (
+                        <View style={styles.availableBadge}>
+                            <View style={styles.dot} />
+                            <Text style={styles.availableText}>Available Now</Text>
+                        </View>
+                    )}
                 </View>
 
                 <View style={styles.arrowContainer}>
-                  <View style={styles.arrowCircle}>
-                    <ChevronRight size={18} color="#6366F1" />
-                  </View>
+                    <ChevronRight size={20} color="#4A9B7F" />
                 </View>
-              </View>
-
-              {/* Availability Status */}
-              {doctor.available && (
-                <LinearGradient
-                  colors={["#F0FDF4", "#DCFCE7"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.availabilityBar}
-                >
-                  <View style={styles.availabilityDot} />
-                  <Text style={styles.availabilityText}>
-                    {doctor.location ? `In ${doctor.location}` : "Available Today"}
-                  </Text>
-                  <MapPin size={14} color="#22C55E" />
-                </LinearGradient>
-              )}
             </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
-    </View>
-  );
+        </Animated.View>
+    );
+}
+
+export default function DoctorsScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const [doctors, setDoctors] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+        loadDoctors();
+    }, []);
+
+    const loadDoctors = async () => {
+        try {
+            const response = await api.getDoctors();
+            if (response.success && Array.isArray(response.doctors)) {
+                setDoctors(response.doctors);
+            }
+        } catch (error) {
+            console.error("Error loading doctors:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        loadDoctors();
+    };
+
+    const handleMapPress = async () => {
+        await Haptics.selectionAsync();
+        router.push("/doctors/nearme");
+    };
+
+    const handleDoctorPress = async (doctor) => {
+        await Haptics.selectionAsync();
+        router.push(`/doctors/${doctor._id}`);
+    };
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.centered]}>
+                <ActivityIndicator size="large" color="#4A9B7F" />
+            </View>
+        );
+    }
+
+    return (
+        <View style={styles.container}>
+            <StatusBar style="light" />
+
+            {/* Fixed Header */}
+            <LinearGradient
+                colors={["#4A9B7F", "#3B8068", "#2D6B56"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top + 10 }]}
+            >
+                <View style={styles.headerContent}>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.iconContainer}>
+                            <Stethoscope size={22} color="#FFFFFF" strokeWidth={2} />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <View style={styles.titleRow}>
+                                <Text style={styles.headerTitle}>Find Care</Text>
+                                <TouchableOpacity
+                                    style={styles.mapIconButton}
+                                    onPress={handleMapPress}
+                                    activeOpacity={0.7}
+                                >
+                                    <Map size={20} color="#FFFFFF" strokeWidth={2.5} />
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={styles.headerSubtitle}>
+                                Professional support when you need it
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+            </LinearGradient>
+
+            {/* Doctors List */}
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: insets.bottom + 100 },
+                ]}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
+                <Text style={styles.sectionTitle}>Available Therapists</Text>
+                <Text style={styles.sectionSubtitle}>
+                    Connect with licensed mental health professionals
+                </Text>
+
+                {doctors.map((doctor) => (
+                    <ModernDoctorCard
+                        key={doctor._id}
+                        doctor={doctor}
+                        onPress={() => handleDoctorPress(doctor)}
+                    />
+                ))}
+
+                {doctors.length === 0 && (
+                    <View style={styles.emptyState}>
+                        <View style={styles.emptyIconContainer}>
+                            <Stethoscope size={48} color="#D1D5DB" />
+                        </View>
+                        <Text style={styles.emptyTitle}>No therapists available</Text>
+                        <Text style={styles.emptySubtitle}>Check back later for available professionals</Text>
+                    </View>
+                )}
+
+                <View style={{ height: 40 }} />
+            </ScrollView>
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  loadingContent: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  loadingIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#EEF2FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  loadingTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  loadingSubtitle: {
-    fontSize: 15,
-    color: "#6B7280",
-  },
-
-  // Header
-  header: {
-    backgroundColor: "#FFFFFF",
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  headerIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#EEF2FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-
-  // Search
-  searchContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    color: "#1F2937",
-  },
-
-  // Results Header
-  resultsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  resultsCount: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  sortButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  sortText: {
-    fontSize: 13,
-    color: "#6366F1",
-    fontWeight: "500",
-  },
-
-  // List
-  listContainer: {
-    paddingHorizontal: 20,
-  },
-
-  // Doctor Card
-  doctorCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    marginBottom: 16,
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 5,
-    overflow: "hidden",
-  },
-  featuredBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F59E0B",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderBottomLeftRadius: 12,
-    gap: 4,
-    zIndex: 1,
-  },
-  featuredText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  cardContent: {
-    flexDirection: "row",
-    padding: 16,
-  },
-  imageContainer: {
-    position: "relative",
-  },
-  doctorImage: {
-    width: 85,
-    height: 85,
-    borderRadius: 18,
-    backgroundColor: "#F3F4F6",
-  },
-  onlineDot: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#22C55E",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  doctorInfo: {
-    flex: 1,
-    marginLeft: 14,
-    overflow: "hidden",
-  },
-  doctorName: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 6,
-  },
-  specialtyBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  specialtyText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6366F1",
-  },
-  detailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    flexWrap: "wrap",
-  },
-  detailItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    maxWidth: "45%",
-  },
-  detailText: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  detailDivider: {
-    width: 1,
-    height: 12,
-    backgroundColor: "#E5E7EB",
-    marginHorizontal: 10,
-  },
-  bottomRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  reviewsText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-  },
-  priceContainer: {
-    alignItems: "flex-end",
-  },
-  priceLabel: {
-    fontSize: 10,
-    color: "#9CA3AF",
-    marginBottom: 2,
-  },
-  priceValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#6366F1",
-  },
-  arrowContainer: {
-    justifyContent: "center",
-    paddingLeft: 8,
-  },
-  arrowCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#EEF2FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Availability Bar
-  availabilityBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    gap: 8,
-  },
-  availabilityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
-  },
-  availabilityText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#16A34A",
-  },
-
-  // Error State
-  errorContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  errorIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#FEE2E2",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  errorIcon: {
-    fontSize: 36,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  errorText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  retryButton: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 15,
-  },
-
-  // Empty State
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  nearMeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#10B981",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
-  },
-  nearMeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
+    container: {
+        flex: 1,
+        backgroundColor: "#F9FAFB",
+    },
+    centered: {
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    header: {
+        paddingBottom: 12,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        shadowColor: "#4A9B7F",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    headerContent: {
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+    },
+    headerLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    iconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 12,
+    },
+    headerTextContainer: {
+        flex: 1,
+    },
+    titleRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    mapIconButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: "rgba(255, 255, 255, 0.25)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    headerTitle: {
+        fontSize: 26,
+        fontWeight: "800",
+        color: "#FFFFFF",
+        letterSpacing: -0.3,
+    },
+    headerSubtitle: {
+        fontSize: 13,
+        color: "rgba(255, 255, 255, 0.9)",
+        marginTop: 2,
+        fontWeight: "500",
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 28,
+    },
+    sectionTitle: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#1F2937",
+        marginBottom: 8,
+    },
+    sectionSubtitle: {
+        fontSize: 15,
+        color: "#6B7280",
+        marginBottom: 24,
+        lineHeight: 22,
+    },
+    doctorCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: "#F3F4F6",
+    },
+    doctorImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        marginRight: 16,
+    },
+    doctorInfo: {
+        flex: 1,
+    },
+    doctorName: {
+        fontSize: 17,
+        fontWeight: "700",
+        color: "#1F2937",
+        marginBottom: 4,
+    },
+    doctorSpecialty: {
+        fontSize: 14,
+        color: "#4B5563",
+        marginBottom: 4,
+        fontWeight: "500",
+    },
+    doctorQualifications: {
+        fontSize: 13,
+        color: "#4A9B7F",
+        marginBottom: 10,
+        fontWeight: "600",
+        lineHeight: 18,
+    },
+    doctorStats: {
+        flexDirection: "row",
+        gap: 12,
+        marginBottom: 8,
+    },
+    statItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    statText: {
+        fontSize: 13,
+        color: "#6B7280",
+    },
+    availableBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "#10B981",
+    },
+    availableText: {
+        fontSize: 12,
+        color: "#10B981",
+        fontWeight: "600",
+    },
+    arrowContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "#F3F4F6",
+        justifyContent: "center",
+        alignItems: "center",
+        marginLeft: 12,
+    },
+    emptyState: {
+        paddingVertical: 60,
+        alignItems: "center",
+    },
+    emptyIconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: "#F3F4F6",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    emptyTitle: {
+        fontSize: 17,
+        fontWeight: "600",
+        color: "#1F2937",
+    },
+    emptySubtitle: {
+        fontSize: 15,
+        color: "#6B7280",
+        marginTop: 8,
+    },
 });

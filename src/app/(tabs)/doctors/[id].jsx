@@ -15,6 +15,7 @@ import { Video } from 'expo-av';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   ArrowLeft,
   MapPin,
@@ -27,6 +28,7 @@ import {
   AlertCircle,
   CheckCircle,
   MessageSquare,
+  Calendar,
 } from "lucide-react-native";
 import api from "../../../utils/api";
 
@@ -299,14 +301,29 @@ export default function DoctorDetailScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")} style={styles.backBtn}>
-          <ArrowLeft color="#1F2937" size={24} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Book Appointment</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      {/* Green Gradient Header */}
+      <LinearGradient
+        colors={["#4A9B7F", "#3B8068", "#2D6B56"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")} style={styles.backBtn}>
+            <ArrowLeft color="#FFFFFF" size={24} strokeWidth={2.5} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <View style={styles.titleRow}>
+              <Text style={styles.headerTitle}>Book Appointment</Text>
+              <View style={styles.iconContainer}>
+                <Calendar size={18} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
+            </View>
+            <Text style={styles.headerSubtitle}>Schedule your consultation</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+      </LinearGradient>
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
@@ -687,30 +704,62 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    paddingBottom: 12,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: "#4A9B7F",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  headerContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingVertical: 18,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.9)",
+    marginTop: 2,
+    fontWeight: "500",
   },
   doctorCard: {
     margin: 20,
+    marginTop: 24,
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,

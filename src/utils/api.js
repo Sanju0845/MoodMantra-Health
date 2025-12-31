@@ -218,6 +218,23 @@ class API {
         return response;
     }
 
+    async googleAuth(authCode, redirectUri) {
+        const response = await this.request("/api/user/google-auth", {
+            method: "POST",
+            body: JSON.stringify({ code: authCode, redirectUri }),
+        });
+
+        if (response.success && response.token && validateToken(response.token)) {
+            await AsyncStorage.setItem("token", response.token);
+            // Fetch profile and sync
+            const profile = await this.getProfile();
+            if (profile.success && profile.userData) this.syncUserToSupabase(profile.userData);
+        }
+
+        return response;
+    }
+
+    // Legacy method - keeping for backward compatibility
     async googleLogin(idToken) {
         const response = await this.request("/api/user/google-login", {
             method: "POST",
@@ -1159,6 +1176,13 @@ class API {
         return this.request("/api/moods/submit-mood", {
             method: "POST",
             body: JSON.stringify(payload)
+        });
+    }
+
+    async getWebMoods(userId) {
+        if (!userId) throw new Error("User ID required");
+        return this.request(`/api/moods/user/${userId}`, {
+            method: "GET"
         });
     }
 
