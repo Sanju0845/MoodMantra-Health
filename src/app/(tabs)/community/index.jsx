@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
     View,
     Text,
@@ -7,6 +7,7 @@ import {
     StyleSheet,
     ActivityIndicator,
     Animated,
+    Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useNavigation } from "expo-router";
@@ -28,6 +29,8 @@ import {
     Shield,
 } from "lucide-react-native";
 import { supabase } from "../../../utils/supabaseClient";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Icon mapping with colors
 const ICON_CONFIG = {
@@ -109,6 +112,8 @@ function ModernRoomCard({ room, onPress }) {
     );
 }
 
+
+
 export default function CommunityHub() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
@@ -116,34 +121,6 @@ export default function CommunityHub() {
     const [rooms, setRooms] = useState(FALLBACK_ROOMS);
     const [loading, setLoading] = useState(true);
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
-
-    // Ensure tab bar is visible with correct styles
-    useLayoutEffect(() => {
-        const parentNav = navigation.getParent();
-        if (parentNav) {
-            parentNav.setOptions({
-                tabBarStyle: {
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    backgroundColor: "#FFFFFF",
-                    borderTopWidth: 0,
-                    height: 60 + insets.bottom,
-                    paddingBottom: insets.bottom + 8,
-                    paddingTop: 6,
-                    paddingHorizontal: 10,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: -4 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 12,
-                    elevation: 20,
-                    borderTopLeftRadius: 20,
-                    borderTopRightRadius: 20,
-                }
-            });
-        }
-    }, [navigation, insets.bottom]);
 
     useEffect(() => {
         fetchRooms();
@@ -183,6 +160,7 @@ export default function CommunityHub() {
         }
     };
 
+
     const handleRoomPress = async (room) => {
         await Haptics.selectionAsync();
         router.push({
@@ -203,17 +181,17 @@ export default function CommunityHub() {
         <View style={styles.container}>
             <StatusBar style="light" />
 
-            {/* Pink Gradient Header */}
+            {/* Pink Gradient Header - Reduced Size */}
             <LinearGradient
                 colors={["#EC4899", "#DB2777", "#BE185D"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={[styles.header, { paddingTop: insets.top + 20 }]}
+                style={[styles.header, { paddingTop: insets.top + 12 }]}
             >
                 <View style={styles.headerContent}>
                     <View style={styles.headerLeft}>
                         <View style={styles.sparkleContainer}>
-                            <Sparkles size={28} color="#FCD34D" strokeWidth={2} />
+                            <Sparkles size={24} color="#FCD34D" strokeWidth={2} />
                         </View>
                         <View style={styles.headerTextContainer}>
                             <Text style={styles.headerTitle}>Community</Text>
@@ -221,50 +199,35 @@ export default function CommunityHub() {
                         </View>
                     </View>
                 </View>
-
-                {/* Modern Stats Bar */}
-                <View style={styles.statsBar}>
-                    <View style={styles.statItem}>
-                        <Users size={16} color="#FFFFFF" />
-                        <Text style={styles.statValue}>{rooms.length}</Text>
-                        <Text style={styles.statLabel}>Spaces</Text>
-                    </View>
-                    <View style={styles.statDivider} />
-                    <View style={styles.statItem}>
-                        <TrendingUp size={16} color="#FFFFFF" />
-                        <Text style={styles.statValue}>Active</Text>
-                        <Text style={styles.statLabel}>24/7</Text>
-                    </View>
-                    <View style={styles.statDivider} />
-                    <View style={styles.statItem}>
-                        <Shield size={16} color="#FFFFFF" />
-                        <Text style={styles.statValue}>Safe</Text>
-                        <Text style={styles.statLabel}>Space</Text>
-                    </View>
-                </View>
             </LinearGradient>
 
-            {/* Room List */}
+            {/* Main Content - Chat Groups Only */}
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={[
                     styles.scrollContent,
-                    { paddingBottom: insets.bottom + 20 },
+                    { paddingBottom: insets.bottom + 80 },
                 ]}
                 showsVerticalScrollIndicator={false}
             >
-                <Text style={styles.sectionTitle}>Join a Community</Text>
-                <Text style={styles.sectionSubtitle}>
-                    Find support, share experiences, and connect with others
-                </Text>
+                {/* Chat Groups Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <MessageCircle size={20} color="#8B5CF6" strokeWidth={2.5} />
+                        <Text style={styles.sectionTitle}>Chat Groups</Text>
+                    </View>
+                    <Text style={styles.sectionSubtitle}>
+                        Join conversations and connect with others
+                    </Text>
 
-                {rooms.map((room, index) => (
-                    <ModernRoomCard
-                        key={room.id}
-                        room={room}
-                        onPress={() => handleRoomPress(room)}
-                    />
-                ))}
+                    {rooms.map((room, index) => (
+                        <ModernRoomCard
+                            key={room.id}
+                            room={room}
+                            onPress={() => handleRoomPress(room)}
+                        />
+                    ))}
+                </View>
 
                 {/* Bottom Spacing */}
                 <View style={{ height: 40 }} />
@@ -283,45 +246,45 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     header: {
-        paddingBottom: 24,
-        borderBottomLeftRadius: 32,
-        borderBottomRightRadius: 32,
+        paddingBottom: 16,
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
         shadowColor: "#8B5CF6",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        elevation: 6,
     },
     headerContent: {
         paddingHorizontal: 24,
-        marginBottom: 20,
+        marginBottom: 12,
     },
     headerLeft: {
         flexDirection: "row",
         alignItems: "center",
     },
     sparkleContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         backgroundColor: "rgba(255, 255, 255, 0.2)",
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 16,
+        marginRight: 14,
     },
     headerTextContainer: {
         flex: 1,
     },
     headerTitle: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: "800",
         color: "#FFFFFF",
         letterSpacing: -0.5,
     },
     headerSubtitle: {
-        fontSize: 15,
+        fontSize: 14,
         color: "rgba(255, 255, 255, 0.9)",
-        marginTop: 4,
+        marginTop: 3,
         fontWeight: "500",
     },
     statsBar: {
@@ -358,13 +321,21 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 20,
-        paddingTop: 28,
+        paddingTop: 20,
+    },
+    section: {
+        marginBottom: 32,
+    },
+    sectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 8,
     },
     sectionTitle: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: "700",
         color: "#1F2937",
-        marginBottom: 8,
     },
     sectionSubtitle: {
         fontSize: 15,
@@ -422,5 +393,63 @@ const styles = StyleSheet.create({
         fontSize: 18,
         color: "#8B5CF6",
         fontWeight: "600",
+    },
+    // Blog Carousel Styles
+    blogCarousel: {
+        marginTop: 16,
+    },
+    blogCarouselContent: {
+        paddingRight: 20,
+    },
+    blogCard: {
+        width: SCREEN_WIDTH * 0.75,
+        height: 200,
+        marginBottom: 8,
+        borderRadius: 16,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5,
+        backgroundColor: "#FFFFFF",
+    },
+    blogCardImage: {
+        width: "100%",
+        height: "100%",
+        position: "absolute",
+    },
+    blogCardOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.4)",
+        padding: 16,
+        justifyContent: "flex-end",
+    },
+    blogCardContent: {
+        gap: 6,
+    },
+    blogCardTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#FFFFFF",
+        lineHeight: 22,
+    },
+    blogCardExcerpt: {
+        fontSize: 12,
+        color: "rgba(255, 255, 255, 0.9)",
+        lineHeight: 18,
+    },
+    blogCardCategoryContainer: {
+        alignSelf: "flex-start",
+        backgroundColor: "rgba(138, 92, 246, 0.9)",
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginBottom: 4,
+    },
+    blogCardCategory: {
+        fontSize: 10,
+        fontWeight: "600",
+        color: "#FFFFFF",
     },
 });

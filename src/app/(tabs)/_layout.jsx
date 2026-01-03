@@ -16,13 +16,16 @@ import React from "react";
 const ACTIVE_COLOR = "#4A9B7F";
 const INACTIVE_COLOR = "#B0B8C1";
 
-// Ultra-smooth Material Tab Icon
+// Ultra-smooth Material Tab Icon with Ripple Effect
 const SmoothTabIcon = ({ icon: Icon, focused }) => {
   const scaleAnim = React.useRef(new Animated.Value(focused ? 1 : 0.9)).current;
   const opacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0.6)).current;
   const bgOpacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const rippleScale = React.useRef(new Animated.Value(0)).current;
+  const rippleOpacity = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
+    // Icon animations
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: focused ? 1 : 0.9,
@@ -43,10 +46,59 @@ const SmoothTabIcon = ({ icon: Icon, focused }) => {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Ripple effect on focus
+    if (focused) {
+      rippleScale.setValue(0);
+      rippleOpacity.setValue(0.6);
+
+      Animated.parallel([
+        Animated.timing(rippleScale, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rippleOpacity, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
   }, [focused]);
 
   return (
-    <View style={{ alignItems: "center", justifyContent: "center", height: 48 }}>
+    <View style={{ alignItems: "center", justifyContent: "center", height: 48, width: 48 }}>
+      {/* Ripple Effect */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: ACTIVE_COLOR,
+          opacity: rippleOpacity,
+          transform: [{ scale: rippleScale }],
+        }}
+      />
+
+      {/* Background Circle */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: ACTIVE_COLOR,
+          opacity: bgOpacityAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 0.15],
+          }),
+        }}
+      />
+
       {/* Smooth Icon */}
       <Animated.View
         style={{

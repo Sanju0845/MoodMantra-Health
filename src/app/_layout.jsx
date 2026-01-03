@@ -45,7 +45,19 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <WellnessProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { flex: 1 } }} initialRouteName="index">
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { flex: 1 },
+              presentation: 'card',
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+              fullScreenGestureEnabled: true,
+              animationTypeForReplace: 'push',
+            }}
+            initialRouteName="index"
+          >
             <Stack.Screen name="index" />
           </Stack>
         </GestureHandlerRootView>

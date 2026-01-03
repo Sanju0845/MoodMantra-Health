@@ -6,9 +6,11 @@ export default function DoctorsLayout() {
         <Stack
             screenOptions={{
                 headerShown: false,
+                presentation: 'card',
                 animation: 'slide_from_right',
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
+                fullScreenGestureEnabled: true,
                 contentStyle: { backgroundColor: '#FFFFFF' },
             }}
         >

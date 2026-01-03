@@ -417,7 +417,8 @@ export const WellnessProvider = ({ children }) => {
         updateSleep,
         updateBreathing,
         updateHabits,
-        refreshData: loadData
+        refreshData: loadData,
+        loading
       }}
     >
       {children}
