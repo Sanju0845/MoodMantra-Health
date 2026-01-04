@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
+    Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,8 +25,13 @@ import {
     Sparkles,
     Clock,
     CheckCircle,
+    Compass,
 } from "lucide-react-native";
 import api from "../../../utils/api";
+
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = width * 0.7;
+const CARD_SPACING = 12;
 
 // Therapy type icons and colors
 const therapyTypeConfig = {
@@ -35,7 +41,7 @@ const therapyTypeConfig = {
     child: { icon: Smile, color: "#F59E0B", bgColor: "#FEF3C7", label: "Child" },
 };
 
-export default function AssessmentScreen() {
+export default function ExploreScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
 
@@ -48,27 +54,23 @@ export default function AssessmentScreen() {
 
     const fetchData = useCallback(async () => {
         try {
-            // Get user ID
             const storedUserId = await AsyncStorage.getItem("userId");
             setUserId(storedUserId);
 
-            // Fetch assessments by therapy type
-            const assessmentsData = await api.getAssessments(selectedTherapyType);
-            console.log("[Assessment] Fetched assessments:", assessmentsData?.length || 0);
-            setAssessments(Array.isArray(assessmentsData) ? assessmentsData : []);
+            const data = await api.getAssessments(selectedTherapyType);
+            setAssessments(Array.isArray(data) ? data : []);
 
-            // Fetch user's assessment history if logged in
             if (storedUserId) {
                 try {
                     const userAssessmentsData = await api.getUserAssessments(storedUserId);
                     setUserAssessments(Array.isArray(userAssessmentsData) ? userAssessmentsData : []);
                 } catch (err) {
-                    console.log("[Assessment] No user assessments found");
+                    console.log("[Explore] No user assessments found");
                     setUserAssessments([]);
                 }
             }
         } catch (error) {
-            console.error("[Assessment] Error fetching data:", error);
+            console.error("[Explore] Error fetching data:", error);
             setAssessments([]);
         } finally {
             setLoading(false);
@@ -96,96 +98,179 @@ export default function AssessmentScreen() {
         });
     };
 
-    // Check if user has completed this assessment recently
     const hasCompletedRecently = (assessmentId) => {
         const recent = userAssessments.find(
             (ua) => ua.assessmentId === assessmentId
         );
         if (!recent) return false;
-        // Consider "recently" as within the last 7 days
         const completedDate = new Date(recent.completedAt);
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         return completedDate > sevenDaysAgo;
     };
 
-    const TherapyTypeTab = ({ type, config }) => (
-        <TouchableOpacity
-            onPress={() => {
-                setSelectedTherapyType(type);
-                setLoading(true);
-            }}
-            style={[
-                styles.therapyTab,
-                selectedTherapyType === type && {
-                    backgroundColor: config.bgColor,
-                    borderColor: config.color,
-                },
-            ]}
-        >
-            <config.icon
-                size={18}
-                color={selectedTherapyType === type ? config.color : "rgba(255, 255, 255, 0.9)"}
-            />
-            <Text
-                style={[
-                    styles.therapyTabText,
-                    selectedTherapyType === type && { color: config.color },
-                ]}
-            >
-                {config.label}
-            </Text>
-        </TouchableOpacity>
-    );
+    const TherapyTypeCapsule = ({ type, config }) => {
+        const isSelected = selectedTherapyType === type;
 
-    const AssessmentCard = ({ assessment }) => {
+        return (
+            <TouchableOpacity
+                onPress={() => {
+                    setSelectedTherapyType(type);
+                    setLoading(true);
+                }}
+                style={[
+                    styles.capsule,
+                    isSelected && {
+                        backgroundColor: config.color,
+                        shadowColor: config.color,
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 8,
+                        elevation: 8,
+                        transform: [{ scale: 1.02 }],
+                    },
+                ]}
+                activeOpacity={0.8}
+            >
+                <View style={[
+                    styles.capsuleIconBg,
+                    isSelected && { backgroundColor: 'rgba(255, 255, 255, 0.25)' }
+                ]}>
+                    <config.icon
+                        size={18}
+                        color={isSelected ? "#FFFFFF" : config.color}
+                        strokeWidth={2.5}
+                    />
+                </View>
+                <Text
+                    style={[
+                        styles.capsuleText,
+                        isSelected && { color: "#FFFFFF", fontWeight: "700" },
+                    ]}
+                >
+                    {config.label}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
+
+    const AssessmentCarouselCard = ({ assessment, isFirst, isLast }) => {
         const completed = hasCompletedRecently(assessment._id);
         const config = therapyTypeConfig[selectedTherapyType];
 
         return (
             <TouchableOpacity
-                style={styles.assessmentCard}
+                style={[
+                    styles.carouselCard,
+                    isFirst && { marginLeft: 20 },
+                    isLast && { marginRight: 20 },
+                ]}
                 onPress={() => handleStartAssessment(assessment)}
-                activeOpacity={0.7}
+                activeOpacity={0.95}
             >
-                <View style={[styles.cardAccent, { backgroundColor: config.color }]} />
-                <View style={styles.cardContent}>
-                    <View style={styles.cardHeader}>
-                        <View style={[styles.cardIcon, { backgroundColor: config.bgColor }]}>
-                            <ClipboardList size={24} color={config.color} />
+                <LinearGradient
+                    colors={[config.color, config.color + 'E6', config.color + 'CC']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.carouselCardGradient}
+                >
+                    {/* Decorative Background Pattern */}
+                    <View style={styles.cardPattern}>
+                        <View style={[styles.patternCircle, { top: -20, right: -20 }]} />
+                        <View style={[styles.patternCircle, { bottom: 10, left: -30, opacity: 0.1 }]} />
+                    </View>
+
+                    <View style={styles.carouselCardContent}>
+                        <View style={styles.carouselCardHeader}>
+                            <View style={styles.carouselCardIconContainer}>
+                                <ClipboardList size={32} color="#FFFFFF" strokeWidth={2} />
+                            </View>
+                            {completed && (
+                                <View style={styles.completedBadge}>
+                                    <CheckCircle size={14} color="#10B981" strokeWidth={3} />
+                                    <Text style={styles.completedBadgeText}>Completed</Text>
+                                </View>
+                            )}
                         </View>
-                        <View style={styles.cardInfo}>
-                            <Text style={styles.cardTitle}>{assessment.title}</Text>
-                            <View style={styles.cardMeta}>
-                                <Clock size={14} color="#9CA3AF" />
-                                <Text style={styles.cardMetaText}>
-                                    {assessment.questions?.length || 0} questions
+
+                        <View style={styles.cardBody}>
+                            <Text style={styles.carouselCardTitle} numberOfLines={2}>
+                                {assessment.title}
+                            </Text>
+                            <Text style={styles.carouselCardDescription} numberOfLines={2}>
+                                {assessment.description}
+                            </Text>
+                        </View>
+
+                        <View style={styles.cardDivider} />
+
+                        <View style={styles.carouselCardFooter}>
+                            <View style={styles.carouselCardMeta}>
+                                <Clock size={16} color="rgba(255, 255, 255, 0.95)" strokeWidth={2} />
+                                <Text style={styles.carouselCardMetaText}>
+                                    {assessment.questions?.length || 0} Questions
                                 </Text>
-                                {completed && (
-                                    <>
-                                        <CheckCircle size={14} color="#10B981" style={{ marginLeft: 8 }} />
-                                        <Text style={[styles.cardMetaText, { color: "#10B981" }]}>
-                                            Completed
-                                        </Text>
-                                    </>
-                                )}
+                            </View>
+                            <View style={styles.carouselStartButton}>
+                                <Text style={styles.carouselStartButtonText}>
+                                    {completed ? "Retake" : "Begin"}
+                                </Text>
+                                <ChevronRight size={20} color="#FFFFFF" strokeWidth={2.5} />
                             </View>
                         </View>
                     </View>
-                    <Text style={styles.cardDescription} numberOfLines={2}>
-                        {assessment.description}
-                    </Text>
-                    <View style={styles.cardFooter}>
-                        <View style={[styles.startButton, { backgroundColor: config.color }]}>
-                            <Text style={styles.startButtonText}>
-                                {completed ? "Retake" : "Start Now"}
-                            </Text>
-                            <ChevronRight size={16} color="#FFFFFF" />
-                        </View>
-                    </View>
-                </View>
+                </LinearGradient>
             </TouchableOpacity>
         );
     };
+
+    const TeenAssessmentSection = () => (
+        <View style={styles.teenSection}>
+            <View style={styles.sectionHeaderContainer}>
+                <View style={styles.sectionHeaderLeft}>
+                    <View style={styles.teenIconContainer}>
+                        <Sparkles size={18} color="#FF6B6B" strokeWidth={2} />
+                    </View>
+                    <View>
+                        <Text style={styles.teenTitle}>Teen Assessment</Text>
+                        <Text style={styles.teenSubtitle}>Ages 13-19</Text>
+                    </View>
+                </View>
+            </View>
+
+            <TouchableOpacity
+                style={styles.comingSoonCard}
+                activeOpacity={0.9}
+                onPress={() => router.push("/(tabs)/teen-assessment")}
+            >
+                <LinearGradient
+                    colors={['#FF6B6B', '#FF8E53', '#FFA940']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.comingSoonGradient}
+                >
+                    {/* Background Pattern */}
+                    <View style={styles.comingSoonPattern}>
+                        <View style={[styles.patternCircle, { top: -40, right: -40, width: 120, height: 120, opacity: 0.15 }]} />
+                        <View style={[styles.patternCircle, { bottom: -20, left: -20, width: 80, height: 80, opacity: 0.1 }]} />
+                    </View>
+
+                    <View style={styles.comingSoonIcon}>
+                        <Sparkles size={40} color="rgba(255, 255, 255, 0.95)" strokeWidth={2} />
+                    </View>
+
+                    <Text style={styles.comingSoonTitle}>Teen Assessment</Text>
+                    <Text style={styles.comingSoonText}>
+                        Discover your natural strengths, interests, skills, and career paths designed specifically for ages 13-19
+                    </Text>
+
+                    <View style={styles.comingSoonBadge}>
+                        <View style={styles.badgeDot} />
+                        <Text style={styles.comingSoonBadgeText}>START YOUR JOURNEY</Text>
+                    </View>
+                </LinearGradient>
+            </TouchableOpacity>
+        </View>
+    );
 
     if (loading) {
         return (
@@ -193,92 +278,148 @@ export default function AssessmentScreen() {
                 <StatusBar style="dark" />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#8B5CF6" />
-                    <Text style={styles.loadingText}>Loading assessments...</Text>
+                    <Text style={styles.loadingText}>Loading your assessments...</Text>
                 </View>
             </View>
         );
     }
 
+    const completedCount = assessments.filter(a => hasCompletedRecently(a._id)).length;
+
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
 
-            {/* Purple Gradient Header */}
+            {/* Professional Header */}
             <LinearGradient
-                colors={["#8B5CF6", "#7C3AED", "#6366F1"]}
+                colors={["#8B5CF6", "#7C3AED", "#6D28D9"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={[styles.header, { paddingTop: insets.top + 10 }]}
+                style={[styles.header, { paddingTop: insets.top + 12 }]}
             >
                 <View style={styles.headerContent}>
-                    <View style={styles.iconContainer}>
-                        <Brain size={22} color="#FFFFFF" strokeWidth={2} />
+                    <View style={styles.headerLeft}>
+                        <View style={styles.iconContainer}>
+                            <Compass size={20} color="#FFFFFF" strokeWidth={2.5} />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.headerTitle}>Explore Assessments</Text>
+                            <Text style={styles.headerSubtitle}>Find the right assessment for you</Text>
+                        </View>
                     </View>
-                    <View style={styles.headerText}>
-                        <Text style={styles.headerTitle}>Assessments</Text>
-                        <Text style={styles.headerSubtitle}>Understand your mental health</Text>
-                    </View>
-                </View>
-
-                {/* Therapy Type Tabs - Inside Header */}
-                <View style={styles.therapyTabsInHeader}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {Object.entries(therapyTypeConfig).map(([type, config]) => (
-                            <TherapyTypeTab key={type} type={type} config={config} />
-                        ))}
-                    </ScrollView>
                 </View>
             </LinearGradient>
 
-
-            {/* Assessments List */}
+            {/* Main Content */}
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={[
                     styles.scrollContent,
-                    { paddingBottom: insets.bottom + 130 },
+                    { paddingBottom: insets.bottom + 140 },
                 ]}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
                 showsVerticalScrollIndicator={false}
             >
-                {/* Info Banner */}
-                <View style={styles.infoBanner}>
-                    <Sparkles size={20} color="#F59E0B" />
-                    <Text style={styles.infoBannerText}>
-                        Take assessments to get personalized recommendations and track your progress
-                    </Text>
+                {/* Therapy Type Capsules */}
+                <View style={styles.capsulesSection}>
+                    <Text style={styles.capsulesSectionTitle}>Select Category</Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.capsulesContent}
+                    >
+                        {Object.entries(therapyTypeConfig).map(([type, config]) => (
+                            <TherapyTypeCapsule key={type} type={type} config={config} />
+                        ))}
+                    </ScrollView>
                 </View>
 
+                {/* Assessment Carousel */}
                 {assessments.length === 0 ? (
                     <View style={styles.emptyState}>
-                        <ClipboardList size={48} color="#D1D5DB" />
-                        <Text style={styles.emptyTitle}>No assessments available</Text>
+                        <View style={styles.emptyIconContainer}>
+                            <ClipboardList size={64} color="#D1D5DB" strokeWidth={1.5} />
+                        </View>
+                        <Text style={styles.emptyTitle}>No Assessments Yet</Text>
                         <Text style={styles.emptySubtitle}>
-                            Check back later for {therapyTypeConfig[selectedTherapyType].label.toLowerCase()} therapy assessments
+                            We're preparing {therapyTypeConfig[selectedTherapyType].label.toLowerCase()} therapy assessments for you. Check back soon!
                         </Text>
                     </View>
                 ) : (
-                    assessments.map((assessment) => (
-                        <AssessmentCard key={assessment._id} assessment={assessment} />
-                    ))
+                    <>
+                        <View style={styles.carouselHeader}>
+                            <Text style={styles.carouselHeaderTitle}>
+                                {therapyTypeConfig[selectedTherapyType].label} Therapy
+                            </Text>
+                            <Text style={styles.carouselHeaderCount}>
+                                {assessments.length} assessment{assessments.length !== 1 ? 's' : ''}
+                            </Text>
+                        </View>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.carouselContent}
+                            snapToInterval={CARD_WIDTH + CARD_SPACING}
+                            decelerationRate="fast"
+                            style={styles.carouselScrollView}
+                        >
+                            {assessments.map((assessment, index) => (
+                                <AssessmentCarouselCard
+                                    key={assessment._id}
+                                    assessment={assessment}
+                                    isFirst={index === 0}
+                                    isLast={index === assessments.length - 1}
+                                />
+                            ))}
+                        </ScrollView>
+                    </>
                 )}
 
-                {/* User's Recent Assessments */}
+                {/* Teen Assessment Section */}
+                <TeenAssessmentSection />
+
+                {/* User's Recent Results */}
                 {userAssessments.length > 0 && (
                     <View style={styles.historySection}>
-                        <Text style={styles.sectionTitle}>Your Recent Results</Text>
+                        <View style={styles.historySectionHeader}>
+                            <Text style={styles.sectionTitle}>Recent Results</Text>
+                            <View style={styles.historyBadge}>
+                                <Text style={styles.historyBadgeText}>{userAssessments.length}</Text>
+                            </View>
+                        </View>
                         {userAssessments.slice(0, 3).map((result) => (
                             <View key={result._id} style={styles.historyCard}>
-                                <View style={styles.historyHeader}>
-                                    <Text style={styles.historyTitle}>{result.title}</Text>
-                                    <Text style={styles.historyDate}>
-                                        {new Date(result.completedAt).toLocaleDateString()}
-                                    </Text>
+                                <View style={styles.historyCardLeft}>
+                                    <View style={[
+                                        styles.historyCardIcon,
+                                        {
+                                            backgroundColor: result.result?.includes("Severe") ? "#FEE2E2" :
+                                                result.result?.includes("Moderate") ? "#FEF3C7" : "#D1FAE5"
+                                        }
+                                    ]}>
+                                        <Brain
+                                            size={20}
+                                            color={
+                                                result.result?.includes("Severe") ? "#EF4444" :
+                                                    result.result?.includes("Moderate") ? "#F59E0B" : "#10B981"
+                                            }
+                                            strokeWidth={2}
+                                        />
+                                    </View>
+                                    <View style={styles.historyCardInfo}>
+                                        <Text style={styles.historyTitle} numberOfLines={1}>{result.title}</Text>
+                                        <Text style={styles.historyDate}>
+                                            {new Date(result.completedAt).toLocaleDateString('en-US', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                year: 'numeric'
+                                            })}
+                                        </Text>
+                                    </View>
                                 </View>
-                                <View style={styles.historyResult}>
-                                    <Text style={styles.historyScore}>Score: {result.totalScore}</Text>
+                                <View style={styles.historyCardRight}>
                                     <Text style={[
                                         styles.historyResultText,
                                         {
@@ -298,240 +439,490 @@ export default function AssessmentScreen() {
     );
 }
 
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F9FAFB",
+        backgroundColor: "#F8F9FA",
     },
     loadingContainer: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: "#F8F9FA",
     },
     loadingText: {
-        marginTop: 12,
-        fontSize: 16,
+        marginTop: 16,
+        fontSize: 15,
         color: "#6B7280",
+        fontWeight: "500",
     },
+
+    // Header Styles
     header: {
-        paddingBottom: 32,
-        borderBottomLeftRadius: 32,
-        borderBottomRightRadius: 32,
+        paddingBottom: 20,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
         shadowColor: "#8B5CF6",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
         shadowRadius: 12,
         elevation: 8,
     },
     headerContent: {
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+    },
+    headerLeft: {
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 24,
-        paddingVertical: 12,
     },
     iconContainer: {
         width: 44,
         height: 44,
-        borderRadius: 22,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        borderRadius: 12,
+        backgroundColor: "rgba(255, 255, 255, 0.18)",
         justifyContent: "center",
         alignItems: "center",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.25)",
     },
-    headerText: {
-        marginLeft: 12,
+    headerTextContainer: {
+        marginLeft: 14,
+        flex: 1,
     },
     headerTitle: {
-        fontSize: 26,
-        fontWeight: "800",
+        fontSize: 18,
+        fontWeight: "700",
         color: "#FFFFFF",
         letterSpacing: -0.3,
+        marginBottom: 2,
     },
     headerSubtitle: {
-        fontSize: 13,
-        color: "rgba(255, 255, 255, 0.9)",
-        marginTop: 2,
+        fontSize: 12,
+        color: "rgba(255, 255, 255, 0.88)",
         fontWeight: "500",
+        letterSpacing: 0.1,
     },
-    therapyTabsInHeader: {
-        paddingTop: 16,
-        paddingBottom: 8,
-        paddingHorizontal: 20,
-    },
-    therapyTabs: {
-        backgroundColor: "#FFFFFF",
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: "#F3F4F6",
-    },
-    therapyTab: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        marginHorizontal: 6,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        borderColor: "rgba(255, 255, 255, 0.3)",
-        backgroundColor: "rgba(255, 255, 255, 0.15)",
-    },
-    therapyTabText: {
-        marginLeft: 6,
-        fontSize: 14,
-        fontWeight: "600",
-        color: "rgba(255, 255, 255, 0.9)",
-    },
+
     scrollView: {
         flex: 1,
     },
     scrollContent: {
-        padding: 16,
+        paddingTop: 24,
     },
-    infoBanner: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#FEF3C7",
-        padding: 14,
-        borderRadius: 12,
-        marginBottom: 16,
+
+    // Capsules Section
+    capsulesSection: {
+        marginBottom: 28,
     },
-    infoBannerText: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 14,
-        color: "#92400E",
-        lineHeight: 20,
-    },
-    assessmentCard: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 16,
-        marginBottom: 16,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-        overflow: "hidden",
-    },
-    cardAccent: {
-        height: 4,
-    },
-    cardContent: {
-        padding: 16,
-    },
-    cardHeader: {
-        flexDirection: "row",
-        alignItems: "center",
+    capsulesSectionTitle: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#6B7280",
+        textTransform: "uppercase",
+        letterSpacing: 1,
+        paddingHorizontal: 24,
         marginBottom: 12,
     },
-    cardIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+    capsulesContent: {
+        paddingHorizontal: 24,
+        gap: 12,
+    },
+    capsule: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        borderRadius: 28,
+        backgroundColor: "#FFFFFF",
+        gap: 10,
+        borderWidth: 2,
+        borderColor: "#F3F4F6",
+    },
+    capsuleIconBg: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        backgroundColor: "#F9FAFB",
         justifyContent: "center",
         alignItems: "center",
     },
-    cardInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    cardTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        color: "#1F2937",
-    },
-    cardMeta: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 4,
-    },
-    cardMetaText: {
-        fontSize: 13,
-        color: "#9CA3AF",
-        marginLeft: 4,
-    },
-    cardDescription: {
+    capsuleText: {
         fontSize: 14,
-        color: "#6B7280",
-        lineHeight: 20,
-        marginBottom: 12,
-    },
-    cardFooter: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-    },
-    startButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 10,
-    },
-    startButtonText: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#FFFFFF",
-        marginRight: 4,
-    },
-    emptyState: {
-        alignItems: "center",
-        paddingVertical: 60,
-    },
-    emptyTitle: {
-        fontSize: 18,
         fontWeight: "600",
         color: "#374151",
-        marginTop: 16,
     },
-    emptySubtitle: {
-        fontSize: 14,
-        color: "#9CA3AF",
-        textAlign: "center",
-        marginTop: 8,
-        paddingHorizontal: 40,
-    },
-    historySection: {
-        marginTop: 24,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        color: "#1F2937",
+
+    // Carousel Section
+    carouselHeader: {
+        paddingHorizontal: 20,
         marginBottom: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
     },
-    historyCard: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 12,
+    carouselHeaderTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#1F2937",
+        letterSpacing: -0.3,
+    },
+    carouselHeaderCount: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#9CA3AF",
+    },
+    carouselScrollView: {
+        marginBottom: 24,
+    },
+    carouselContent: {
+        paddingVertical: 8,
+    },
+    carouselCard: {
+        width: CARD_WIDTH,
+        marginRight: CARD_SPACING,
+        borderRadius: 20,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    carouselCardGradient: {
+        position: "relative",
+        overflow: "hidden",
+    },
+    cardPattern: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: "hidden",
+    },
+    patternCircle: {
+        position: "absolute",
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: "rgba(255, 255, 255, 0.12)",
+    },
+    carouselCardContent: {
         padding: 14,
-        marginBottom: 10,
-        borderWidth: 1,
-        borderColor: "#F3F4F6",
     },
-    historyHeader: {
+    carouselCardHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        marginBottom: 14,
+    },
+    carouselCardIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        justifyContent: "center",
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+    },
+    completedBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        gap: 5,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    completedBadgeText: {
+        fontSize: 11,
+        fontWeight: "700",
+        color: "#10B981",
+        letterSpacing: 0.3,
+    },
+    cardBody: {
+        marginBottom: 14,
+    },
+    carouselCardTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#FFFFFF",
+        marginBottom: 6,
+        lineHeight: 22,
+        letterSpacing: -0.3,
+    },
+    carouselCardDescription: {
+        fontSize: 13,
+        color: "rgba(255, 255, 255, 0.9)",
+        lineHeight: 18,
+        fontWeight: "500",
+    },
+    cardDivider: {
+        height: 1,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        marginBottom: 18,
+    },
+    carouselCardFooter: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
+    },
+    carouselCardMeta: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    carouselCardMetaText: {
+        fontSize: 14,
+        color: "rgba(255, 255, 255, 0.98)",
+        fontWeight: "600",
+    },
+    carouselStartButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255, 255, 255, 0.22)",
+        paddingHorizontal: 18,
+        paddingVertical: 10,
+        borderRadius: 16,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.3)",
+    },
+    carouselStartButtonText: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#FFFFFF",
+        letterSpacing: 0.2,
+    },
+
+    // Empty State
+    emptyState: {
+        alignItems: "center",
+        paddingVertical: 70,
+        paddingHorizontal: 40,
+    },
+    emptyIconContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: "#F3F4F6",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 20,
+    },
+    emptyTitle: {
+        fontSize: 22,
+        fontWeight: "700",
+        color: "#1F2937",
+        marginBottom: 10,
+        letterSpacing: -0.5,
+    },
+    emptySubtitle: {
+        fontSize: 15,
+        color: "#9CA3AF",
+        textAlign: "center",
+        lineHeight: 22,
+        fontWeight: "500",
+    },
+
+    // Teen Assessment Section
+    teenSection: {
+        marginTop: 6,
+        marginBottom: 24,
+        paddingHorizontal: 20,
+    },
+    sectionHeaderContainer: {
+        marginBottom: 12,
+    },
+    sectionHeaderLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    teenIconContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: "#FEE2E2",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 14,
+        shadowColor: "#FF6B6B",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+    },
+    teenTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#1F2937",
+        letterSpacing: -0.3,
+    },
+    teenSubtitle: {
+        fontSize: 11,
+        fontWeight: "500",
+        color: "#9CA3AF",
+        marginTop: 2,
+    },
+    comingSoonCard: {
+        borderRadius: 20,
+        overflow: "hidden",
+        shadowColor: "#FF6B6B",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    comingSoonPattern: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    comingSoonGradient: {
+        padding: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 150,
+        position: "relative",
+    },
+    comingSoonIcon: {
+        marginBottom: 12,
+    },
+    comingSoonTitle: {
+        fontSize: 20,
+        fontWeight: "800",
+        color: "#FFFFFF",
         marginBottom: 8,
+        letterSpacing: -0.5,
+    },
+    comingSoonText: {
+        fontSize: 12,
+        color: "rgba(255, 255, 255, 0.95)",
+        textAlign: "center",
+        lineHeight: 19,
+        paddingHorizontal: 10,
+        fontWeight: "500",
+        marginBottom: 18,
+    },
+    comingSoonBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255, 255, 255, 0.18)",
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1.5,
+        borderColor: "rgba(255, 255, 255, 0.35)",
+        gap: 8,
+    },
+    badgeDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "#FFFFFF",
+    },
+    comingSoonBadgeText: {
+        fontSize: 12,
+        fontWeight: "800",
+        color: "#FFFFFF",
+        letterSpacing: 1.2,
+    },
+
+    // History Section
+    historySection: {
+        marginTop: 8,
+        paddingHorizontal: 24,
+        marginBottom: 20,
+    },
+    historySectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 16,
+    },
+    sectionTitle: {
+        fontSize: 22,
+        fontWeight: "700",
+        color: "#1F2937",
+        letterSpacing: -0.5,
+    },
+    historyBadge: {
+        backgroundColor: "#8B5CF6",
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    historyBadgeText: {
+        fontSize: 13,
+        fontWeight: "800",
+        color: "#FFFFFF",
+    },
+    historyCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 18,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: "#F3F4F6",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        elevation: 3,
+    },
+    historyCardLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        flex: 1,
+    },
+    historyCardIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 14,
+    },
+    historyCardInfo: {
+        flex: 1,
     },
     historyTitle: {
-        fontSize: 15,
-        fontWeight: "500",
+        fontSize: 16,
+        fontWeight: "600",
         color: "#1F2937",
+        marginBottom: 4,
+        letterSpacing: -0.3,
     },
     historyDate: {
         fontSize: 13,
         color: "#9CA3AF",
+        fontWeight: "500",
     },
-    historyResult: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-    },
-    historyScore: {
-        fontSize: 14,
-        color: "#6B7280",
+    historyCardRight: {
+        backgroundColor: "#F9FAFB",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        marginLeft: 12,
     },
     historyResultText: {
-        fontSize: 14,
-        fontWeight: "500",
+        fontSize: 13,
+        fontWeight: "700",
+        letterSpacing: 0.2,
     },
 });

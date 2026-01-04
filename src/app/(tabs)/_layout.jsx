@@ -1,158 +1,172 @@
 import { Tabs } from "expo-router";
-import { View, Animated, Easing } from "react-native";
+import { View, Animated, TouchableOpacity, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   House,
   ClipboardList,
   Stethoscope,
-  BookOpen,
   UserCircle,
   Users,
-  StickyNote,
 } from "lucide-react-native";
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 
-// Smooth Material Design colors
+// Material 3 colors
 const ACTIVE_COLOR = "#4A9B7F";
-const INACTIVE_COLOR = "#B0B8C1";
+const INACTIVE_COLOR = "#79747E";
+const SURFACE_COLOR = "#FFFFFF";
+const ACTIVE_INDICATOR_BG = "#E8F5F0";
 
-// Ultra-smooth Material Tab Icon with Ripple Effect
-const SmoothTabIcon = ({ icon: Icon, focused }) => {
-  const scaleAnim = React.useRef(new Animated.Value(focused ? 1 : 0.9)).current;
-  const opacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0.6)).current;
-  const bgOpacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0)).current;
-  const rippleScale = React.useRef(new Animated.Value(0)).current;
-  const rippleOpacity = React.useRef(new Animated.Value(0)).current;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-  React.useEffect(() => {
-    // Icon animations
-    Animated.parallel([
+// Material 3 Tab Icon with smooth state transitions
+const MaterialTabIcon = ({ icon: Icon, focused, index, activeIndex }) => {
+  return (
+    <View
+      style={{
+        height: 32,
+        width: 64,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 16,
+        overflow: "visible",
+      }}
+    >
+      <Icon
+        color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+        size={18}
+        strokeWidth={focused ? 2.5 : 2}
+      />
+    </View>
+  );
+};
+
+// Material 3 Active Indicator (sliding pill)
+const ActiveIndicator = ({ activeIndex, tabCount }) => {
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Scale animation for smooth morph
+    Animated.sequence([
       Animated.spring(scaleAnim, {
-        toValue: focused ? 1 : 0.9,
+        toValue: 0.92,
         useNativeDriver: true,
-        friction: 8,
-        tension: 100,
+        damping: 20,
+        mass: 0.8,
+        stiffness: 200,
       }),
-      Animated.timing(opacityAnim, {
-        toValue: focused ? 1 : 0.6,
-        duration: 200,
-        easing: Easing.bezier(0.4, 0.0, 0.2, 1),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
         useNativeDriver: true,
-      }),
-      Animated.timing(bgOpacityAnim, {
-        toValue: focused ? 1 : 0,
-        duration: 250,
-        easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-        useNativeDriver: true,
+        damping: 15,
+        mass: 1,
+        stiffness: 180,
       }),
     ]).start();
 
-    // Ripple effect on focus
-    if (focused) {
-      rippleScale.setValue(0);
-      rippleOpacity.setValue(0.6);
+    // Slide animation with Material easing
+    Animated.spring(slideAnim, {
+      toValue: activeIndex,
+      useNativeDriver: true,
+      damping: 20,
+      mass: 1,
+      stiffness: 170,
+    }).start();
+  }, [activeIndex]);
 
-      Animated.parallel([
-        Animated.timing(rippleScale, {
-          toValue: 1,
-          duration: 500,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rippleOpacity, {
-          toValue: 0,
-          duration: 500,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [focused]);
+  const tabWidth = SCREEN_WIDTH / tabCount;
+  const indicatorWidth = 64;
+  const indicatorOffset = (tabWidth - indicatorWidth) / 2;
 
   return (
-    <View style={{ alignItems: "center", justifyContent: "center", height: 48, width: 48 }}>
-      {/* Ripple Effect */}
-      <Animated.View
-        style={{
-          position: "absolute",
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          backgroundColor: ACTIVE_COLOR,
-          opacity: rippleOpacity,
-          transform: [{ scale: rippleScale }],
-        }}
-      />
-
-      {/* Background Circle */}
-      <Animated.View
-        style={{
-          position: "absolute",
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          backgroundColor: ACTIVE_COLOR,
-          opacity: bgOpacityAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, 0.15],
-          }),
-        }}
-      />
-
-      {/* Smooth Icon */}
-      <Animated.View
-        style={{
-          transform: [{ scale: scaleAnim }],
-          opacity: opacityAnim,
-        }}
-      >
-        <Icon
-          color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
-          size={24}
-          strokeWidth={focused ? 2.5 : 2}
-        />
-      </Animated.View>
-    </View>
+    <Animated.View
+      style={{
+        position: "absolute",
+        top: 12,
+        left: 0,
+        height: 29,
+        width: indicatorWidth,
+        backgroundColor: ACTIVE_INDICATOR_BG,
+        borderRadius: 16,
+        transform: [
+          {
+            translateX: slideAnim.interpolate({
+              inputRange: [0, tabCount - 1],
+              outputRange: [
+                indicatorOffset,
+                (tabCount - 1) * tabWidth + indicatorOffset,
+              ],
+            }),
+          },
+          { scaleX: scaleAnim },
+        ],
+      }}
+    />
   );
 };
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+
+  // Map tab names to indices for the active indicator
+  const visibleTabs = [
+    "home",
+    "assessment/index",
+    "doctors",
+    "community",
+    "profile/index",
+  ];
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: "#FFFFFF",
+          backgroundColor: SURFACE_COLOR,
           borderTopWidth: 0,
-          height: 68 + insets.bottom,
-          paddingBottom: insets.bottom + 8,
-          paddingTop: 12,
-          paddingHorizontal: 4,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom,
+          paddingTop: 6,
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.06,
-          shadowRadius: 20,
-          elevation: 16,
+          shadowOffset: { width: 0, height: -1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 12,
+          elevation: 8,
         },
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: "600",
-          marginTop: 4,
-          letterSpacing: 0,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 0,
-          paddingHorizontal: 0,
+          marginTop: 6,
+          letterSpacing: 0.1,
         },
         tabBarHideOnKeyboard: true,
+        tabBarBackground: () => (
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: SURFACE_COLOR,
+              position: "relative",
+            }}
+          >
+            <ActiveIndicator activeIndex={activeTabIndex} tabCount={5} />
+          </View>
+        ),
+      }}
+      screenListeners={{
+        state: (e) => {
+          const routes = e.data?.state?.routes;
+          const index = e.data?.state?.index;
+          if (routes && index !== undefined) {
+            const currentRoute = routes[index];
+            const tabIndex = visibleTabs.indexOf(currentRoute.name);
+            if (tabIndex !== -1) {
+              setActiveTabIndex(tabIndex);
+            }
+          }
+        },
       }}
     >
       {/* Home Tab */}
@@ -161,8 +175,16 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ focused }) => (
-            <SmoothTabIcon icon={House} focused={focused} />
+            <MaterialTabIcon
+              icon={House}
+              focused={focused}
+              index={0}
+              activeIndex={activeTabIndex}
+            />
           ),
+        }}
+        listeners={{
+          tabPress: () => setActiveTabIndex(0),
         }}
       />
 
@@ -172,8 +194,16 @@ export default function TabLayout() {
         options={{
           title: "Assess",
           tabBarIcon: ({ focused }) => (
-            <SmoothTabIcon icon={ClipboardList} focused={focused} />
+            <MaterialTabIcon
+              icon={ClipboardList}
+              focused={focused}
+              index={1}
+              activeIndex={activeTabIndex}
+            />
           ),
+        }}
+        listeners={{
+          tabPress: () => setActiveTabIndex(1),
         }}
       />
       <Tabs.Screen name="assessment/take" options={{ href: null }} />
@@ -185,8 +215,16 @@ export default function TabLayout() {
         options={{
           title: "Care",
           tabBarIcon: ({ focused }) => (
-            <SmoothTabIcon icon={Stethoscope} focused={focused} />
+            <MaterialTabIcon
+              icon={Stethoscope}
+              focused={focused}
+              index={2}
+              activeIndex={activeTabIndex}
+            />
           ),
+        }}
+        listeners={{
+          tabPress: () => setActiveTabIndex(2),
         }}
       />
 
@@ -196,12 +234,18 @@ export default function TabLayout() {
         options={{
           title: "Community",
           tabBarIcon: ({ focused }) => (
-            <SmoothTabIcon icon={Users} focused={focused} />
+            <MaterialTabIcon
+              icon={Users}
+              focused={focused}
+              index={3}
+              activeIndex={activeTabIndex}
+            />
           ),
         }}
         listeners={({ navigation }) => ({
           tabPress: () => {
-            navigation.navigate('community', { screen: 'index' });
+            setActiveTabIndex(3);
+            navigation.navigate("community", { screen: "index" });
           },
         })}
       />
@@ -221,8 +265,16 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => (
-            <SmoothTabIcon icon={UserCircle} focused={focused} />
+            <MaterialTabIcon
+              icon={UserCircle}
+              focused={focused}
+              index={4}
+              activeIndex={activeTabIndex}
+            />
           ),
+        }}
+        listeners={{
+          tabPress: () => setActiveTabIndex(4),
         }}
       />
 
@@ -231,17 +283,24 @@ export default function TabLayout() {
       <Tabs.Screen name="mood/tracker" options={{ href: null }} />
       <Tabs.Screen name="mood/dashboard" options={{ href: null }} />
       <Tabs.Screen name="mood/calendar" options={{ href: null }} />
-      <Tabs.Screen name="chat" options={{ href: null, tabBarStyle: { display: "none" } }} />
+      <Tabs.Screen name="chat" options={{ href: null }} />
       <Tabs.Screen name="goals" options={{ href: null }} />
       <Tabs.Screen name="notes" options={{ href: null }} />
       <Tabs.Screen name="profile/edit" options={{ href: null }} />
       <Tabs.Screen name="profile/appointments" options={{ href: null }} />
-      <Tabs.Screen name="profile/assessmentanalytics" options={{ href: null }} />
+      <Tabs.Screen
+        name="profile/assessmentanalytics"
+        options={{ href: null }}
+      />
       <Tabs.Screen name="profile/settings" options={{ href: null }} />
       <Tabs.Screen name="wellness/breathing" options={{ href: null }} />
       <Tabs.Screen name="wellness/water" options={{ href: null }} />
       <Tabs.Screen name="wellness/sleep" options={{ href: null }} />
       <Tabs.Screen name="wellness/habits" options={{ href: null }} />
+      <Tabs.Screen name="teen-assessment" options={{ href: null }} />
     </Tabs>
   );
 }
+
+
+
