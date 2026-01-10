@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Modal,
 } from "react-native";
 import { Video } from 'expo-av';
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -58,6 +58,7 @@ const REASONS_FOR_VISIT = [
 
 export default function DoctorDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const videoRef = useRef(null);
@@ -85,6 +86,19 @@ export default function DoctorDetailScreen() {
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [emergencyRelationship, setEmergencyRelationship] = useState("");
+
+  // Hide tab bar on this screen
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: { display: 'none' },
+    });
+
+    return () => {
+      navigation.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
 
   useEffect(() => {
     console.log("[DoctorDetail] Loading doctor with ID:", id);
@@ -128,6 +142,7 @@ export default function DoctorDetailScreen() {
         }
 
         setDoctor(foundDoctor || null);
+        console.log("[DoctorDetail] SETTING DOCTOR:", JSON.stringify(foundDoctor, null, 2));
       }
     } catch (error) {
       console.error("[DoctorDetail] Error loading doctor:", error);
@@ -224,7 +239,7 @@ export default function DoctorDetailScreen() {
           pathname: "/(tabs)/doctors/payment",
           params: {
             appointmentId,
-            amount: doctor.fees,
+            amount: doctor.fees || doctor.consultationFee || doctor.consultation_fee || doctor.price || 500,
             doctorName: doctor.name
           }
         });
@@ -309,7 +324,7 @@ export default function DoctorDetailScreen() {
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/home")} style={styles.backBtn}>
             <ArrowLeft color="#FFFFFF" size={24} strokeWidth={2.5} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
@@ -378,11 +393,15 @@ export default function DoctorDetailScreen() {
                 )}
                 <View style={styles.doctorInfo}>
                   <Text style={styles.doctorName}>{doctor.name}</Text>
-                  <Text style={styles.doctorSpecialty}>{doctor.speciality}</Text>
-                  <Text style={styles.doctorDegree}>{doctor.degree}</Text>
+                  <Text style={styles.doctorSpecialty}>
+                    {doctor.category || doctor.specialty || doctor.specialization || doctor.speciality || "Specialist"}
+                  </Text>
+                  <Text style={styles.doctorDegree}>
+                    {doctor.degree || doctor.qualification || (Array.isArray(doctor.qualifications) ? doctor.qualifications.join(" • ") : doctor.qualifications)}
+                  </Text>
                   <View style={styles.experienceRow}>
                     <Clock size={14} color="#6B7280" />
-                    <Text style={styles.experienceText}>{doctor.experience}</Text>
+                    <Text style={styles.experienceText}>{doctor.experience || "5"} Years Exp.</Text>
                   </View>
                 </View>
               </View>
@@ -391,10 +410,12 @@ export default function DoctorDetailScreen() {
               <View style={styles.ratingRow}>
                 <View style={styles.ratingContainer}>
                   <Star color="#F59E0B" size={16} fill="#F59E0B" />
-                  <Text style={styles.ratingText}>4.8</Text>
-                  <Text style={styles.reviewsText}>(200+ reviews)</Text>
+                  <Text style={styles.ratingText}>{doctor.rating || "4.8"}</Text>
+                  <Text style={styles.reviewsText}>
+                    ({doctor.patients_treated || "200+"} patients treated)
+                  </Text>
                 </View>
-                {doctor.available && (
+                {doctor.available !== false && (
                   <View style={styles.availableBadge}>
                     <Text style={styles.availableText}>Available</Text>
                   </View>
@@ -420,7 +441,9 @@ export default function DoctorDetailScreen() {
               {/* Fee */}
               <View style={styles.feeCard}>
                 <Text style={styles.feeLabel}>Consultation Fee</Text>
-                <Text style={styles.feeAmount}>₹{doctor.fees}</Text>
+                <Text style={styles.feeAmount}>
+                  ₹{doctor.consultation_fee || doctor.consultationFee || doctor.fees || doctor.price || 500}
+                </Text>
               </View>
             </View>
 
@@ -618,7 +641,9 @@ export default function DoctorDetailScreen() {
                   {booking ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.bookBtnText}>Proceed to Payment - ₹{doctor.fees}</Text>
+                    <Text style={styles.bookBtnText}>
+                      Proceed to Payment - ₹{doctor.fees || doctor.consultationFee || doctor.consultation_fee || doctor.price || 500}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -627,28 +652,35 @@ export default function DoctorDetailScreen() {
         )}
       </ScrollView>
 
-      {/* Fullscreen Video Modal */}
+      {/* Professional Video Modal */}
       <Modal
         visible={showVideoModal}
         transparent={true}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => {
           setShowVideoModal(false);
           setVideoPlaying(false);
           videoRef.current?.pauseAsync();
         }}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            setShowVideoModal(false);
-            setVideoPlaying(false);
-            videoRef.current?.pauseAsync();
-          }}
-        >
-          {/* Video content area */}
-          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay}>
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              setShowVideoModal(false);
+              setVideoPlaying(false);
+              videoRef.current?.pauseAsync();
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.closeButtonInner}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Video Container */}
+          <View style={styles.videoPlayerContainer}>
             <Video
               ref={videoRef}
               source={{ uri: doctor?.video }}
@@ -662,7 +694,7 @@ export default function DoctorDetailScreen() {
               useNativeControls
             />
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -1150,15 +1182,50 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
   },
-  modalContent: {
-    width: '100%',
-    height: '80%',
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  closeButtonInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  closeButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#1F2937',
+    lineHeight: 24,
+  },
+  videoPlayerContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000000',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
   },
   fullscreenVideo: {
     width: '100%',

@@ -28,7 +28,6 @@ import {
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../utils/api";
-import { supabase } from "../../utils/supabaseClient";
 
 const GOAL_CATEGORIES = [
     { id: "wellness", label: "Wellness", color: "#64748B", icon: "🧘" },
@@ -73,9 +72,6 @@ export default function GoalsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [goals, setGoals] = useState([]);
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [completions, setCompletions] = useState({}); // { goalId: boolean } for selected date
-    const [monthStats, setMonthStats] = useState({}); // { dateString: completionCount }
     const [showAddModal, setShowAddModal] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -97,78 +93,31 @@ export default function GoalsScreen() {
 
     useEffect(() => {
         loadGoals();
-    }, [selectedDate]); // Reload when date changes to fetch relevant completions
-
-    const formatDate = (date) => {
-        // Use local time YYYY-MM-DD format
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
+    }, []);
 
     const loadGoals = async () => {
         try {
-            const userId = await AsyncStorage.getItem("userId");
-            if (!userId) {
-                console.log("No user logged in");
-                return;
+            const stored = await AsyncStorage.getItem("userGoals");
+            if (stored) {
+                setGoals(JSON.parse(stored));
             }
-
-            // 1. Fetch Goals
-            const { data: goalsData, error: goalsError } = await supabase
-                .from('goals')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: true });
-
-            if (goalsError) throw goalsError;
-
-            // 2. Fetch Completions for Selected Date
-            const dateStr = formatDate(selectedDate);
-            const { data: completionsData, error: complError } = await supabase
-                .from('goal_completions')
-                .select('goal_id')
-                .eq('user_id', userId)
-                .eq('completed_date', dateStr);
-
-            if (complError) throw complError;
-
-            // Map completions to object for easy lookup
-            const complMap = {};
-            completionsData.forEach(c => {
-                complMap[c.goal_id] = true;
-            });
-            setCompletions(complMap);
-
-            // 3. Fetch Monthly Stats (for calendar dots)
-            const today = new Date();
-            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-
-            const { data: monthData, error: monthError } = await supabase
-                .from('goal_completions')
-                .select('completed_date')
-                .eq('user_id', userId)
-                .gte('completed_date', startOfMonth)
-                .lte('completed_date', endOfMonth);
-
-            if (!monthError && monthData) {
-                const stats = {};
-                monthData.forEach(c => {
-                    stats[c.completed_date] = (stats[c.completed_date] || 0) + 1;
-                });
-                setMonthStats(stats);
-            }
-
-            setGoals(goalsData || []);
         } catch (error) {
             console.error("Error loading goals:", error);
-            // Fallback to local if offline? For now just log.
         } finally {
             setRefreshing(false);
         }
     };
+
+    const saveGoals = async (updatedGoals) => {
+        try {
+            await AsyncStorage.setItem("userGoals", JSON.stringify(updatedGoals));
+            setGoals(updatedGoals);
+        } catch (error) {
+            console.error("Error saving goals:", error);
+        }
+    };
+
+
 
     const addGoal = async () => {
         if (!newGoal.title.trim()) {
@@ -176,91 +125,56 @@ export default function GoalsScreen() {
             return;
         }
 
+        const goalLocal = {
+            id: Date.now().toString(),
+            title: newGoal.title.trim(),
+            category: newGoal.category,
+            frequency: newGoal.frequency,
+            streak: 0,
+            completedToday: false,
+            createdAt: new Date().toISOString(),
+        };
+
+        // UI Update (Optimistic)
+        const updatedGoals = [...goals, goalLocal];
+        saveGoals(updatedGoals);
+        setNewGoal({ title: "", category: "wellness", frequency: "daily" });
+        setShowAddModal(false);
+
+        // Server Sync
         try {
             const userId = await AsyncStorage.getItem("userId");
-            if (!userId) {
-                Alert.alert("Error", "You must be logged in");
-                return;
-            }
-
-            const { error } = await supabase
-                .from('goals')
-                .insert({
-                    user_id: userId,
-                    title: newGoal.title.trim(),
-                    category: newGoal.category,
-                    frequency: newGoal.frequency
+            if (userId) {
+                await api.createMoodGoal(userId, {
+                    title: goalLocal.title,
+                    category: goalLocal.category,
+                    frequency: goalLocal.frequency,
+                    description: "Created via Mobile App"
                 });
-
-            if (error) throw error;
-
-            setNewGoal({ title: "", category: "wellness", frequency: "daily" });
-            setShowAddModal(false);
-            loadGoals(); // Refresh list
-
-        } catch (error) {
-            console.error("Error adding goal:", error);
-            Alert.alert("Error", "Failed to add goal");
+            }
+        } catch (e) {
+            console.log("Failed to sync goal to server", e);
+            // We don't block the UI for this, it's just a sync failure
         }
     };
 
-    const toggleGoalComplete = async (goalId) => {
-        try {
-            const userId = await AsyncStorage.getItem("userId");
-            if (!userId) return;
-
-            const isCompleted = completions[goalId];
-            const dateStr = formatDate(selectedDate);
-
-            if (isCompleted) {
-                // Delete completion
-                const { error } = await supabase
-                    .from('goal_completions')
-                    .delete()
-                    .eq('user_id', userId)
-                    .eq('goal_id', goalId)
-                    .eq('completed_date', dateStr);
-
-                if (error) throw error;
-
-                // Optimistic Update
-                const newCompletions = { ...completions };
-                delete newCompletions[goalId];
-                setCompletions(newCompletions);
-            } else {
-                // Insert completion
-                const { error } = await supabase
-                    .from('goal_completions')
-                    .insert({
-                        user_id: userId,
-                        goal_id: goalId,
-                        completed_date: dateStr
-                    });
-
-                if (error) throw error;
-
-                // Optimistic Update
-                setCompletions(prev => ({ ...prev, [goalId]: true }));
-
-                // Trigger confetti if it's today's completion (and not just toggling a past date)
-                const isToday = formatDate(new Date()) === dateStr;
-                if (isToday) triggerConfetti();
+    const toggleGoalComplete = (goalId) => {
+        const updated = goals.map((g) => {
+            if (g.id === goalId) {
+                return {
+                    ...g,
+                    completedToday: !g.completedToday,
+                    streak: !g.completedToday ? g.streak + 1 : Math.max(0, g.streak - 1),
+                };
             }
+            return g;
+        });
+        saveGoals(updated);
 
-            // Note: We don't need to call loadGoals() because we did optimistic update.
-            // But we should update monthStats if needed. For simplicity we can reload or just update local map.
-
-            // Update month stats locally
-            const currentCount = monthStats[dateStr] || 0;
-            setMonthStats(prev => ({
-                ...prev,
-                [dateStr]: isCompleted ? Math.max(0, currentCount - 1) : currentCount + 1
-            }));
-
-        } catch (error) {
-            console.error("Error toggling goal:", error);
-            Alert.alert("Error", "Failed to update goal");
-            loadGoals(); // Revert on error
+        // Trigger confetti when all goals are completed
+        const completedGoals = updated.filter(g => g.completedToday).length;
+        if (completedGoals === goals.length && goals.length > 0 && !updated.find(g => g.id === goalId)?.completedToday) {
+            triggerConfetti();
         }
     };
 
@@ -270,21 +184,7 @@ export default function GoalsScreen() {
             {
                 text: "Delete",
                 style: "destructive",
-                onPress: async () => {
-                    try {
-                        const { error } = await supabase
-                            .from('goals')
-                            .delete()
-                            .eq('id', goalId);
-
-                        if (error) throw error;
-
-                        // Optimistic update
-                        setGoals(goals.filter(g => g.id !== goalId));
-                    } catch (e) {
-                        Alert.alert("Error", "Failed to delete");
-                    }
-                },
+                onPress: () => saveGoals(goals.filter((g) => g.id !== goalId)),
             },
         ]);
     };
@@ -336,12 +236,9 @@ export default function GoalsScreen() {
 
     const getCategory = (id) => GOAL_CATEGORIES.find((c) => c.id === id) || GOAL_CATEGORIES[0];
 
-    const completedCount = goals.filter((g) => completions[g.id]).length;
+    const completedCount = goals.filter((g) => g.completedToday).length;
     const totalCount = goals.length;
     const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-    // Check if we are viewing a past date or today
-    const isViewingToday = formatDate(selectedDate) === formatDate(new Date());
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -400,11 +297,12 @@ export default function GoalsScreen() {
                 style={styles.scrollView}
                 contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#64748B" />}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4A9B7F" />}
             >
+                {/* Progress Card */}
                 <View style={styles.progressCard}>
                     <LinearGradient
-                        colors={["#475569", "#334155"]}
+                        colors={["#4A9B7F", "#3B8068"]}
                         style={styles.progressGradient}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
@@ -434,68 +332,22 @@ export default function GoalsScreen() {
 
                 {/* Stats Row */}
                 <View style={styles.statsRow}>
-                    <View style={styles.statCard}>
-                        <Target size={20} color="#64748B" />
+                    <View style={[styles.statCard, { backgroundColor: "#E6F4F0" }]}>
+                        <Target size={20} color="#4A9B7F" />
                         <Text style={styles.statValue}>{totalCount}</Text>
                         <Text style={styles.statLabel}>Total Goals</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <CheckCircle size={20} color="#64748B" />
+                    <View style={[styles.statCard, { backgroundColor: "#FEF3C7" }]}>
+                        <CheckCircle size={20} color="#F59E0B" />
                         <Text style={styles.statValue}>{completedCount}</Text>
                         <Text style={styles.statLabel}>Completed</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Flame size={20} color="#64748B" />
+                    <View style={[styles.statCard, { backgroundColor: "#FCE7F3" }]}>
+                        <Flame size={20} color="#EC4899" />
                         <Text style={styles.statValue}>
                             {goals.reduce((max, g) => Math.max(max, g.streak || 0), 0)}
                         </Text>
                         <Text style={styles.statLabel}>Best Streak</Text>
-                    </View>
-                </View>
-
-                {/* Monthly Calendar */}
-                <View style={styles.calendarCard}>
-                    <Text style={styles.calendarTitle}>
-                        {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    </Text>
-                    <View style={styles.calendarGrid}>
-                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                            <View key={`header-${index}`} style={styles.calendarDayHeader}>
-                                <Text style={styles.calendarDayHeaderText}>{day}</Text>
-                            </View>
-                        ))}
-                        {generateCalendarDays(selectedDate.getFullYear(), selectedDate.getMonth()).map((dayData, index) => {
-                            const isSelected = dayData.date && dayData.date.toDateString() === selectedDate.toDateString();
-                            const isToday = dayData.date && dayData.date.toDateString() === new Date().toDateString();
-                            const dateStr = dayData.date ? formatDate(dayData.date) : null;
-                            const hasCompletions = dateStr && monthStats[dateStr] > 0;
-
-                            return (
-                                <View key={`day-${index}`} style={styles.calendarDay}>
-                                    {dayData.day && (
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.calendarDayCircle,
-                                                isSelected && styles.calendarDaySelected,
-                                                isToday && !isSelected && styles.calendarDayTodayOutline
-                                            ]}
-                                            onPress={() => setSelectedDate(dayData.date)}
-                                        >
-                                            <Text style={[
-                                                styles.calendarDayText,
-                                                isSelected && styles.calendarDaySelectedText,
-                                                isToday && !isSelected && styles.calendarDayTodayText
-                                            ]}>
-                                                {dayData.day}
-                                            </Text>
-                                            {hasCompletions && !isSelected && (
-                                                <View style={styles.calendarDot} />
-                                            )}
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            );
-                        })}
                     </View>
                 </View>
 
@@ -533,14 +385,14 @@ export default function GoalsScreen() {
                                     key={goal.id}
                                     style={[
                                         styles.goalCard,
-                                        completions[goal.id] && styles.goalCardCompleted
+                                        goal.completedToday && styles.goalCardCompleted
                                     ]}
                                     onPress={() => toggleGoalComplete(goal.id)}
                                     onLongPress={() => deleteGoal(goal.id)}
                                     activeOpacity={0.7}
                                 >
-                                    <View style={[styles.goalCheck, completions[goal.id] && styles.goalCheckActive]}>
-                                        {completions[goal.id] ? (
+                                    <View style={[styles.goalCheck, goal.completedToday && styles.goalCheckActive]}>
+                                        {goal.completedToday ? (
                                             <CheckCircle size={26} color="#4A9B7F" />
                                         ) : (
                                             <Circle size={26} color="#D1D5DB" />
@@ -550,7 +402,7 @@ export default function GoalsScreen() {
                                         <Text
                                             style={[
                                                 styles.goalTitle,
-                                                completions[goal.id] && styles.goalTitleCompleted,
+                                                goal.completedToday && styles.goalTitleCompleted,
                                             ]}
                                         >
                                             {goal.title}
@@ -775,9 +627,6 @@ const styles = StyleSheet.create({
         padding: 14,
         borderRadius: 16,
         alignItems: "center",
-        backgroundColor: "#FFFFFF",
-        borderWidth: 1,
-        borderColor: "#E5E7EB",
     },
     statValue: {
         fontSize: 20,
@@ -1033,75 +882,5 @@ const styles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: 6,
-    },
-    calendarCard: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: "#E5E7EB",
-    },
-    calendarTitle: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#1F2937",
-        marginBottom: 16,
-    },
-    calendarGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-    },
-    calendarDayHeader: {
-        width: "14.28%",
-        padding: 8,
-        alignItems: "center",
-    },
-    calendarDayHeaderText: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#9CA3AF",
-    },
-    calendarDay: {
-        width: "14.28%",
-        padding: 4,
-        alignItems: "center",
-    },
-    calendarDayCircle: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    calendarDayToday: {
-        backgroundColor: "#475569",
-    },
-    calendarDaySelected: {
-        backgroundColor: "#4A9B7F",
-    },
-    calendarDayTodayOutline: {
-        borderWidth: 2,
-        borderColor: "#475569",
-    },
-    calendarDayText: {
-        fontSize: 14,
-        color: "#374151",
-    },
-    calendarDayTodayText: {
-        color: "#475569",
-        fontWeight: "600",
-    },
-    calendarDaySelectedText: {
-        color: "#FFFFFF",
-        fontWeight: "600",
-    },
-    calendarDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: "#4A9B7F",
-        position: "absolute",
-        bottom: 2,
     },
 });

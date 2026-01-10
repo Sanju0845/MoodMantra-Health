@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import {
     View,
     Text,
@@ -8,7 +8,7 @@ import {
     StyleSheet,
     Linking,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
@@ -20,6 +20,7 @@ const RAZORPAY_KEY_ID = "rzp_live_Rp5H9S3bTwyfa5"; // Test key from backend
 
 export default function PaymentScreen() {
     const router = useRouter();
+    const navigation = useNavigation();
     const { appointmentId, amount, doctorName } = useLocalSearchParams();
     const insets = useSafeAreaInsets();
     const webViewRef = useRef(null);
@@ -28,6 +29,19 @@ export default function PaymentScreen() {
     const [paymentOrder, setPaymentOrder] = useState(null);
     const [paymentStatus, setPaymentStatus] = useState("pending"); // pending, processing, success, failed
     const [error, setError] = useState(null);
+
+    // Hide tab bar on this screen
+    useLayoutEffect(() => {
+        navigation.setOptions({
+            tabBarStyle: { display: 'none' },
+        });
+
+        return () => {
+            navigation.setOptions({
+                tabBarStyle: undefined,
+            });
+        };
+    }, [navigation]);
 
     useEffect(() => {
         if (appointmentId) {

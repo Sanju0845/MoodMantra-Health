@@ -347,14 +347,11 @@ export default function ChatRoom() {
         >
             <StatusBar style="dark" />
 
-            {/* Premium Gradient Header */}
-            <LinearGradient
-                colors={["#FFFFFF", "#F9FAFB"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+            {/* Clean Header */}
+            <View
                 style={[
                     styles.header,
-                    { paddingTop: insets.top + 12 }
+                    { paddingTop: insets.top + 16 }
                 ]}
             >
                 <TouchableOpacity
@@ -362,7 +359,7 @@ export default function ChatRoom() {
                     onPress={() => router.back()}
                     activeOpacity={0.7}
                 >
-                    <ChevronLeft size={24} color="#1F2937" strokeWidth={2.5} />
+                    <ChevronLeft size={24} color="#1F2937" strokeWidth={2} />
                 </TouchableOpacity>
 
                 <View style={styles.headerCenter}>
@@ -374,7 +371,10 @@ export default function ChatRoom() {
                 </View>
 
                 <View style={{ width: 40 }} />
-            </LinearGradient>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.headerDivider} />
 
             {/* Messages */}
             <FlatList
@@ -456,30 +456,32 @@ export default function ChatRoom() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F9FAFB",
+        backgroundColor: "#FFFFFF",
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: "#F9FAFB",
+        backgroundColor: "#FFFFFF",
         justifyContent: "center",
         alignItems: "center",
     },
     header: {
+        backgroundColor: "#FFFFFF",
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: 16,
         paddingBottom: 16,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
+        borderBottomWidth: 1,
+        borderBottomColor: "#E5E7EB",
+    },
+    headerDivider: {
+        height: 1,
+        backgroundColor: "#E5E7EB",
     },
     backButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "rgba(139, 92, 246, 0.1)",
+        backgroundColor: "#F3F4F6",
         justifyContent: "center",
         alignItems: "center",
     },
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 18,
-        fontWeight: "800",
+        fontWeight: "700",
         color: "#1F2937",
         letterSpacing: -0.3,
     },
@@ -607,7 +609,7 @@ const styles = StyleSheet.create({
     inputContainer: {
         backgroundColor: "#FFFFFF",
         borderTopWidth: 1,
-        borderTopColor: "#F3F4F6",
+        borderTopColor: "#E5E7EB",
         paddingTop: 8,
         paddingHorizontal: 16,
         paddingBottom: 8,

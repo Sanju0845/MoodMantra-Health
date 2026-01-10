@@ -1,0 +1,32 @@
+                        {generateCalendarDays(selectedDate.getFullYear(), selectedDate.getMonth()).map((dayData, index) => {
+                            const isSelected = dayData.date && dayData.date.toDateString() === selectedDate.toDateString();
+                            const isToday = dayData.date && dayData.date.toDateString() === new Date().toDateString();
+                            const dateStr = dayData.date ? formatDate(dayData.date) : null;
+                            const hasCompletions = dateStr && monthStats[dateStr] > 0;
+                            
+                            return (
+                                <View key={`day-${index}`} style={styles.calendarDay}>
+                                    {dayData.day && (
+                                        <TouchableOpacity 
+                                            style={[
+                                                styles.calendarDayCircle,
+                                                isSelected && styles.calendarDaySelected,
+                                                isToday && !isSelected && styles.calendarDayTodayOutline
+                                            ]}
+                                            onPress={() => setSelectedDate(dayData.date)}
+                                        >
+                                            <Text style={[
+                                                styles.calendarDayText,
+                                                isSelected && styles.calendarDaySelectedText,
+                                                isToday && !isSelected && styles.calendarDayTodayText
+                                            ]}>
+                                                {dayData.day}
+                                            </Text>
+                                            {hasCompletions && !isSelected && (
+                                                <View style={styles.calendarDot} />
+                                            )}
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            );
+                        })}

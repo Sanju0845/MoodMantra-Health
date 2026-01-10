@@ -1,0 +1,25 @@
+NEW DESIGN PLAN FOR MOOD CHECK-IN PAGE:
+
+HEADER:
+- Clean white background (no gradient)
+- Simple back button on left
+- Title in center: "How are you feeling?"
+- Subtitle: Select your mood
+- Minimal, professional look like goals/community pages
+
+EMOJI PICKER:
+- Circular carousel design (rotary phone style)
+- Emojis arranged in a circle
+- Can rotate/spin the circle to select different moods
+- Center shows selected emoji larger
+- Tap or drag to rotate
+- Smooth animations
+- Selected emoji scales up in center
+
+LAYOUT:
+- Header (clean, minimal)
+- Circular emoji picker (main interactive element)
+- Selected mood name below circle
+- Continue button at bottom
+
+This creates a unique, engaging, professional interface!

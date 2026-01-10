@@ -8,6 +8,7 @@ import {
     ActivityIndicator,
     Animated,
     Dimensions,
+    Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useNavigation } from "expo-router";
@@ -27,6 +28,8 @@ import {
     Sparkles,
     TrendingUp,
     Shield,
+    BookOpen,
+    Globe,
 } from "lucide-react-native";
 import { supabase } from "../../../utils/supabaseClient";
 
@@ -119,17 +122,94 @@ export default function CommunityHub() {
     const router = useRouter();
     const navigation = useNavigation();
     const [rooms, setRooms] = useState(FALLBACK_ROOMS);
+    const [blogPosts, setBlogPosts] = useState([]);
+    const [blogLoading, setBlogLoading] = useState(true);
     const [loading, setLoading] = useState(true);
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         fetchRooms();
+        fetchBlogPosts();
         Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 600,
             useNativeDriver: true,
         }).start();
     }, []);
+
+
+    // Fetch blog posts from RSS feed
+    const fetchBlogPosts = async () => {
+        try {
+            console.log('[Community] Fetching blog posts...');
+
+            // Try fetching from blog RSS
+            const response = await fetch('https://blog.raskamon.com/rss.xml', {
+                method: 'GET',
+                headers: { 'Accept': 'application/xml, text/xml' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const text = await response.text();
+            console.log('[Community] RSS feed length:', text.length);
+
+            // Parse RSS items
+            const items = [];
+            const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+            let match;
+
+            while ((match = itemRegex.exec(text)) !== null && items.length < 10) {
+                const itemContent = match[1];
+                const title = itemContent.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ||
+                    itemContent.match(/<title>(.*?)<\/title>/)?.[1] || '';
+                const link = itemContent.match(/<link>(.*?)<\/link>/)?.[1] || '';
+                const description = itemContent.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
+                    itemContent.match(/<description>(.*?)<\/description>/)?.[1] || '';
+
+                // Extract image from various sources
+                const imageMatch = itemContent.match(/<media:content[^>]*url="([^"]+)"/i) ||
+                    itemContent.match(/<enclosure[^>]*url="([^"]+)"/i) ||
+                    description.match(/<img[^>]*src="([^"]+)"/i) ||
+                    itemContent.match(/<media:thumbnail[^>]*url="([^"]+)"/i);
+                const image = imageMatch?.[1] || 'https://images.unsplash.com/photo-1499728603263-13726abce5fd';
+
+                if (title) {
+                    items.push({
+                        id: items.length,
+                        title: title.replace(/<[^>]*>/g, '').trim(),
+                        link: link || 'https://blog.raskamon.com',
+                        image,
+                    });
+                }
+            }
+
+            if (items.length > 0) {
+                console.log('[Community] Loaded', items.length, 'blog posts from RSS');
+                setBlogPosts(items);
+            } else {
+                throw new Error('No blog posts found in RSS feed');
+            }
+        } catch (err) {
+            console.error('[Community] Blog fetch error:', err.message);
+            // Always set fallback blog posts with images
+            const fallbackPosts = [
+                { id: 1, title: 'Mental Health Tips', link: 'https://blog.raskamon.com', image: 'https://images.unsplash.com/photo-1499728603263-13726abce5fd?w=800' },
+                { id: 2, title: 'Better Sleep Guide', link: 'https://blog.raskamon.com', image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800' },
+                { id: 3, title: 'Mindfulness Practice', link: 'https://blog.raskamon.com', image: 'https://images.unsplash.com/photo-1506126279646-a697353d3166?w=800' },
+                { id: 4, title: 'Self Care Routines', link: 'https://blog.raskamon.com', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800' },
+                { id: 5, title: 'Stress Management', link: 'https://blog.raskamon.com', image: 'https://images.unsplash.com/photo-1552581234-26160f608093?w=800' },
+                { id: 6, title: 'Building Resilience', link: 'https://blog.raskamon.com', image: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=800' },
+            ];
+            console.log('[Community] Using fallback blog posts:', fallbackPosts.length);
+            setBlogPosts(fallbackPosts);
+        } finally {
+            setBlogLoading(false);
+        }
+    };
+
 
     const fetchRooms = async () => {
         try {
@@ -179,27 +259,18 @@ export default function CommunityHub() {
 
     return (
         <View style={styles.container}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
 
-            {/* Pink Gradient Header - Reduced Size */}
-            <LinearGradient
-                colors={["#EC4899", "#DB2777", "#BE185D"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.header, { paddingTop: insets.top + 12 }]}
-            >
+            {/* Clean Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.headerContent}>
-                    <View style={styles.headerLeft}>
-                        <View style={styles.sparkleContainer}>
-                            <Sparkles size={24} color="#FCD34D" strokeWidth={2} />
-                        </View>
-                        <View style={styles.headerTextContainer}>
-                            <Text style={styles.headerTitle}>Community</Text>
-                            <Text style={styles.headerSubtitle}>Connect & grow together</Text>
-                        </View>
-                    </View>
+                    <Text style={styles.headerTitle}>Community</Text>
+                    <Text style={styles.headerSubtitle}>Connect & grow together</Text>
                 </View>
-            </LinearGradient>
+            </View>
+
+            {/* Divider Line */}
+            <View style={styles.headerDivider} />
 
             {/* Main Content - Chat Groups Only */}
             <ScrollView
@@ -209,16 +280,72 @@ export default function CommunityHub() {
                     { paddingBottom: insets.bottom + 80 },
                 ]}
                 showsVerticalScrollIndicator={false}
+                bounces={true}
+                alwaysBounceVertical={true}
+                overScrollMode="never"
             >
+                {/* Blog Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <BookOpen size={18} color="#1F2937" strokeWidth={2} />
+                        <Text style={styles.sectionTitle}>Resources</Text>
+                        <TouchableOpacity
+                            onPress={() => router.push('/community/blog')}
+                            style={styles.seeAllButton}
+                        >
+                            <Text style={styles.seeAllText}>See all</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Swipable Blog Cards */}
+                    {blogLoading ? (
+                        <View style={styles.blogLoadingContainer}>
+                            <ActivityIndicator size="small" color="#4A9B7F" />
+                        </View>
+                    ) : (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.blogScrollContent}
+                            decelerationRate="fast"
+                            snapToInterval={SCREEN_WIDTH * 0.75 + 12}
+                            snapToAlignment="start"
+                        >
+                            {blogPosts.map((post, index) => (
+                                <TouchableOpacity
+                                    key={post.id}
+                                    style={styles.blogSwipeCard}
+                                    onPress={() => router.push('/community/blog')}
+                                    activeOpacity={0.85}
+                                >
+                                    <Image
+                                        source={{ uri: post.image }}
+                                        style={styles.blogCardImage}
+                                        resizeMode="cover"
+                                    />
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(0,0,0,0.7)']}
+                                        style={styles.blogImageOverlay}
+                                    >
+                                        <Text style={styles.blogSwipeTitle} numberOfLines={2}>
+                                            {post.title}
+                                        </Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+
+                {/* Section Divider */}
+                <View style={styles.sectionDivider} />
+
                 {/* Chat Groups Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <MessageCircle size={20} color="#8B5CF6" strokeWidth={2.5} />
+                        <MessageCircle size={18} color="#1F2937" strokeWidth={2} />
                         <Text style={styles.sectionTitle}>Chat Groups</Text>
                     </View>
-                    <Text style={styles.sectionSubtitle}>
-                        Join conversations and connect with others
-                    </Text>
 
                     {rooms.map((room, index) => (
                         <ModernRoomCard
@@ -239,53 +366,36 @@ export default function CommunityHub() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F9FAFB",
+        backgroundColor: "#FFFFFF",
     },
     centered: {
         justifyContent: "center",
         alignItems: "center",
     },
     header: {
-        paddingBottom: 16,
-        borderBottomLeftRadius: 28,
-        borderBottomRightRadius: 28,
-        shadowColor: "#8B5CF6",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 6,
+        backgroundColor: "#FFFFFF",
+        paddingBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: "#E5E7EB",
     },
     headerContent: {
         paddingHorizontal: 24,
-        marginBottom: 12,
-    },
-    headerLeft: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    sparkleContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
-        justifyContent: "center",
-        alignItems: "center",
-        marginRight: 14,
-    },
-    headerTextContainer: {
-        flex: 1,
     },
     headerTitle: {
-        fontSize: 28,
-        fontWeight: "800",
-        color: "#FFFFFF",
+        fontSize: 32,
+        fontWeight: "700",
+        color: "#1F2937",
         letterSpacing: -0.5,
+        marginBottom: 4,
     },
     headerSubtitle: {
-        fontSize: 14,
-        color: "rgba(255, 255, 255, 0.9)",
-        marginTop: 3,
-        fontWeight: "500",
+        fontSize: 15,
+        color: "#6B7280",
+        fontWeight: "400",
+    },
+    headerDivider: {
+        height: 1,
+        backgroundColor: "#E5E7EB",
     },
     statsBar: {
         flexDirection: "row",
@@ -324,7 +434,13 @@ const styles = StyleSheet.create({
         paddingTop: 20,
     },
     section: {
-        marginBottom: 32,
+        marginBottom: 24,
+    },
+    sectionDivider: {
+        height: 1,
+        backgroundColor: "#E5E7EB",
+        marginHorizontal: 20,
+        marginVertical: 16,
     },
     sectionHeader: {
         flexDirection: "row",
@@ -333,8 +449,8 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     sectionTitle: {
-        fontSize: 22,
-        fontWeight: "700",
+        fontSize: 18,
+        fontWeight: "600",
         color: "#1F2937",
     },
     sectionSubtitle: {
@@ -347,51 +463,94 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#FFFFFF",
-        borderRadius: 20,
+        borderRadius: 12,
         padding: 16,
-        marginBottom: 12,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
+        marginBottom: 10,
         borderWidth: 1,
-        borderColor: "#F3F4F6",
+        borderColor: "#E5E7EB",
     },
     iconGradient: {
-        width: 56,
-        height: 56,
-        borderRadius: 16,
+        width: 48,
+        height: 48,
+        borderRadius: 12,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 16,
+        marginRight: 14,
     },
     roomContent: {
         flex: 1,
     },
     roomName: {
-        fontSize: 17,
-        fontWeight: "700",
+        fontSize: 16,
+        fontWeight: "600",
         color: "#1F2937",
         marginBottom: 4,
     },
     roomDescription: {
-        fontSize: 14,
+        fontSize: 13,
         color: "#6B7280",
-        lineHeight: 20,
+        lineHeight: 18,
     },
     arrowContainer: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
         backgroundColor: "#F3F4F6",
         justifyContent: "center",
         alignItems: "center",
-        marginLeft: 12,
+        marginLeft: 10,
     },
     arrow: {
-        fontSize: 18,
-        color: "#8B5CF6",
+        fontSize: 16,
+        color: "#6B7280",
+        fontWeight: "600",
+    },
+    blogFeatureCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 12,
+        padding: 18,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+    },
+    blogIconContainer: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        backgroundColor: "#F0FDF4",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 14,
+    },
+    blogTextContent: {
+        flex: 1,
+        justifyContent: "center",
+    },
+    blogTitle: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#1F2937",
+        marginBottom: 4,
+    },
+    blogDescription: {
+        fontSize: 13,
+        color: "#6B7280",
+        lineHeight: 18,
+    },
+    blogArrowContainer: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: "#F3F4F6",
+        justifyContent: "center",
+        alignItems: "center",
+        marginLeft: 10,
+    },
+    blogArrow: {
+        fontSize: 16,
+        color: "#6B7280",
         fontWeight: "600",
     },
     // Blog Carousel Styles
@@ -451,5 +610,98 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: "600",
         color: "#FFFFFF",
+    },
+    // Rectangular Blog Cards Styles
+    seeAllButton: {
+        marginLeft: 'auto',
+    },
+    seeAllText: {
+        fontSize: 14,
+        color: '#4A9B7F',
+        fontWeight: '600',
+    },
+    blogCardsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 12,
+    },
+    blogRectCard: {
+        width: (SCREEN_WIDTH - 52) / 2,
+        height: 140,
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    blogRectGradient: {
+        flex: 1,
+        padding: 16,
+        justifyContent: 'flex-end',
+    },
+    blogRectIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    blogRectTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 4,
+    },
+    blogRectDesc: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    // Swipable Blog Card Styles
+    blogLoadingContainer: {
+        height: 180,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    blogScrollContent: {
+        paddingRight: 20,
+        paddingTop: 12,
+        gap: 12,
+    },
+    blogSwipeCard: {
+        width: SCREEN_WIDTH * 0.75,
+        height: 180,
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 6,
+        backgroundColor: '#E5E7EB',
+    },
+    blogCardImage: {
+        width: '100%',
+        height: '100%',
+        position: 'absolute',
+    },
+    blogImageOverlay: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        padding: 16,
+    },
+    blogSwipeTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        lineHeight: 24,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
 });

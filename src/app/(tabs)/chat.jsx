@@ -271,15 +271,12 @@ export default function ChatScreen() {
       <StatusBar style="light" />
 
       {/* Header */}
-      <LinearGradient
-        colors={["#4A9B7F", "#3B8068"]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <ArrowLeft size={22} color="#FFFFFF" />
+          <ArrowLeft size={20} color="#1F2937" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={styles.headerAvatar}>
@@ -289,21 +286,21 @@ export default function ChatScreen() {
             />
           </View>
           <View>
-            <Text style={styles.headerTitle}>Raska</Text>
+            <Text style={styles.headerTitle}>Raska AI</Text>
             <View style={styles.statusRow}>
               <View style={styles.statusDot} />
               <Text style={styles.headerSubtitle}>
-                Here to support you
+                Mental Wellness Assistant
               </Text>
             </View>
           </View>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.clearButton} onPress={handleClearChat} activeOpacity={0.8}>
-            <Text style={styles.clearButtonText}>Clear</Text>
+            <Text style={styles.clearButtonText}>Clear Chat</Text>
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Messages */}
       <ScrollView
@@ -664,15 +661,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: 20,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -680,27 +678,30 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 12,
+    marginLeft: 16,
   },
   headerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: "#4A9B7F",
   },
   headerAvatarImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     resizeMode: "cover",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#1F2937",
+    letterSpacing: -0.2,
   },
   statusRow: {
     flexDirection: "row",
@@ -708,31 +709,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
-    backgroundColor: "#A7F3D0",
+    backgroundColor: "#10B981",
     marginRight: 6,
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.9)",
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   headerRight: {
-    width: 60,
-    alignItems: "flex-end",
+    paddingLeft: 8,
   },
   clearButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.6)",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
   },
   clearButtonText: {
     fontSize: 12,
-    color: "#FFFFFF",
+    color: "#6B7280",
     fontWeight: "600",
   },
   messagesContainer: {
@@ -799,30 +798,41 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
   messageBubble: {
-    maxWidth: "75%",
+    maxWidth: "78%",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 18,
+    borderRadius: 16,
   },
   userBubble: {
     backgroundColor: "#4A9B7F",
     borderBottomRightRadius: 4,
+    shadowColor: "#4A9B7F",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   botBubble: {
     backgroundColor: "#FFFFFF",
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: "#E6F4F0",
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   messageText: {
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 22,
+    fontWeight: "400",
   },
   userText: {
     color: "#FFFFFF",
   },
   botText: {
-    color: "#1F2937",
+    color: "#374151",
   },
   typingIndicator: {
     flexDirection: "row",

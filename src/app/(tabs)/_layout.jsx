@@ -5,10 +5,11 @@ import {
   House,
   ClipboardList,
   Stethoscope,
-  UserCircle,
+  Target,
   Users,
 } from "lucide-react-native";
 import React, { useState, useEffect, useRef } from "react";
+
 
 // Material 3 colors
 const ACTIVE_COLOR = "#4A9B7F";
@@ -16,7 +17,9 @@ const INACTIVE_COLOR = "#79747E";
 const SURFACE_COLOR = "#FFFFFF";
 const ACTIVE_INDICATOR_BG = "#E8F5F0";
 
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 
 // Material 3 Tab Icon with smooth state transitions
 const MaterialTabIcon = ({ icon: Icon, focused, index, activeIndex }) => {
@@ -40,10 +43,12 @@ const MaterialTabIcon = ({ icon: Icon, focused, index, activeIndex }) => {
   );
 };
 
+
 // Material 3 Active Indicator (sliding pill)
 const ActiveIndicator = ({ activeIndex, tabCount }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
 
   useEffect(() => {
     // Scale animation for smooth morph
@@ -64,6 +69,7 @@ const ActiveIndicator = ({ activeIndex, tabCount }) => {
       }),
     ]).start();
 
+
     // Slide animation with Material easing
     Animated.spring(slideAnim, {
       toValue: activeIndex,
@@ -74,9 +80,11 @@ const ActiveIndicator = ({ activeIndex, tabCount }) => {
     }).start();
   }, [activeIndex]);
 
+
   const tabWidth = SCREEN_WIDTH / tabCount;
   const indicatorWidth = 64;
   const indicatorOffset = (tabWidth - indicatorWidth) / 2;
+
 
   return (
     <Animated.View
@@ -105,9 +113,12 @@ const ActiveIndicator = ({ activeIndex, tabCount }) => {
   );
 };
 
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [tabBarVisible, setTabBarVisible] = useState(true);
+
 
   // Map tab names to indices for the active indicator
   const visibleTabs = [
@@ -115,14 +126,16 @@ export default function TabLayout() {
     "assessment/index",
     "doctors",
     "community",
-    "profile/index",
+    "goals",
   ];
+
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
+        animation: 'shift',
+        tabBarStyle: tabBarVisible ? {
           backgroundColor: SURFACE_COLOR,
           borderTopWidth: 0,
           height: 64 + insets.bottom,
@@ -133,7 +146,7 @@ export default function TabLayout() {
           shadowOpacity: 0.05,
           shadowRadius: 12,
           elevation: 8,
-        },
+        } : { display: 'none' },
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarLabelStyle: {
@@ -165,6 +178,29 @@ export default function TabLayout() {
             if (tabIndex !== -1) {
               setActiveTabIndex(tabIndex);
             }
+
+
+            // Hide tab bar for doctor detail and payment screens
+            const state = e.data?.state;
+            const currentTab = state?.routes[state?.index];
+
+
+            // Check if we're in the doctors tab and on a nested screen
+            if (currentTab?.name === 'doctors' && currentTab?.state) {
+              const doctorsState = currentTab.state;
+              const doctorsRoute = doctorsState?.routes?.[doctorsState?.index];
+
+
+              // Hide tab bar for [id] and payment screens
+              if (doctorsRoute?.name === '[id]' || doctorsRoute?.name === 'payment') {
+                setTabBarVisible(false);
+                return;
+              }
+            }
+
+
+            // Show tab bar for all other screens
+            setTabBarVisible(true);
           }
         },
       }}
@@ -188,6 +224,7 @@ export default function TabLayout() {
         }}
       />
 
+
       {/* Assessment Tab */}
       <Tabs.Screen
         name="assessment/index"
@@ -209,6 +246,7 @@ export default function TabLayout() {
       <Tabs.Screen name="assessment/take" options={{ href: null }} />
       <Tabs.Screen name="assessment/result" options={{ href: null }} />
 
+
       {/* Doctor Tab */}
       <Tabs.Screen
         name="doctors"
@@ -223,10 +261,15 @@ export default function TabLayout() {
             />
           ),
         }}
-        listeners={{
-          tabPress: () => setActiveTabIndex(2),
-        }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            setActiveTabIndex(2);
+            // Navigate to doctors index when tab is pressed
+            navigation.navigate("doctors", { screen: "index" });
+          },
+        })}
       />
+
 
       {/* Community Tab */}
       <Tabs.Screen
@@ -250,6 +293,7 @@ export default function TabLayout() {
         })}
       />
 
+
       {/* Journal Tab - Hidden */}
       <Tabs.Screen
         name="journal"
@@ -259,14 +303,15 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Profile Tab */}
+
+      {/* Goals Tab */}
       <Tabs.Screen
-        name="profile/index"
+        name="goals"
         options={{
-          title: "Profile",
+          title: "Goals",
           tabBarIcon: ({ focused }) => (
             <MaterialTabIcon
-              icon={UserCircle}
+              icon={Target}
               focused={focused}
               index={4}
               activeIndex={activeTabIndex}
@@ -278,13 +323,14 @@ export default function TabLayout() {
         }}
       />
 
+
       {/* Hidden Routes */}
       <Tabs.Screen name="mood/index" options={{ href: null }} />
       <Tabs.Screen name="mood/tracker" options={{ href: null }} />
       <Tabs.Screen name="mood/dashboard" options={{ href: null }} />
       <Tabs.Screen name="mood/calendar" options={{ href: null }} />
       <Tabs.Screen name="chat" options={{ href: null }} />
-      <Tabs.Screen name="goals" options={{ href: null }} />
+      <Tabs.Screen name="profile/index" options={{ href: null }} />
       <Tabs.Screen name="notes" options={{ href: null }} />
       <Tabs.Screen name="profile/edit" options={{ href: null }} />
       <Tabs.Screen name="profile/appointments" options={{ href: null }} />
@@ -301,6 +347,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-
-

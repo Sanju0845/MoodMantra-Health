@@ -269,29 +269,24 @@ export default function JournalScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
 
-            {/* Modern Gradient Header */}
-            <LinearGradient
-                colors={["#4A9B7F", "#14B8A6"]}
-                start={[0, 0]}
-                end={[1, 1]}
-                style={[styles.header, { paddingTop: insets.top + 16 }]}
-            >
+            {/* Clean Professional Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.headerContent}>
                     {selectedMood ? (
                         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <ArrowLeft size={24} color="#FFFFFF" />
+                            <ArrowLeft size={24} color="#1F2937" />
                         </TouchableOpacity>
                     ) : <View style={{ width: 40 }} />}
                     <View style={styles.headerCenter}>
-                        <Text style={styles.headerTitle}>Mood Check-in</Text>
+                        <Text style={styles.headerTitle}>How are you feeling?</Text>
                         <Text style={styles.headerSubtitle}>Track your emotional journey</Text>
                     </View>
                     <View style={{ width: 40 }} />
                 </View>
 
-                {/* Progress Dots */}
+                {/* Progress Indicator */}
                 {selectedMood && (
                     <View style={styles.progressContainer}>
                         <View style={[styles.progressDot, step >= 1 && styles.progressDotActive]} />
@@ -299,7 +294,7 @@ export default function JournalScreen() {
                         <View style={[styles.progressDot, step >= 2 && styles.progressDotActive]} />
                     </View>
                 )}
-            </LinearGradient>
+            </View>
 
             <ScrollView
                 style={styles.scrollView}
@@ -310,11 +305,6 @@ export default function JournalScreen() {
                     {!selectedMood ? (
                         // STEP 0: Mood Selection - Improved UI
                         <View>
-                            <View style={styles.emojiSelectionHeader}>
-                                <Text style={styles.questionText}>How are you feeling?</Text>
-                                <Text style={styles.questionSubtext}>Select the emoji that matches your mood</Text>
-                            </View>
-
                             <View style={styles.moodGrid}>
                                 {MOOD_DATA.map((mood) => (
                                     <TouchableOpacity
@@ -556,12 +546,13 @@ export default function JournalScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F9FAFB",
+        backgroundColor: '#FFFFFF',
     },
     header: {
+        backgroundColor: '#FFFFFF',
         paddingBottom: 20,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
     },
     headerContent: {
         flexDirection: "row",
@@ -574,22 +565,22 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
-        justifyContent: "center",
-        alignItems: "center",
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     headerCenter: {
         flex: 1,
         alignItems: "center",
     },
     headerTitle: {
-        fontSize: 22,
-        fontWeight: "700",
-        color: "#FFFFFF",
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1F2937',
     },
     headerSubtitle: {
         fontSize: 13,
-        color: "rgba(255, 255, 255, 0.9)",
+        color: '#6B7280',
         marginTop: 2,
     },
     progressContainer: {
@@ -602,10 +593,10 @@ const styles = StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: "rgba(255, 255, 255, 0.3)",
+        backgroundColor: '#D1D5DB',
     },
     progressDotActive: {
-        backgroundColor: "#FFFFFF",
+        backgroundColor: '#4A9B7F',
         width: 12,
         height: 12,
         borderRadius: 6,
@@ -613,7 +604,7 @@ const styles = StyleSheet.create({
     progressLine: {
         width: 40,
         height: 2,
-        backgroundColor: "rgba(255, 255, 255, 0.3)",
+        backgroundColor: '#E5E7EB',
         marginHorizontal: 8,
     },
     scrollView: {
@@ -627,16 +618,16 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     questionText: {
-        fontSize: 28,
-        fontWeight: "800",
-        color: "#1F2937",
-        marginBottom: 8,
-        textAlign: "center",
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 6,
+        textAlign: 'center',
     },
     questionSubtext: {
-        fontSize: 16,
-        color: "#6B7280",
-        textAlign: "center",
+        fontSize: 14,
+        color: '#6B7280',
+        textAlign: 'center',
     },
     moodGrid: {
         flexDirection: "row",
@@ -645,7 +636,7 @@ const styles = StyleSheet.create({
     },
     moodCard: {
         width: (width - 56) / 3,
-        marginBottom: 16,
+        marginBottom: 12,
     },
     moodCardGradient: {
         borderRadius: 24,
@@ -653,24 +644,24 @@ const styles = StyleSheet.create({
     },
     moodCardInner: {
         aspectRatio: 1,
-        borderRadius: 24,
-        borderWidth: 2,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "#FFFFFF",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 6,
+        borderRadius: 20,
+        borderWidth: 1.5,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 4,
     },
     moodEmoji: {
-        fontSize: 40,
-        marginBottom: 6,
+        fontSize: 32,
+        marginBottom: 4,
     },
     moodLabel: {
-        fontSize: 12,
-        fontWeight: "600",
+        fontSize: 11,
+        fontWeight: '600',
     },
     selectedMoodCard: {
         flexDirection: "row",

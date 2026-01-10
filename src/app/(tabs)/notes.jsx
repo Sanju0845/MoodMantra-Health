@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 import { Plus, ChevronLeft, Sparkles, Heart, Briefcase, Home as HomeIcon, Coffee, Trash2, ChevronRight, Save, Mic, Image as ImageIcon, Play, Pause, X as CloseIcon, Laptop, Star, Lightbulb, Grid } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -184,6 +185,7 @@ const SwipeableNoteCard = ({ note, onEdit, onDelete, colors, CategoryIcon, isLef
 
 export default function NotesScreen() {
     const insets = useSafeAreaInsets();
+    const params = useLocalSearchParams();
     const [notes, setNotes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -214,6 +216,18 @@ export default function NotesScreen() {
     const hasMoved = useRef(false);
 
     const [userId, setUserId] = useState(null);
+
+    // Handle pre-filled title from quick journal
+    useEffect(() => {
+        if (params?.title && typeof params.title === 'string') {
+            console.log('[Notes] Pre-filling title:', params.title);
+            setNoteTitle(params.title);
+            // Use a small delay to ensure state is set before opening modal
+            setTimeout(() => {
+                setShowModal(true);
+            }, 100);
+        }
+    }, [params?.title]);
 
     // Helpers for file upload
     const uploadFile = async (uri, bucket = 'note-attachments') => {
@@ -781,11 +795,17 @@ export default function NotesScreen() {
             </Animated.View>
 
             {/* Create/Edit Note Modal */}
-            <Modal visible={showModal} animationType="slide" transparent={false} onRequestClose={handleCloseModal}>
+            <Modal
+                visible={showModal}
+                animationType="slide"
+                transparent={false}
+                presentationStyle="fullScreen"
+                onRequestClose={handleCloseModal}
+            >
                 <LinearGradient colors={["#4A9B7F", "#14B8A6"]} style={styles.modalGradient}>
                     <StatusBar style="light" />
 
-                    <View style={[styles.modalHeader, { paddingTop: insets.top + 16 }]}>
+                    <View style={styles.modalHeader}>
                         <TouchableOpacity onPress={handleCloseModal} style={styles.backButton}>
                             <ChevronLeft size={24} color="#FFFFFF" />
                         </TouchableOpacity>
@@ -1065,7 +1085,14 @@ const styles = StyleSheet.create({
     noteCardTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF", marginBottom: 8, lineHeight: 22 },
     noteCardContent: { fontSize: 12, color: "rgba(255,255,255,0.85)", lineHeight: 18 },
     modalGradient: { flex: 1 },
-    modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16 },
+    modalHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 16
+    },
     backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
     modalHeaderTitle: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
     modalTitleContainer: { paddingHorizontal: 20, paddingVertical: 20 },

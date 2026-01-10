@@ -288,27 +288,18 @@ export default function ExploreScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
 
-            {/* Professional Header */}
-            <LinearGradient
-                colors={["#8B5CF6", "#7C3AED", "#6D28D9"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.header, { paddingTop: insets.top + 12 }]}
-            >
+            {/* Clean Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.headerContent}>
-                    <View style={styles.headerLeft}>
-                        <View style={styles.iconContainer}>
-                            <Compass size={20} color="#FFFFFF" strokeWidth={2.5} />
-                        </View>
-                        <View style={styles.headerTextContainer}>
-                            <Text style={styles.headerTitle}>Explore Assessments</Text>
-                            <Text style={styles.headerSubtitle}>Find the right assessment for you</Text>
-                        </View>
-                    </View>
+                    <Text style={styles.headerTitle}>Assessments</Text>
+                    <Text style={styles.headerSubtitle}>Find the right assessment for you</Text>
                 </View>
-            </LinearGradient>
+            </View>
+
+            {/* Divider Line */}
+            <View style={styles.headerDivider} />
 
             {/* Main Content */}
             <ScrollView
@@ -443,13 +434,13 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F8F9FA",
+        backgroundColor: "#FFFFFF",
     },
     loadingContainer: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#F8F9FA",
+        backgroundColor: "#FFFFFF",
     },
     loadingText: {
         marginTop: 16,
@@ -460,18 +451,13 @@ const styles = StyleSheet.create({
 
     // Header Styles
     header: {
+        backgroundColor: "#FFFFFF",
         paddingBottom: 20,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
-        shadowColor: "#8B5CF6",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.18,
-        shadowRadius: 12,
-        elevation: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: "#E5E7EB",
     },
     headerContent: {
-        paddingHorizontal: 20,
-        paddingBottom: 16,
+        paddingHorizontal: 24,
     },
     headerLeft: {
         flexDirection: "row",
@@ -492,17 +478,20 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 32,
         fontWeight: "700",
-        color: "#FFFFFF",
-        letterSpacing: -0.3,
-        marginBottom: 2,
+        color: "#1F2937",
+        letterSpacing: -0.5,
+        marginBottom: 4,
     },
     headerSubtitle: {
-        fontSize: 12,
-        color: "rgba(255, 255, 255, 0.88)",
+        fontSize: 15,
+        color: "#6B7280",
         fontWeight: "500",
-        letterSpacing: 0.1,
+    },
+    headerDivider: {
+        height: 1,
+        backgroundColor: "#E5E7EB",
     },
 
     scrollView: {

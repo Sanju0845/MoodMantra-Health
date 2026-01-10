@@ -6,8 +6,8 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WellnessProvider } from '@/context/WellnessContext';
-// Removed custom update manager - Expo Updates handles this automatically
 import '@/i18n'; // Initialize i18n before app starts
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -24,15 +24,16 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { initiate, isReady } = useAuth();
 
-  // Expo Updates will check automatically on app launch
-  // No custom code needed!
-
   useEffect(() => {
     initiate();
   }, [initiate]);
 
   useEffect(() => {
     if (isReady) {
+      // Apply default fonts (no custom fonts to save size)
+      const { applyGlobalFonts } = require('@/utils/globalFonts');
+      applyGlobalFonts();
+
       SplashScreen.hideAsync();
     }
   }, [isReady]);

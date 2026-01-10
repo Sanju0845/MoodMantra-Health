@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
     View,
     Text,
@@ -8,8 +8,11 @@ import {
     RefreshControl,
     Image,
     StyleSheet,
+    Alert,
+    Animated,
+    PanResponder,
     Dimensions,
-    Modal,
+    FlatList,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -18,1490 +21,2171 @@ import { LinearGradient } from "expo-linear-gradient";
 import {
     Smile,
     Calendar,
+    TrendingUp,
+    TrendingDown,
+    Minus,
     Activity,
     MessageCircle,
     BookOpen,
     Users,
     Heart,
+    Zap,
     Target,
+    Bell,
+    ClipboardList,
+    Stethoscope,
+    MapPin,
+    Wind,
+    Flame,
     Droplets,
     Moon,
-    Wind,
     CheckSquare,
+    Check,
     ChevronRight,
-    ChevronDown,
-    Globe,
-    Flame,
-    Bell,
-    Sparkles,
-    Brain,
-    TrendingUp,
-    Zap,
-    Star,
-    Award,
-    GraduationCap,
-    Clock,
-    Languages,
+    Smartphone,
+    Calendar as CalendarIcon,
+    FileText,
 } from "lucide-react-native";
 import api from "../../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import AnimatedButton, { AnimatedCard } from "../../components/AnimatedButton";
+import Svg, { Circle } from "react-native-svg";
+import "../../i18n"; // Init i18n
 import { useTranslation } from "react-i18next";
+import { Modal } from "react-native";
+import { Globe } from "lucide-react-native";
 import { useWellness } from "@/context/WellnessContext";
 import { supabase } from "../../utils/supabaseClient";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const MOOD_OPTIONS = [
-    { id: "great", emoji: "😊", label: "Great", color: "#10B981" },
-    { id: "good", emoji: "🙂", label: "Good", color: "#22C55E" },
-    { id: "okay", emoji: "😐", label: "Okay", color: "#EAB308" },
-    { id: "bad", emoji: "😔", label: "Low", color: "#3B82F6" },
-    { id: "terrible", emoji: "😢", label: "Sad", color: "#EF4444" },
+// Mood Emoji Mapping (matching journal.jsx)
+const MOOD_EMOJIS = {
+    "Joyful": "😁",
+    "Happy": "😊",
+    "Calm": "😌",
+    "Grateful": "🙏",
+    "Motivated": "💪",
+    "Loved": "❤️",
+    "Inspired": "🌟",
+    "Sad": "😢",
+    "Angry": "😡",
+    "Anxious": "😰",
+    "Tired": "😩",
+    "Overwhelmed": "😖",
+    "Awful": "😭",
+    "Neutral": "😐",
+    "Confused": "😕",
+    "Bored": "🥱",
+    "Okay": "🙂",
+    "Nostalgic": "🥹",
+    "Hopeful": "🌈",
+    "Guilty": "😔",
+    "Ashamed": "😳",
+};
+
+// Mood Data with Colors (for recent moods preview)
+const MOOD_DATA = [
+    { id: "joyful", emoji: "😁", label: "Joyful", color: "#4A9B7F" },
+    { id: "happy", emoji: "😊", label: "Happy", color: "#16A34A" },
+    { id: "calm", emoji: "😌", label: "Calm", color: "#14B8A6" },
+    { id: "grateful", emoji: "🙏", label: "Grateful", color: "#F59E0B" },
+    { id: "motivated", emoji: "💪", label: "Motivated", color: "#10B981" },
+    { id: "loved", emoji: "❤️", label: "Loved", color: "#EC4899" },
+    { id: "inspired", emoji: "🌟", label: "Inspired", color: "#6366F1" },
+    { id: "sad", emoji: "😢", label: "Sad", color: "#3B82F6" },
+    { id: "angry", emoji: "😡", label: "Angry", color: "#EF4444" },
+    { id: "anxious", emoji: "😰", label: "Anxious", color: "#F59E0B" },
+    { id: "tired", emoji: "😩", label: "Tired", color: "#94A3B8" },
+    { id: "overwhelmed", emoji: "😖", label: "Overwhelmed", color: "#F97316" },
+    { id: "awful", emoji: "😭", label: "Awful", color: "#A855F7" },
+    { id: "neutral", emoji: "😐", label: "Neutral", color: "#64748B" },
+    { id: "confused", emoji: "😕", label: "Confused", color: "#8B5CF6" },
+    { id: "bored", emoji: "🥱", label: "Bored", color: "#6B7280" },
+    { id: "okay", emoji: "🙂", label: "Okay", color: "#22C55E" },
+    { id: "nostalgic", emoji: "🥹", label: "Nostalgic", color: "#EC4899" },
+    { id: "hopeful", emoji: "🌈", label: "Hopeful", color: "#10B981" },
+    { id: "guilty", emoji: "😔", label: "Guilty", color: "#F59E0B" },
+    { id: "ashamed", emoji: "😳", label: "Ashamed", color: "#EF4444" },
 ];
 
-const LANGUAGES = [
-    { code: 'en', label: 'English', native: 'English' },
-    { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
-    { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
-    { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+// Daily inspirational quotes
+const DAILY_QUOTES = [
+    "Embrace the journey of healing, one small step at a time.",
+    "Your mental health is a priority. Your happiness is essential.",
+    "It's okay to take things day by day.",
+    "Small progress is still progress.",
+    "Be gentle with yourself. You're doing the best you can.",
+    "Every day is a fresh start.",
+    "You are stronger than you think.",
 ];
+
+// Circle Progress Component - starts from top
+const CircleProgress = ({ size = 70, strokeWidth = 6, progress = 0, color = "#4A9B7F", bgColor = "#E5E7EB", children }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const strokeDashoffset = circumference - (Math.min(progress, 1) * circumference);
+
+    return (
+        <View style={{ width: size, height: size, justifyContent: "center", alignItems: "center" }}>
+            <Svg width={size} height={size} style={{ transform: [{ rotate: "-90deg" }] }}>
+                {/* Background circle */}
+                <Circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke={bgColor}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                />
+                {/* Progress circle */}
+                <Circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke={color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                />
+            </Svg>
+            {/* Center content */}
+            <View style={{ position: "absolute", justifyContent: "center", alignItems: "center" }}>
+                {children}
+            </View>
+        </View>
+    );
+};
 
 export default function HomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { t, i18n } = useTranslation();
     const { water, sleep, breathing, habits, refreshData: refreshWellness } = useWellness();
-
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [user, setUser] = useState(null);
-    const [doctors, setDoctors] = useState([]);
     const [appointments, setAppointments] = useState([]);
+    const [userAssessments, setUserAssessments] = useState([]);
+    const [moodDashboard, setMoodDashboard] = useState(null);
+    const [moodEntries, setMoodEntries] = useState([]);
+    const [doctors, setDoctors] = useState([]);
     const [loggingStreak, setLoggingStreak] = useState(0);
+
+    // Carousel Animation
+    const scrollX = useRef(new Animated.Value(0)).current;
+    const { width: SCREEN_WIDTH } = Dimensions.get('window');
+    const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced to show peek of side cards
+    const SPACING = 8; // Tighter spacing for better peek visibility
+    const SPACER_WIDTH = (SCREEN_WIDTH - CARD_WIDTH) / 2;
+
+    const [dailyQuote, setDailyQuote] = useState(DAILY_QUOTES[0]);
+    const [showChatTooltip, setShowChatTooltip] = useState(true);
+    const { t, i18n } = useTranslation();
+    const [showLanguageModal, setShowLanguageModal] = useState(false);
+    const [analytics, setAnalytics] = useState(null);
     const [waterToday, setWaterToday] = useState(0);
     const [breathingToday, setBreathingToday] = useState(0);
-    const [showLanguageModal, setShowLanguageModal] = useState(false);
-    const scrollViewRef = useRef(null);
-    const [currentScrollIndex, setCurrentScrollIndex] = useState(0);
 
-    // Create infinite loop by tripling the doctors array
-    const infiniteDoctors = useMemo(() => {
-        if (doctors.length === 0) return [];
-        return [...doctors, ...doctors, ...doctors];
-    }, [doctors]);
+    const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-    const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return "Good Morning";
-        if (hour < 17) return "Good Afternoon";
-        return "Good Evening";
-    };
-
-    const waterProgress = Math.min(waterToday / 2000, 1);
-    const sleepProgress = Math.min(sleep.today / 8, 1);
-    const breathingProgress = Math.min(breathingToday / 3, 1);
+    // Wellness Data - use direct Supabase data
+    const waterProgress = waterToday / 2000;
+    const sleepProgress = sleep.today / 8;
+    const breathingProgress = breathingToday / 3;
     const completedHabits = habits.logs.find(l => l.date === new Date().toDateString())?.completedIds?.length || 0;
     const totalHabits = habits.list.length;
     const habitsProgress = totalHabits > 0 ? completedHabits / totalHabits : 0;
 
-    useFocusEffect(
-        useCallback(() => {
-            loadData();
-            refreshWellness();
-        }, [])
-    );
-
-    // Set initial scroll position to middle section
-    useEffect(() => {
-        if (doctors.length > 0 && scrollViewRef.current) {
-            const cardWidth = SCREEN_WIDTH * 0.70 + 12;
-            setTimeout(() => {
-                scrollViewRef.current?.scrollTo({
-                    x: doctors.length * cardWidth,
-                    animated: false,
-                });
-                setCurrentScrollIndex(doctors.length);
-            }, 100);
-        }
-    }, [doctors.length]);
+    const LANGUAGES = [
+        { code: 'en', label: 'English', native: 'English' },
+        { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
+        { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
+        { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+    ];
 
     const changeLanguage = async (langCode) => {
         await i18n.changeLanguage(langCode);
         await AsyncStorage.setItem('language', langCode);
         setShowLanguageModal(false);
+        // Force a small delay to ensure all components re-render with new language
+        setTimeout(() => {
+            // This setState will trigger a re-render of the home screen which will cascade through navigation
+            setLoading(false);
+        }, 100);
     };
+
+
+    // Chat tooltip animation
+    const tooltipScale = useRef(new Animated.Value(0)).current;
+    const tooltipOpacity = useRef(new Animated.Value(0)).current;
+
+    // Slider state for slide-to-log mood
+    const SLIDER_WIDTH = Dimensions.get("window").width - 80; // Container width minus padding
+    const THUMB_SIZE = 60;
+    const SLIDE_THRESHOLD = SLIDER_WIDTH - THUMB_SIZE - 20; // How far to slide to trigger
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const [slideComplete, setSlideComplete] = useState(false);
+
+    // Animation refs
+    const slideX = useRef(new Animated.Value(0)).current;
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        // Pulse animation loop
+        const pulseLoop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1.1,
+                    duration: 800,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 800,
+                    useNativeDriver: true,
+                }),
+            ])
+        );
+        pulseLoop.start();
+        return () => pulseLoop.stop();
+    }, []);
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: () => {
+                slideX.stopAnimation();
+                slideX.setOffset(slideX._value);
+                slideX.setValue(0);
+            },
+            onPanResponderMove: (_, gestureState) => {
+                const newX = Math.max(0, Math.min(gestureState.dx + slideX._offset, SLIDE_THRESHOLD));
+                slideX.setValue(newX - slideX._offset);
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                slideX.flattenOffset();
+                const currentValue = slideX._value;
+
+                if (currentValue >= SLIDE_THRESHOLD * 0.75) {
+                    // Slide complete - animate and navigate to journal
+                    setSlideComplete(true);
+
+                    // Smooth animation to end
+                    Animated.timing(slideX, {
+                        toValue: SLIDE_THRESHOLD,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }).start();
+
+                    // Fade out screen for smooth transition
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 200,
+                        useNativeDriver: true,
+                    }).start(() => {
+                        router.push("/(tabs)/journal");
+                        // Reset after navigation
+                        setTimeout(() => {
+                            slideX.setValue(0);
+                            fadeAnim.setValue(1);
+                            setSlideComplete(false);
+                        }, 400);
+                    });
+                } else {
+                    // Spring back to start with smooth physics
+                    Animated.spring(slideX, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        tension: 50,
+                        friction: 7,
+                    }).start();
+                }
+            },
+        })
+    ).current;
+
+    useFocusEffect(
+        useCallback(() => {
+            console.log('[Home] Screen focused - reloading data');
+            loadData();
+            refreshWellness();
+        }, [])
+    );
+    useEffect(() => {
+        // Show chat tooltip for 3 seconds
+        setTimeout(() => {
+            Animated.parallel([
+                Animated.spring(tooltipScale, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                    speed: 12,
+                    bounciness: 10,
+                }),
+                Animated.timing(tooltipOpacity, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+
+            // Hide after 5 seconds
+            setTimeout(() => {
+                Animated.parallel([
+                    Animated.timing(tooltipScale, {
+                        toValue: 0,
+                        duration: 200,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(tooltipOpacity, {
+                        toValue: 0,
+                        duration: 200,
+                        useNativeDriver: true,
+                    }),
+                ]).start(() => setShowChatTooltip(false));
+            }, 5000);
+        }, 500);
+    }, []);
 
     const loadData = async () => {
         try {
-            setLoading(true);
-            const userId = await AsyncStorage.getItem('userId');
-            const storedUserData = await AsyncStorage.getItem('userData');
+            const userId = await AsyncStorage.getItem("userId");
 
-            // Set stored user data immediately if available
-            if (storedUserData) {
-                try {
-                    const parsedUserData = JSON.parse(storedUserData);
-                    if (parsedUserData?.name) {
-                        setUser(parsedUserData);
-                    }
-                } catch (e) { }
-            }
-
-            const [profileResponse, doctorsResponse, appointmentsResponse] = await Promise.all([
+            const [profileResponse, appointmentsResponse, doctorsResponse] = await Promise.all([
                 api.getProfile().catch(() => ({ success: false })),
-                api.getDoctors().catch(() => ({ doctors: [] })),
                 api.getUserAppointments().catch(() => ({ appointments: [] })),
+                api.getDoctors().catch(() => ({ doctors: [] })),
             ]);
 
-            if (profileResponse.success && profileResponse.user) {
-                setUser(profileResponse.user);
-            } else if (userId) {
-                // Try to get profile from Supabase
-                try {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', userId)
-                        .single();
+            if (profileResponse.success) {
+                setUser(profileResponse.userData);
+            }
 
-                    if (profile) {
-                        const storedData = storedUserData ? JSON.parse(storedUserData) : {};
-                        setUser({
-                            name: profile.full_name || profile.name || storedData.name,
-                            email: profile.email,
-                            avatar: profile.avatar_url,
-                        });
-                    }
-                } catch (e) {
-                    // storedUserData already set above, no need to do anything
-                }
+            if (appointmentsResponse.success) {
+                const upcoming = appointmentsResponse.appointments
+                    .filter((apt) => !apt.cancelled && !apt.isCompleted)
+                    .slice(0, 3);
+                setAppointments(upcoming);
             }
 
             if (doctorsResponse.success && Array.isArray(doctorsResponse.doctors)) {
-                setDoctors(doctorsResponse.doctors.slice(0, 5));
-            }
-            if (appointmentsResponse.success) {
-                setAppointments(appointmentsResponse.appointments.filter((apt) => !apt.cancelled && !apt.isCompleted).slice(0, 2));
+                setDoctors(doctorsResponse.doctors);
             }
 
+            // Fetch user data from server
             if (userId) {
+                // Get user assessments
                 try {
-                    const { data: waterLogs } = await supabase.from('water_logs').select('*').eq('user_id', userId);
-                    if (waterLogs) {
+                    const assessmentsData = await api.getUserAssessments(userId);
+                    if (Array.isArray(assessmentsData)) {
+                        setUserAssessments(assessmentsData.slice(0, 3));
+                    }
+                } catch (e) {
+                    console.log("[Home] No user assessments");
+                }
+
+                // Load Water from Supabase
+                try {
+                    const { data: waterLogs, error: waterError } = await supabase
+                        .from('water_logs')
+                        .select('*')
+                        .eq('user_id', userId);
+
+                    if (!waterError && waterLogs) {
                         const todayStr = new Date().toDateString();
-                        setWaterToday(waterLogs.filter(log => new Date(log.logged_at).toDateString() === todayStr).reduce((sum, log) => sum + log.amount_ml, 0));
+                        const todayLogs = waterLogs.filter(log => {
+                            const logDateStr = new Date(log.logged_at).toDateString();
+                            return logDateStr === todayStr;
+                        });
+                        const todayTotal = todayLogs.reduce((sum, log) => sum + log.amount_ml, 0);
+                        setWaterToday(todayTotal);
                     }
-                } catch (e) { }
+                } catch (e) {
+                    console.log("[Home] Error loading water:", e);
+                }
 
+                // Load Breathing from Supabase
                 try {
-                    const { data: breathingSessions } = await supabase.from('breathing_sessions').select('*').eq('user_id', userId);
-                    if (breathingSessions) {
-                        const today = new Date();
-                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                        setBreathingToday(breathingSessions.filter(s => s.session_date === todayStr).length);
-                    }
-                } catch (e) { }
+                    console.log('[Home] Loading breathing sessions for userId:', userId);
 
+                    const { data: breathingSessions, error: breathingError } = await supabase
+                        .from('breathing_sessions')
+                        .select('*')
+                        .eq('user_id', userId);
+
+                    if (breathingError) {
+                        console.error('[Home] Breathing error:', breathingError);
+                    } else {
+                        console.log('[Home] Fetched breathing sessions:', breathingSessions?.length || 0);
+                        console.log('[Home] Sample sessions:', breathingSessions?.slice(0, 3));
+
+                        // Get today's date in YYYY-MM-DD format (local timezone)
+                        const today = new Date();
+                        const year = today.getFullYear();
+                        const month = String(today.getMonth() + 1).padStart(2, '0');
+                        const day = String(today.getDate()).padStart(2, '0');
+                        const todayStr = `${year}-${month}-${day}`;
+
+                        console.log('[Home] Looking for sessions on date:', todayStr);
+
+                        const todaySessions = breathingSessions?.filter(session => {
+                            console.log('[Home] Checking session:', session.session_date, '===', todayStr, '?', session.session_date === todayStr);
+                            return session.session_date === todayStr;
+                        }) || [];
+
+                        setBreathingToday(todaySessions.length);
+                        console.log('[Home] ✅ Breathing sessions today:', todaySessions.length, 'of', breathingSessions?.length || 0, 'total');
+                    }
+                } catch (e) {
+                    console.log("[Home] Error loading breathing:", e);
+                }
+
+                // Get mood dashboard analytics
+                try {
+                    const dashboardData = await api.getMoodDashboard(userId, 30);
+                    if (dashboardData) {
+                        setMoodDashboard(dashboardData.dashboard || dashboardData);
+                    }
+                } catch (e) {
+                    console.log("[Home] No mood dashboard data");
+                }
+
+                // Get mood entries for streak calculation (use weekly analytics)
                 try {
                     const weeklyData = await api.getWeeklyMoodAnalytics(userId);
-                    let moodDataArray = weeklyData?.moodData || weeklyData?.moodEntries || weeklyData?.data || [];
-                    if (moodDataArray.length > 0) {
-                        const sortedEntries = [...moodDataArray].sort((a, b) => new Date(b.date || b.timestamp || b.createdAt) - new Date(a.date || a.timestamp || a.createdAt));
-                        let streak = 0;
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        let checkDate = new Date(today);
-                        for (const entry of sortedEntries) {
-                            const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
-                            entryDate.setHours(0, 0, 0, 0);
-                            if (entryDate.getTime() === checkDate.getTime()) {
-                                streak++;
-                                checkDate.setDate(checkDate.getDate() - 1);
-                            } else if (entryDate.getTime() < checkDate.getTime()) break;
+                    console.log('[Home] ========== WEEKLY MOOD API RESPONSE ==========');
+                    console.log('[Home] Full response:', JSON.stringify(weeklyData, null, 2));
+                    console.log('[Home] Response keys:', Object.keys(weeklyData || {}));
+
+                    // Check different possible data structures
+                    const possibleDataArrays = [
+                        weeklyData?.moodData,
+                        weeklyData?.moodEntries,
+                        weeklyData?.data,
+                        Array.isArray(weeklyData) ? weeklyData : null
+                    ].filter(Boolean);
+
+                    console.log('[Home] Found possible data arrays:', possibleDataArrays.length);
+
+                    let moodDataArray = weeklyData?.moodData || weeklyData?.moodEntries || weeklyData?.data || (Array.isArray(weeklyData) ? weeklyData : []);
+
+                    console.log('[Home] Using data array with length:', moodDataArray.length);
+                    if (moodDataArray && moodDataArray.length > 0) {
+                        // Sort by date descending (newest first)
+                        const sortedEntries = [...moodDataArray].sort((a, b) =>
+                            new Date(b.date || b.timestamp || b.createdAt) - new Date(a.date || a.timestamp || a.createdAt)
+                        );
+
+                        console.log('[Home] Sorted entries count:', sortedEntries.length);
+                        console.log('[Home] ========== LATEST MOOD ENTRY ==========');
+                        console.log(JSON.stringify(sortedEntries[0], null, 2));
+                        console.log('[Home] ===========================================');
+
+                        if (sortedEntries[0]) {
+                            console.log('[Home] Mood field value:', sortedEntries[0].mood);
+                            console.log('[Home] Available fields:', Object.keys(sortedEntries[0]));
+                            console.log('[Home] Emoji from MOOD_EMOJIS map:', MOOD_EMOJIS[sortedEntries[0].mood]);
                         }
-                        setLoggingStreak(streak);
+
+                        setMoodEntries(sortedEntries);
+
+                        // Calculate streak
+                        const entries = moodDataArray;
+                        if (entries.length > 0) {
+                            let streak = 0;
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            console.log('[Home] Today for streak calc:', today.toDateString());
+
+                            const sorted = [...entries].sort((a, b) =>
+                                new Date(b.date || b.timestamp || b.createdAt) - new Date(a.date || a.timestamp || a.createdAt)
+                            );
+
+                            let checkDate = new Date(today);
+                            for (const entry of sorted) {
+                                const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
+                                entryDate.setHours(0, 0, 0, 0);
+
+                                console.log('[Home] Checking entry:', {
+                                    entryDate: entryDate.toDateString(),
+                                    checkDate: checkDate.toDateString(),
+                                    matches: entryDate.getTime() === checkDate.getTime()
+                                });
+
+                                if (entryDate.getTime() === checkDate.getTime()) {
+                                    streak++;
+                                    checkDate.setDate(checkDate.getDate() - 1);
+                                } else if (entryDate.getTime() < checkDate.getTime()) {
+                                    break;
+                                }
+                            }
+                            console.log('[Home] ========== CALCULATED STREAK:', streak, '==========');
+                            setLoggingStreak(streak);
+                        }
+                    } else {
+                        console.log('[Home] No mood data array found or empty');
                     }
-                } catch (e) { }
+                } catch (e) {
+                    console.log("[Home] No mood entries:", e.message);
+                }
             }
         } catch (error) {
             console.error("Error loading data:", error);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
-    const onRefresh = async () => {
+    const onRefresh = () => {
         setRefreshing(true);
-        await loadData();
-        await refreshWellness();
-        setRefreshing(false);
+        loadData();
+        refreshWellness();
     };
 
-    // Auto-scroll carousel with glitch prevention
-    useEffect(() => {
-        if (infiniteDoctors.length === 0 || doctors.length === 0) return;
+    const formatAppointmentDate = (slotDate, slotTime) => {
+        try {
+            const parts = slotDate.includes("_")
+                ? slotDate.split("_")
+                : slotDate.split("/");
+            const day = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            const year = parseInt(parts[2]);
 
-        let isUserScrolling = false;
-        let scrollTimeout;
+            const date = new Date(year, month, day);
+            const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+            const monthName = date.toLocaleDateString("en-US", { month: "short" });
 
-        const interval = setInterval(() => {
-            if (isUserScrolling) return; // Don't auto-scroll if user is scrolling
+            return `${dayName}, ${monthName} ${day}th - ${slotTime}`;
+        } catch (e) {
+            return `${slotDate} - ${slotTime}`;
+        }
+    };
 
-            setCurrentScrollIndex((prevIndex) => {
-                const cardWidth = SCREEN_WIDTH * 0.70 + 12;
-                const nextIndex = prevIndex + 1;
+    const getTrendIcon = (trend) => {
+        if (trend === "improving") return TrendingUp;
+        if (trend === "declining") return TrendingDown;
+        return Minus;
+    };
 
-                // Scroll to next card smoothly
-                scrollViewRef.current?.scrollTo({
-                    x: nextIndex * cardWidth,
-                    animated: true,
-                });
+    const getTrendColor = (trend) => {
+        if (trend === "improving") return "#10B981";
+        if (trend === "declining") return "#EF4444";
+        return "#9CA3AF";
+    };
 
-                // Check if we need to reset (approaching end of middle section)
-                const middleSectionEnd = doctors.length * 2 - 1;
-                if (nextIndex >= middleSectionEnd) {
-                    // Wait for animation to complete, then reset
-                    setTimeout(() => {
-                        scrollViewRef.current?.scrollTo({
-                            x: doctors.length * cardWidth,
-                            animated: false,
-                        });
-                    }, 400);
-                    return doctors.length;
-                }
-
-                return nextIndex;
-            });
-        }, 4000); // Scroll every 4 seconds
-
-        return () => clearInterval(interval);
-    }, [infiniteDoctors.length, doctors.length]);
+    const getMoodLabel = (score) => {
+        if (score >= 4) return "Great";
+        if (score >= 3) return "Good";
+        if (score >= 2) return "Okay";
+        return "Low";
+    };
 
     if (loading) {
         return (
             <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-                <ActivityIndicator size="large" color="#6366F1" />
+                <ActivityIndicator size="large" color="#4A9B7F" />
             </View>
         );
     }
 
-    const todayDate = new Date().toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric'
-    });
+    const moodAnalytics = moodDashboard?.analytics || analytics;
+    const trend = moodAnalytics?.trend || "stable";
+    const TrendIcon = getTrendIcon(trend);
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Animated.View style={[styles.container, { paddingTop: insets.top, opacity: fadeAnim }]}>
             <StatusBar style="dark" />
-
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity
-                        style={styles.avatarContainer}
-                        onPress={() => router.push("/(tabs)/profile")}
-                    >
-                        <Image
-                            source={{ uri: user?.avatar || `https://ui-avatars.com/api/?name=${user?.name || "User"}&background=6366F1&color=fff&size=100` }}
-                            style={styles.avatar}
-                        />
-                        <View style={styles.onlineDot} />
-                    </TouchableOpacity>
-                    <View style={styles.greetingBox}>
-                        <Text style={styles.greetingText}>{getGreeting()}</Text>
-                        <Text style={styles.userName}>{user?.name?.split(' ')[0] || "Friend"} 👋</Text>
-                        <Text style={styles.dateText}>{todayDate}</Text>
-                    </View>
-                </View>
-                <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => setShowLanguageModal(true)}>
-                        <Globe size={20} color="#475569" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconBtn}>
-                        <View style={styles.notifBadge} />
-                        <Bell size={20} color="#475569" />
-                    </TouchableOpacity>
-                </View>
-            </View>
 
             <ScrollView
                 style={styles.scrollView}
-                contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: insets.bottom + 100 },
+                ]}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
             >
-                {/* Mood Card - Enhanced */}
-                <View style={styles.moodCard}>
-                    <LinearGradient
-                        colors={["#FFFFFF", "#F8FAFC"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 0, y: 1 }}
-                        style={styles.moodGradient}
-                    >
-                        <View style={styles.moodHeader}>
-                            <View style={styles.moodHeaderLeft}>
-                                <Heart size={22} color="#F472B6" strokeWidth={2} />
-                                <View>
-                                    <Text style={styles.moodTitle}>How are you feeling?</Text>
-                                    <Text style={styles.moodSubtitle}>Check in with yourself today</Text>
-                                </View>
-                            </View>
-                            {loggingStreak > 0 && (
-                                <View style={styles.streakBadge}>
-                                    <Flame size={13} color="#F59E0B" strokeWidth={2} />
-                                    <Text style={styles.streakText}>{loggingStreak}</Text>
-                                </View>
-                            )}
-                        </View>
+                {/* Header */}
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.greeting}>
+                            {t('greeting')} {user?.name?.split(" ")[0] || t('greeting_placeholder')}!
+                        </Text>
+                        <Text style={styles.dateText}>{todayDate}</Text>
+                    </View>
 
-                        <View style={styles.moodRow}>
-                            {MOOD_OPTIONS.map((mood) => (
-                                <TouchableOpacity
-                                    key={mood.id}
-                                    style={styles.moodItem}
-                                    onPress={() => router.push("/(tabs)/journal")}
-                                    activeOpacity={0.7}
-                                >
-                                    <View style={[styles.moodCircle, { backgroundColor: "#F8FAFC" }]}>
-                                        <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-                                    </View>
-                                    <Text style={styles.moodLabel}>{mood.label}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        <TouchableOpacity style={styles.insightBtn} onPress={() => router.push("/mood/dashboard")}>
-                            <Activity size={16} color="#64748B" strokeWidth={2} />
-                            <Text style={styles.insightText}>View mood insights</Text>
-                            <ChevronRight size={16} color="#CBD5E1" strokeWidth={2} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 8, borderRadius: 20 }}
+                            onPress={() => setShowLanguageModal(true)}
+                        >
+                            <Globe size={18} color="#475569" />
+                            <Text style={{ fontSize: 12, color: "#475569", fontWeight: "600", marginLeft: 4 }}>
+                                {LANGUAGES.find(l => l.code === i18n.language)?.code?.toUpperCase()}
+                            </Text>
                         </TouchableOpacity>
-                    </LinearGradient>
+
+                        <TouchableOpacity onPress={() => router.push("/(tabs)/profile")}>
+                            <Image
+                                source={{
+                                    uri: user?.image || "https://via.placeholder.com/50",
+                                }}
+                                style={styles.profileImage}
+                            />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
-                {/* Divider */}
+                {/* Header Divider */}
                 <View style={styles.sectionDivider} />
 
-                {/* Let's Have A Conversation - Therapist Section */}
-                {doctors.length > 0 && (
-                    <View style={styles.therapistSection}>
-                        <Text style={styles.sectionTitle}>Let's Have A Conversation</Text>
-                        <Text style={styles.sectionSubtitle}>
-                            Chat with our therapist and help us understand what you need.
-                        </Text>
+                {/* Language Modal */}
+                <Modal
+                    visible={showLanguageModal}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setShowLanguageModal(false)}
+                >
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                        <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 20, width: '100%', maxWidth: 300 }}>
+                            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center', color: '#1E293B' }}>
+                                Select Language
+                            </Text>
+                            {LANGUAGES.map((lang) => (
+                                <TouchableOpacity
+                                    key={lang.code}
+                                    style={{
+                                        paddingVertical: 12,
+                                        borderBottomWidth: 1,
+                                        borderBottomColor: '#F1F5F9',
+                                        backgroundColor: i18n.language === lang.code ? '#F0FDF4' : 'transparent',
+                                        borderRadius: 8,
+                                        paddingHorizontal: 12,
+                                        marginBottom: 4
+                                    }}
+                                    onPress={() => changeLanguage(lang.code)}
+                                >
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: i18n.language === lang.code ? 'bold' : 'normal',
+                                        color: i18n.language === lang.code ? '#166534' : '#334155'
+                                    }}>
+                                        {lang.native} ({lang.label})
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                            <TouchableOpacity
+                                style={{ marginTop: 16, padding: 12, alignItems: 'center' }}
+                                onPress={() => setShowLanguageModal(false)}
+                            >
+                                <Text style={{ color: '#64748B', fontWeight: '600' }}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
 
-                        <ScrollView
-                            ref={scrollViewRef}
+
+                {/* Mood Card - Slide to Log - ENHANCED WITH MORE CONTENT */}
+                <View style={styles.moodCard}>
+                    {/* Abstract gradient background */}
+                    <LinearGradient
+                        colors={["#A78BFA", "#EC4899", "#F59E0B"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 24 }}
+                    />
+                    {/* Blurry white overlay */}
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255, 255, 255, 0.85)', borderRadius: 24 }} />
+                    {/* Animated Background Pattern */}
+                    <View style={{ position: 'absolute', right: -30, top: -30, opacity: 0.06 }}>
+                        <Animated.View style={{ transform: [{ rotate: pulseAnim.interpolate({ inputRange: [1, 1.1], outputRange: ['0deg', '5deg'] }) }] }}>
+                            <Smile size={180} color="#4B5563" />
+                        </Animated.View>
+                    </View>
+
+                    <View style={styles.moodCardContent}>
+                        <View style={styles.moodCardLeft}>
+                            <View style={styles.moodCardHeader}>
+                                <Text style={styles.moodCardEmoji}>😊</Text>
+                                <View>
+                                    <Text style={styles.moodCardTitle}>{t('how_are_you')}</Text>
+                                    <Text style={styles.moodCardSubtitle}>Track your emotions today</Text>
+                                </View>
+                            </View>
+
+                            {/* Mini Stats Row with Animated Fire */}
+                            <View style={styles.miniStatsRow}>
+                                {loggingStreak > 0 && (
+                                    <LinearGradient
+                                        colors={['#FF6B35', '#F59E0B']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.miniStatCardFire}
+                                    >
+                                        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                                            <Flame size={16} color="#FFF" fill="#FFF" />
+                                        </Animated.View>
+                                        <Text style={styles.miniStatTextFire}>{loggingStreak} day{loggingStreak > 1 ? 's' : ''}</Text>
+                                    </LinearGradient>
+                                )}
+                                {moodEntries && moodEntries.length > 0 && (
+                                    <View style={styles.miniStatCard}>
+                                        <Calendar size={14} color="#FFF" />
+                                        <Text style={styles.miniStatText}>{moodEntries.length} logged</Text>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Improved Slide to Log Slider */}
+                    <View style={styles.sliderContainerNew}>
+                        <View style={styles.sliderTrackNew}>
+                            {/* Animated gradient background */}
+                            <LinearGradient
+                                colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.sliderTrackGradient}
+                            />
+
+                            {/* Slide text with animated arrow */}
+                            <View style={styles.sliderTextContainerNew}>
+                                <Animated.View style={{ opacity: slideX.interpolate({ inputRange: [0, SLIDER_WIDTH * 0.5], outputRange: [1, 0] }) }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <Text style={styles.sliderTextNew}>Slide to log mood</Text>
+                                        <Animated.Text style={[styles.sliderArrowNew, { transform: [{ translateX: pulseAnim.interpolate({ inputRange: [1, 1.1], outputRange: [0, 4] }) }] }]}>
+                                            →
+                                        </Animated.Text>
+                                    </View>
+                                </Animated.View>
+                            </View>
+
+                            {/* Premium Draggable Thumb */}
+                            <Animated.View
+                                {...panResponder.panHandlers}
+                                style={[
+                                    styles.sliderThumbNew,
+                                    {
+                                        transform: [
+                                            { translateX: slideX },
+                                            { scale: pulseAnim }
+                                        ],
+                                    },
+                                ]}
+                            >
+                                {/* Glow effect */}
+                                <View style={styles.sliderThumbGlowNew} />
+                                {/* Inner content */}
+                                <LinearGradient
+                                    colors={['#FFFFFF', '#F0FDF4']}
+                                    style={styles.sliderThumbInner}
+                                >
+                                    <Smile size={28} color="#4A9B7F" strokeWidth={2.5} />
+                                </LinearGradient>
+                            </Animated.View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Section Divider */}
+                <View style={styles.sectionDivider} />
+
+                {/* Therapist Carousel */}
+                {doctors.length > 0 && (
+                    <View style={styles.section}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
+                            <Text style={styles.sectionTitle}>Our Therapists</Text>
+                            <TouchableOpacity onPress={() => router.push("/(tabs)/doctors")}>
+                                <Text style={{ color: '#4A9B7F', fontWeight: '600' }}>View All</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Animated.FlatList
+                            data={doctors}
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.therapistScroll}
-                            snapToInterval={SCREEN_WIDTH * 0.70 + 12}
+                            snapToInterval={CARD_WIDTH + SPACING}
                             decelerationRate="fast"
+                            initialScrollIndex={doctors.length > 1 ? 1 : 0}
+                            getItemLayout={(data, index) => ({
+                                length: CARD_WIDTH + SPACING,
+                                offset: (CARD_WIDTH + SPACING) * index,
+                                index,
+                            })}
+                            contentContainerStyle={{
+                                paddingLeft: SPACER_WIDTH - (SPACING * 2),
+                                paddingRight: SPACER_WIDTH + (SPACING * 2),
+                                paddingVertical: 10
+                            }}
+                            onScroll={Animated.event(
+                                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                                { useNativeDriver: true }
+                            )}
                             scrollEventThrottle={16}
-                        >
-                            {infiniteDoctors.map((doctor, index) => (
-                                <View key={`${doctor._id}-${index}`} style={styles.therapistCardWrapper}>
-                                    <TouchableOpacity
-                                        style={styles.therapistCard}
-                                        onPress={() => router.push(`/doctors/${doctor._id}`)}
-                                        activeOpacity={0.9}
-                                    >
-                                        {/* Profile Image with gradient border */}
-                                        <View style={styles.therapistImgWrapper}>
-                                            <LinearGradient
-                                                colors={["#F97316", "#FB923C", "#FDBA74"]}
-                                                style={styles.therapistImgBorder}
-                                            >
-                                                <Image
-                                                    source={{ uri: doctor.image || "https://via.placeholder.com/80" }}
-                                                    style={styles.therapistImg}
-                                                />
-                                            </LinearGradient>
-                                        </View>
+                            keyExtractor={(item) => item._id}
+                            renderItem={({ item, index }) => {
+                                const inputRange = [
+                                    (CARD_WIDTH + SPACING) * (index - 1),
+                                    (CARD_WIDTH + SPACING) * index,
+                                    (CARD_WIDTH + SPACING) * (index + 1),
+                                ];
 
-                                        {/* Info */}
-                                        <View style={styles.therapistInfo}>
-                                            <Text style={styles.therapistName} numberOfLines={1}>
-                                                {doctor.name}
-                                            </Text>
-                                            <View style={styles.therapistDetail}>
-                                                <GraduationCap size={14} color="#0D9488" />
-                                                <Text style={styles.therapistDetailText} numberOfLines={1}>
-                                                    {doctor.qualification || "M.Phil Clinical Psychology, M.Sc ..."}
-                                                </Text>
-                                            </View>
-                                            <View style={styles.therapistDetail}>
-                                                <Clock size={14} color="#0D9488" />
-                                                <Text style={styles.therapistDetailText}>
-                                                    {doctor.experience || "3 yrs. exp."}
-                                                </Text>
-                                            </View>
-                                            <View style={styles.therapistDetail}>
-                                                <Languages size={14} color="#0D9488" />
-                                                <Text style={styles.therapistDetailText}>
-                                                    {doctor.languages || "English, Hindi"}
-                                                </Text>
-                                            </View>
-                                        </View>
+                                const scale = scrollX.interpolate({
+                                    inputRange,
+                                    outputRange: [0.9, 1, 0.9],
+                                    extrapolate: 'clamp',
+                                });
 
-                                        {/* Chevron */}
-                                        <ChevronRight size={20} color="#94A3B8" />
-                                    </TouchableOpacity>
+                                const opacity = scrollX.interpolate({
+                                    inputRange,
+                                    outputRange: [0.6, 1, 0.6],
+                                    extrapolate: 'clamp',
+                                });
 
-                                    {/* LET'S CHAT Button */}
-                                    <TouchableOpacity
-                                        style={styles.chatBtn}
-                                        onPress={() => router.push(`/doctors/${doctor._id}`)}
-                                    >
-                                        <Text style={styles.chatBtnText}>LET'S CHAT</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                        </ScrollView>
+                                return (
+                                    <Animated.View style={{
+                                        width: CARD_WIDTH,
+                                        transform: [{ scale }],
+                                        opacity,
+                                        marginRight: SPACING,
+                                    }}>
+                                        <TouchableOpacity
+                                            style={[styles.therapistCard, { width: '100%', marginRight: 0 }]}
+                                            activeOpacity={0.9}
+                                            onPress={() => router.push({ pathname: "/(tabs)/doctors", params: { doctorId: item._id } })}
+                                        >
+                                            <View style={styles.therapistContentRow}>
+                                                <View style={styles.therapistLeft}>
+                                                    <View style={styles.therapistImageDecor} />
+                                                    <Image
+                                                        source={{ uri: item.image || 'https://via.placeholder.com/100' }}
+                                                        style={styles.therapistImage}
+                                                        resizeMode="cover"
+                                                        onError={() => console.log('Image load error:', item.name)}
+                                                    />
+                                                </View>
+
+                                                <View style={styles.therapistInfo}>
+                                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
+                                                        <Text style={styles.therapistName} numberOfLines={1}>{item.name}</Text>
+                                                        <View style={styles.therapistArrow}>
+                                                            <ChevronRight size={14} color="#94A3B8" />
+                                                        </View>
+                                                    </View>
+
+                                                    <View style={styles.therapistDetailRow}>
+                                                        <Smartphone size={12} color="#64748B" />
+                                                        <Text style={styles.therapistDetailText} numberOfLines={1}>
+                                                            {item.degree || item.specialty || 'Psychologist'}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={styles.therapistDetailRow}>
+                                                        <CalendarIcon size={12} color="#64748B" />
+                                                        <Text style={styles.therapistDetailText}>
+                                                            {item.experience ? `${item.experience} yrs exp` : '5+ yrs exp'}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={styles.therapistDetailRow}>
+                                                        <MessageCircle size={12} color="#64748B" />
+                                                        <Text style={styles.therapistDetailText} numberOfLines={1}>
+                                                            {item.languages || item.language || 'English, Hindi'}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    </Animated.View>
+                                );
+                            }}
+                        />
                     </View>
                 )}
 
-                {/* Divider */}
+                {/* Section Divider */}
                 <View style={styles.sectionDivider} />
 
-                {/* Quick Actions - Premium */}
-                <View style={styles.quickActionsSection}>
+                {/* Weekly Log Section */}
+                <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderTitle}>Quick Actions</Text>
-                        <Sparkles size={18} color="#F59E0B" strokeWidth={2.5} />
+                        <Text style={styles.sectionTitle}>Weekly Log</Text>
+                        <Text style={styles.sectionSubtitle}>Track your progress</Text>
                     </View>
 
-                    <View style={styles.quickActionsGrid}>
-                        {/* Raska AI */}
-                        <TouchableOpacity
-                            style={styles.quickActionCard}
-                            onPress={() => router.push("/(tabs)/chat")}
-                            activeOpacity={0.85}
+                    {/* Streak Goal Card */}
+                    <View style={styles.streakGoalCardNew}>
+                        <View style={styles.streakHeaderRow}>
+                            <View>
+                                <Text style={styles.streakLabelNew}>Daily Streak</Text>
+                                <View style={styles.streakValueRow}>
+                                    <Text style={styles.streakNumberNew}>{loggingStreak}</Text>
+                                    <Text style={styles.streakDaysText}>days</Text>
+                                </View>
+                            </View>
+                            <Flame size={32} color="#F59E0B" />
+                        </View>
+
+                        {/* Weekly Calendar */}
+                        <View style={styles.weeklyCalendarNew}>
+                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => {
+                                const today = new Date();
+                                const currentDay = today.getDay();
+                                const diff = currentDay === 0 ? -6 : 1 - currentDay;
+
+                                const monday = new Date(today);
+                                monday.setDate(today.getDate() + diff);
+                                monday.setHours(0, 0, 0, 0);
+
+                                const checkDate = new Date(monday);
+                                checkDate.setDate(monday.getDate() + index);
+                                checkDate.setHours(0, 0, 0, 0);
+
+                                const hasEntry = moodEntries.some(entry => {
+                                    const entryDate = new Date(entry.date || entry.timestamp || entry.createdAt);
+                                    entryDate.setHours(0, 0, 0, 0);
+                                    return entryDate.getTime() === checkDate.getTime();
+                                });
+
+                                return (
+                                    <View key={index} style={styles.dayContainerNew}>
+                                        <Text style={styles.dayLabelNew}>{day}</Text>
+                                        <View style={[
+                                            styles.dayCircleNew,
+                                            hasEntry && styles.dayCircleActiveNew
+                                        ]}>
+                                            {hasEntry && (
+                                                <Check size={10} color="#FFFFFF" strokeWidth={3} />
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+                </View>
+
+                {/* Section Divider */}
+                <View style={styles.sectionDivider} />
+
+                {/* Journal Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Journal</Text>
+                        <TouchableOpacity onPress={() => router.push("/(tabs)/notes")}>
+                            <Text style={styles.seeAllText}>See all</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => router.push("/(tabs)/notes")}
+                        style={styles.journalMainCard}
+                    >
+                        {/* Abstract Background Elements */}
+                        <View style={styles.journalAbstractBg}>
+                            {/* Sky Clouds */}
+                            <View style={[styles.journalCloud, { top: 30, left: 40 }]}>
+                                <View style={[styles.cloudPart, { width: 40, height: 20 }]} />
+                                <View style={[styles.cloudPart, { width: 30, height: 15, marginLeft: -10, marginTop: 5 }]} />
+                            </View>
+                            <View style={[styles.journalCloud, { top: 50, right: 50 }]}>
+                                <View style={[styles.cloudPart, { width: 35, height: 18 }]} />
+                                <View style={[styles.cloudPart, { width: 25, height: 12, marginLeft: -8, marginTop: 4 }]} />
+                            </View>
+
+                            {/* Sun with glow */}
+                            <View style={styles.journalSun}>
+                                <View style={styles.sunGlow} />
+                                <Text style={styles.journalSunEmoji}>☀️</Text>
+                            </View>
+
+                            {/* Trees with shadows */}
+                            <View style={styles.treeGroup}>
+                                <Text style={[styles.journalTree, { left: 20, bottom: 0, fontSize: 36 }]}>🌲</Text>
+                                <Text style={[styles.journalTree, { left: 60, bottom: 5, fontSize: 32 }]}>🌲</Text>
+                                <Text style={[styles.journalTree, { right: 70, bottom: 0, fontSize: 34 }]}>🌳</Text>
+                                <Text style={[styles.journalTree, { right: 30, bottom: 5, fontSize: 30 }]}>🌲</Text>
+                            </View>
+
+                            {/* Green Hills with depth */}
+                            <View style={styles.journalHills}>
+                                <View style={[styles.journalHill, { left: -20, backgroundColor: '#65A30D', zIndex: 1 }]} />
+                                <View style={[styles.journalHill, { left: 60, backgroundColor: '#84CC16', zIndex: 2 }]} />
+                                <View style={[styles.journalHill, { left: 140, backgroundColor: '#A3E635', zIndex: 1 }]} />
+                            </View>
+                        </View>
+
+                        {/* Content with better styling */}
+                        <View style={styles.journalContent}>
+                            <Text style={styles.journalCardTitle}>Let's start your day</Text>
+                            <Text style={styles.journalCardSubtitle}>
+                                Begin with a mindful morning reflection
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Quick Journal Section */}
+                    <View style={styles.quickJournalSection}>
+                        <Text style={styles.quickJournalTitle}>Quick Journal</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.quickJournalScroll}
+                            decelerationRate="fast"
+                            pagingEnabled={false}
                         >
-                            <LinearGradient
-                                colors={["#8B5CF6", "#6366F1", "#4F46E5"]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.quickActionGradient}
+                            <TouchableOpacity
+                                style={[styles.quickJournalCard, { backgroundColor: '#FFF7ED' }]}
+                                onPress={() => router.push({
+                                    pathname: "/(tabs)/notes",
+                                    params: { title: "How did you feel today?" }
+                                })}
                             >
-                                <View style={styles.quickActionIconCircle}>
-                                    <Brain size={36} color="#FFFFFF" strokeWidth={2} />
-                                </View>
-                                <View style={styles.quickActionContent}>
-                                    <Text style={styles.quickActionTitle}>Raska AI</Text>
-                                    <Text style={styles.quickActionSubtitle}>Chat now</Text>
-                                </View>
-                                <View style={styles.quickActionShimmer} />
-                            </LinearGradient>
+                                <Text style={styles.quickJournalEmoji}>💭</Text>
+                                <Text style={styles.quickJournalLabel}>Pause & reflect</Text>
+                                <Text style={styles.quickJournalPrompt}>How did you feel today?</Text>
+                                <Text style={styles.quickJournalTag}>Daily</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickJournalCard, { backgroundColor: '#EDE9FE' }]}
+                                onPress={() => router.push({
+                                    pathname: "/(tabs)/notes",
+                                    params: { title: "What do you want to focus on?" }
+                                })}
+                            >
+                                <Text style={styles.quickJournalEmoji}>🎯</Text>
+                                <Text style={styles.quickJournalLabel}>Set intentions</Text>
+                                <Text style={styles.quickJournalPrompt}>What do you want to focus?</Text>
+                                <Text style={styles.quickJournalTag}>Daily</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickJournalCard, { backgroundColor: '#ECFDF5' }]}
+                                onPress={() => router.push({
+                                    pathname: "/(tabs)/notes",
+                                    params: { title: "3 things I'm grateful for" }
+                                })}
+                            >
+                                <Text style={styles.quickJournalEmoji}>🙏</Text>
+                                <Text style={styles.quickJournalLabel}>Express gratitude</Text>
+                                <Text style={styles.quickJournalPrompt}>3 things you're grateful for</Text>
+                                <Text style={styles.quickJournalTag}>Daily</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickJournalCard, { backgroundColor: '#FEF2F2' }]}
+                                onPress={() => router.push({
+                                    pathname: "/(tabs)/notes",
+                                    params: { title: "What challenged me today?" }
+                                })}
+                            >
+                                <Text style={styles.quickJournalEmoji}>💪</Text>
+                                <Text style={styles.quickJournalLabel}>Growth mindset</Text>
+                                <Text style={styles.quickJournalPrompt}>What challenged me today?</Text>
+                                <Text style={styles.quickJournalTag}>Weekly</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickJournalCard, { backgroundColor: '#FEF3C7' }]}
+                                onPress={() => router.push({
+                                    pathname: "/(tabs)/notes",
+                                    params: { title: "What made me smile?" }
+                                })}
+                            >
+                                <Text style={styles.quickJournalEmoji}>😊</Text>
+                                <Text style={styles.quickJournalLabel}>Joyful moments</Text>
+                                <Text style={styles.quickJournalPrompt}>What made me smile?</Text>
+                                <Text style={styles.quickJournalTag}>Daily</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickJournalCard, { backgroundColor: '#E0F2FE' }]}
+                                onPress={() => router.push({
+                                    pathname: "/(tabs)/notes",
+                                    params: { title: "Dreams & aspirations" }
+                                })}
+                            >
+                                <Text style={styles.quickJournalEmoji}>✨</Text>
+                                <Text style={styles.quickJournalLabel}>Dream big</Text>
+                                <Text style={styles.quickJournalPrompt}>Dreams & aspirations</Text>
+                                <Text style={styles.quickJournalTag}>Weekly</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </View>
+
+
+
+                {/* Wellness Progress */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Today's Wellness</Text>
+                        <Text style={styles.sectionSubtitle}>Track your daily goals</Text>
+                    </View>
+                    <View style={styles.wellnessCardsGrid}>
+                        <TouchableOpacity style={styles.wellnessCardItem} onPress={() => router.push("/wellness/water")}>
+                            <View style={[styles.wellnessIconLarge, { backgroundColor: "#DBEAFE" }]}>
+                                <Droplets size={28} color="#2563EB" />
+                            </View>
+                            <Text style={styles.wellnessCardLabel}>Water</Text>
+                            <Text style={styles.wellnessCardValue}>{waterToday}ml</Text>
+                            <View style={styles.progressBarLarge}>
+                                <View style={[styles.progressFillLarge, { width: `${Math.min(waterProgress * 100, 100)}%`, backgroundColor: "#2563EB" }]} />
+                            </View>
+                            <Text style={styles.wellnessCardGoal}>Goal: 2000ml</Text>
                         </TouchableOpacity>
 
-                        {/* Notes */}
-                        <TouchableOpacity
-                            style={styles.quickActionCard}
-                            onPress={() => router.push("/notes")}
-                            activeOpacity={0.85}
-                        >
-                            <LinearGradient
-                                colors={["#EC4899", "#DB2777", "#BE185D"]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.quickActionGradient}
-                            >
-                                <View style={styles.quickActionIconCircle}>
-                                    <BookOpen size={36} color="#FFFFFF" strokeWidth={2} />
-                                </View>
-                                <View style={styles.quickActionContent}>
-                                    <Text style={styles.quickActionTitle}>Notes</Text>
-                                    <Text style={styles.quickActionSubtitle}>Write down</Text>
-                                </View>
-                                <View style={styles.quickActionShimmer} />
-                            </LinearGradient>
+                        <TouchableOpacity style={styles.wellnessCardItem} onPress={() => router.push("/wellness/sleep")}>
+                            <View style={[styles.wellnessIconLarge, { backgroundColor: "#F3E8FF" }]}>
+                                <Moon size={28} color="#9333EA" />
+                            </View>
+                            <Text style={styles.wellnessCardLabel}>Sleep</Text>
+                            <Text style={styles.wellnessCardValue}>{sleep.today}h</Text>
+                            <View style={styles.progressBarLarge}>
+                                <View style={[styles.progressFillLarge, { width: `${Math.min(sleepProgress * 100, 100)}%`, backgroundColor: "#9333EA" }]} />
+                            </View>
+                            <Text style={styles.wellnessCardGoal}>Goal: 8h</Text>
                         </TouchableOpacity>
 
-                        {/* Breathe */}
-                        <TouchableOpacity
-                            style={styles.quickActionCard}
-                            onPress={() => router.push("/wellness/breathing")}
-                            activeOpacity={0.85}
-                        >
-                            <LinearGradient
-                                colors={["#06B6D4", "#0891B2", "#0E7490"]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.quickActionGradient}
-                            >
-                                <View style={styles.quickActionIconCircle}>
-                                    <Wind size={36} color="#FFFFFF" strokeWidth={2} />
-                                </View>
-                                <View style={styles.quickActionContent}>
-                                    <Text style={styles.quickActionTitle}>Breathe</Text>
-                                    <Text style={styles.quickActionSubtitle}>3 min relax</Text>
-                                </View>
-                                <View style={styles.quickActionShimmer} />
-                            </LinearGradient>
+                        <TouchableOpacity style={styles.wellnessCardItem} onPress={() => router.push("/wellness/breathing")}>
+                            <View style={[styles.wellnessIconLarge, { backgroundColor: "#CCFBF1" }]}>
+                                <Wind size={28} color="#0D9488" />
+                            </View>
+                            <Text style={styles.wellnessCardLabel}>Breathing</Text>
+                            <Text style={styles.wellnessCardValue}>{breathingToday}/3</Text>
+                            <View style={styles.progressBarLarge}>
+                                <View style={[styles.progressFillLarge, { width: `${Math.min(breathingProgress * 100, 100)}%`, backgroundColor: "#0D9488" }]} />
+                            </View>
+                            <Text style={styles.wellnessCardGoal}>Goal: 3 sessions</Text>
                         </TouchableOpacity>
 
-                        {/* Assess */}
-                        <TouchableOpacity
-                            style={styles.quickActionCard}
-                            onPress={() => router.push("/(tabs)/assessment")}
-                            activeOpacity={0.85}
-                        >
-                            <LinearGradient
-                                colors={["#F59E0B", "#D97706", "#B45309"]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.quickActionGradient}
-                            >
-                                <View style={styles.quickActionIconCircle}>
-                                    <Target size={36} color="#FFFFFF" strokeWidth={2} />
-                                </View>
-                                <View style={styles.quickActionContent}>
-                                    <Text style={styles.quickActionTitle}>Assess</Text>
-                                    <Text style={styles.quickActionSubtitle}>Track progress</Text>
-                                </View>
-                                <View style={styles.quickActionShimmer} />
-                            </LinearGradient>
+                        <TouchableOpacity style={styles.wellnessCardItem} onPress={() => router.push("/wellness/habits")}>
+                            <View style={[styles.wellnessIconLarge, { backgroundColor: "#FEF3C7" }]}>
+                                <CheckSquare size={28} color="#F59E0B" />
+                            </View>
+                            <Text style={styles.wellnessCardLabel}>Habits</Text>
+                            <Text style={styles.wellnessCardValue}>0/5</Text>
+                            <View style={styles.progressBarLarge}>
+                                <View style={[styles.progressFillLarge, { width: '0%', backgroundColor: "#F59E0B" }]} />
+                            </View>
+                            <Text style={styles.wellnessCardGoal}>Daily tracking</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Divider */}
+                {/* Section Divider */}
                 <View style={styles.sectionDivider} />
 
-                {/* Journal Section Header */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionHeaderTitle}>Journal</Text>
-                </View>
-
-                {/* Journal Card - Illustrated */}
-                <TouchableOpacity style={styles.journalCard} activeOpacity={0.95} onPress={() => router.push("/notes")}>
-                    <View style={styles.journalBg}>
-                        <View style={styles.journalSky} />
-                        <View style={[styles.mountain, { left: 0, bottom: 0, borderLeftWidth: 100, borderRightWidth: 80, borderBottomWidth: 80, borderBottomColor: "#7CB89E" }]} />
-                        <View style={[styles.mountain, { left: 60, bottom: 0, borderLeftWidth: 70, borderRightWidth: 60, borderBottomWidth: 60, borderBottomColor: "#5A9A7B" }]} />
-                        <View style={[styles.mountain, { right: 0, bottom: 0, borderLeftWidth: 90, borderRightWidth: 70, borderBottomWidth: 70, borderBottomColor: "#6BAA8A" }]} />
-                        <View style={[styles.tree, { left: 30, bottom: 10 }]}>
-                            <View style={styles.treeTop} />
-                            <View style={styles.treeTrunk} />
-                        </View>
-                        <View style={[styles.tree, { right: 40, bottom: 15, transform: [{ scale: 0.8 }] }]}>
-                            <View style={styles.treeTop} />
-                            <View style={styles.treeTrunk} />
-                        </View>
-                        <View style={[styles.tree, { right: 80, bottom: 5, transform: [{ scale: 0.6 }] }]}>
-                            <View style={styles.treeTop} />
-                            <View style={styles.treeTrunk} />
-                        </View>
+                {/* Analytics - Navigation Buttons */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Analytics</Text>
+                        <Text style={styles.sectionSubtitle}>View detailed insights</Text>
                     </View>
-                    <View style={styles.journalContent}>
-                        <View style={styles.journalNotebook}>
-                            <Text style={styles.journalLabel}>YOUR</Text>
-                            <Text style={styles.journalTitle}>JOURNAL</Text>
-                            <View style={styles.journalLine} />
-                            <View style={styles.journalLine} />
-                            <View style={styles.journalLine} />
-                        </View>
-                    </View>
-                    <View style={styles.journalBottom}>
-                        <Text style={styles.journalQuestion}>Today's Question:</Text>
-                        <Text style={styles.journalPrompt}>What are the three things{'\n'}that you are grateful for today?</Text>
-                        <View style={styles.journalBtn}>
-                            <Text style={styles.journalBtnText}>TAP TO BEGIN</Text>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-
-                {/* Divider */}
-                <View style={styles.sectionDivider} />
-
-                {/* Daily Wellness */}
-                <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <TrendingUp size={20} color="#10B981" />
-                        <Text style={styles.cardTitle}>Today's Wellness</Text>
-                    </View>
-                    <View style={styles.wellnessGrid}>
-                        <TouchableOpacity style={styles.wellnessItem} onPress={() => router.push("/wellness/water")}>
-                            <View style={[styles.wellnessIcon, { backgroundColor: "#DBEAFE" }]}>
-                                <Droplets size={22} color="#2563EB" />
-                            </View>
-                            <View style={styles.wellnessInfo}>
-                                <Text style={styles.wellnessValue}>{waterToday}ml</Text>
-                                <Text style={styles.wellnessLabel}>Water</Text>
-                            </View>
-                            <View style={styles.progressBar}>
-                                <View style={[styles.progressFill, { width: `${waterProgress * 100}%`, backgroundColor: "#2563EB" }]} />
-                            </View>
+                    <View style={styles.analyticsGrid}>
+                        {/* Mood Analytics Button */}
+                        <TouchableOpacity
+                            style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
+                            onPress={() => router.push("/(tabs)/mood/dashboard")}
+                            activeOpacity={0.7}
+                        >
+                            <Activity size={32} color="#4A9B7F" style={{ marginBottom: 12 }} />
+                            <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
+                                Mood Analytics
+                            </Text>
+                            <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                                View mood trends & insights
+                            </Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.wellnessItem} onPress={() => router.push("/wellness/sleep")}>
-                            <View style={[styles.wellnessIcon, { backgroundColor: "#F3E8FF" }]}>
-                                <Moon size={22} color="#9333EA" />
-                            </View>
-                            <View style={styles.wellnessInfo}>
-                                <Text style={styles.wellnessValue}>{sleep.today}h</Text>
-                                <Text style={styles.wellnessLabel}>Sleep</Text>
-                            </View>
-                            <View style={styles.progressBar}>
-                                <View style={[styles.progressFill, { width: `${sleepProgress * 100}%`, backgroundColor: "#9333EA" }]} />
-                            </View>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.wellnessItem} onPress={() => router.push("/wellness/breathing")}>
-                            <View style={[styles.wellnessIcon, { backgroundColor: "#CCFBF1" }]}>
-                                <Wind size={22} color="#0D9488" />
-                            </View>
-                            <View style={styles.wellnessInfo}>
-                                <Text style={styles.wellnessValue}>{breathingToday}/3</Text>
-                                <Text style={styles.wellnessLabel}>Breathing</Text>
-                            </View>
-                            <View style={styles.progressBar}>
-                                <View style={[styles.progressFill, { width: `${breathingProgress * 100}%`, backgroundColor: "#0D9488" }]} />
-                            </View>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.wellnessItem} onPress={() => router.push("/wellness/habits")}>
-                            <View style={[styles.wellnessIcon, { backgroundColor: "#FEF3C7" }]}>
-                                <CheckSquare size={22} color="#D97706" />
-                            </View>
-                            <View style={styles.wellnessInfo}>
-                                <Text style={styles.wellnessValue}>{completedHabits}/{totalHabits}</Text>
-                                <Text style={styles.wellnessLabel}>Habits</Text>
-                            </View>
-                            <View style={styles.progressBar}>
-                                <View style={[styles.progressFill, { width: `${habitsProgress * 100}%`, backgroundColor: "#D97706" }]} />
-                            </View>
+                        {/* Assessment Analytics Button */}
+                        <TouchableOpacity
+                            style={[styles.analyticsCard, { flex: 1, paddingVertical: 20 }]}
+                            onPress={() => router.push("/(tabs)/profile/assessmentanalytics")}
+                            activeOpacity={0.7}
+                        >
+                            <ClipboardList size={32} color="#6366F1" style={{ marginBottom: 12 }} />
+                            <Text style={[styles.analyticsLabel, { fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 4 }]}>
+                                Assessment Analytics
+                            </Text>
+                            <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+                                View assessment results
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Divider */}
+                {/* Section Divider */}
                 <View style={styles.sectionDivider} />
 
-                {/* Goals Card */}
-                <TouchableOpacity style={styles.card} onPress={() => router.push("/goals")}>
-                    <View style={styles.goalsRow}>
-                        <View style={styles.goalsIconBox}>
-                            <Target size={26} color="#6366F1" />
-                        </View>
-                        <View style={styles.goalsText}>
-                            <Text style={styles.goalsTitle}>Goals & Habits</Text>
-                            <Text style={styles.goalsSubtitle}>Track your daily progress</Text>
-                        </View>
-                        <ChevronRight size={22} color="#94A3B8" />
+                {/* Community Card */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Journal</Text>
+                        <Text style={styles.sectionSubtitle}>Connect & share</Text>
                     </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.communityCard}
+                        onPress={() => router.push("/(tabs)/community")}
+                        activeOpacity={0.9}
+                    >
+                        {/* Abstract Shapes Background */}
+                        <View style={styles.communityShapeCircle1} />
+                        <View style={styles.communityShapeCircle2} />
+                        <View style={styles.communityShapeSquare} />
 
-                {/* Divider */}
-                <View style={styles.sectionDivider} />
+                        {/* Content */}
+                        <View style={styles.communityContent}>
+                            <View style={styles.communityHeader}>
+                                <Text style={styles.communityEmojis}>🤝💖</Text>
+                                <View style={styles.communityIconBadge}>
+                                    <MessageCircle size={20} color="#EC4899" />
+                                </View>
+                            </View>
+                            <Text style={styles.communityTitle}>Join Our Community</Text>
+                            <Text style={styles.communitySubtitle}>
+                                Connect with others, share your journey, and find support
+                            </Text>
+                            <View style={styles.communityButton}>
+                                <Text style={styles.communityButtonText}>Explore Community</Text>
+                                <ChevronRight size={16} color="#FFFFFF" />
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                </View>
 
-                {/* Community */}
-                <TouchableOpacity style={styles.communityCard} onPress={() => router.push("/(tabs)/community")}>
-                    <LinearGradient colors={["#EEF2FF", "#E0E7FF"]} style={styles.communityGradient}>
-                        <View style={styles.handsRow}>
-                            <View style={[styles.handShape, { backgroundColor: "#FBBF24" }]} />
-                            <View style={[styles.handShape, { backgroundColor: "#F472B6" }]} />
-                            <View style={[styles.handShape, { backgroundColor: "#60A5FA" }]} />
-                            <View style={[styles.handShape, { backgroundColor: "#34D399" }]} />
-                        </View>
-                        <Text style={styles.communityTitle}>Join Our Community</Text>
-                        <Text style={styles.communitySubtitle}>Connect with others on the same journey</Text>
-                        <View style={styles.communityBtn}>
-                            <Text style={styles.communityBtnText}>EXPLORE</Text>
-                        </View>
-                    </LinearGradient>
-                </TouchableOpacity>
 
             </ScrollView>
 
-            {/* Language Modal */}
-            <Modal visible={showLanguageModal} transparent animationType="fade" onRequestClose={() => setShowLanguageModal(false)}>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Select Language</Text>
-                        {LANGUAGES.map((lang) => (
-                            <TouchableOpacity
-                                key={lang.code}
-                                style={[styles.langOption, i18n.language === lang.code && styles.langOptionActive]}
-                                onPress={() => changeLanguage(lang.code)}
-                            >
-                                <Text style={[styles.langText, i18n.language === lang.code && styles.langTextActive]}>
-                                    {lang.native} ({lang.label})
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                        <TouchableOpacity style={styles.modalCancel} onPress={() => setShowLanguageModal(false)}>
-                            <Text style={styles.modalCancelText}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
+            {/* Chat Tooltip */}
+            {showChatTooltip && (
+                <Animated.View
+                    style={[
+                        styles.chatTooltip,
+                        {
+                            opacity: tooltipOpacity,
+                            transform: [{ scale: tooltipScale }],
+                        }
+                    ]}
+                >
+                    <View style={styles.tooltipArrow} />
+                    <Text style={styles.tooltipText}>Chat with Raska AI 💬</Text>
+                </Animated.View>
+            )}
+
+            {/* Floating AI Chat Button */}
+            <AnimatedButton
+                style={styles.floatingChatButton}
+                onPress={() => router.push("/(tabs)/chat")}
+                scale={0.9}
+            >
+                <View style={styles.floatingChatGradient}>
+                    <Image
+                        source={{ uri: "https://raskamon.com/raskabot.jpg" }}
+                        style={{ width: "100%", height: "100%", borderRadius: 24 }}
+                        resizeMode="cover"
+                    />
                 </View>
-            </Modal>
-        </View>
+            </AnimatedButton>
+        </Animated.View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#F9FAFB",
     },
     centered: {
         justifyContent: "center",
         alignItems: "center",
     },
-
-    // Header
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        backgroundColor: "#FFFFFF",
-    },
-    headerLeft: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 14,
-    },
-    avatarContainer: {
-        position: "relative",
-    },
-    avatar: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: "#E2E8F0",
-        borderWidth: 2,
-        borderColor: "#E2E8F0",
-    },
-    onlineDot: {
-        position: "absolute",
-        bottom: 2,
-        right: 2,
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: "#22C55E",
-        borderWidth: 2,
-        borderColor: "#FFFFFF",
-    },
-    greetingBox: {
-        gap: 1,
-    },
-    greetingText: {
-        fontSize: 12,
-        color: "#94A3B8",
-        fontWeight: "400",
-        fontStyle: "italic",
-    },
-    userName: {
-        fontSize: 20,
-        fontWeight: "700",
-        color: "#1E293B",
-        letterSpacing: -0.5,
-    },
-    dateText: {
-        fontSize: 11,
-        color: "#94A3B8",
-        fontWeight: "300",
-        marginTop: 3,
-        letterSpacing: 0.3,
-    },
-    headerRight: {
-        flexDirection: "row",
-        gap: 8,
-    },
-    iconBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        backgroundColor: "#F1F5F9",
-        justifyContent: "center",
-        alignItems: "center",
-        shadowColor: "#64748B",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    notifBadge: {
-        position: "absolute",
-        top: 10,
-        right: 10,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: "#EF4444",
-        zIndex: 1,
-    },
-
-    // Scroll
     scrollView: {
         flex: 1,
     },
     scrollContent: {
-        padding: 16,
-        gap: 16,
+        paddingHorizontal: 20,
+        paddingTop: 16,
     },
-
-    // Card Base
-    card: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 20,
-        padding: 20,
-        shadowColor: "#64748B",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 4,
-    },
-    cardHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 16,
     },
-    cardTitle: {
-        flex: 1,
-        fontSize: 16,
+    greeting: {
+        fontSize: 28,
         fontWeight: "700",
-        color: "#1E293B",
+        color: "#1F2937",
     },
-    viewAllBtn: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
+    dateText: {
+        fontSize: 14,
+        color: "#6B7280",
+        marginTop: 4,
     },
-    viewAllText: {
-        fontSize: 13,
-        fontWeight: "500",
-        color: "#6366F1",
-        fontStyle: "italic",
+    profileImage: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#E5E7EB',
     },
-
-    // Section Divider
-    sectionDivider: {
-        height: 1,
-        backgroundColor: "#E2E8F0",
-        marginVertical: 8,
-    },
-
-    // Mood Card - Enhanced
     moodCard: {
-        borderRadius: 20,
-        overflow: "hidden",
-        shadowColor: "#64748B",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 4,
+        borderRadius: 24,
+        padding: 20,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        overflow: 'hidden',
     },
-    moodGradient: {
-        padding: 22,
-    },
-    moodHeader: {
+    moodCardContent: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "flex-start",
-        marginBottom: 18,
+        marginBottom: 16,
     },
-    moodHeaderLeft: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 10,
+    moodCardLeft: {
         flex: 1,
     },
-    moodTitle: {
-        fontSize: 17,
+    moodCardTitle: {
+        fontSize: 22,
         fontWeight: "700",
-        color: "#1E293B",
-        marginBottom: 3,
-        letterSpacing: -0.2,
+        color: "#1F2937",
+        lineHeight: 28,
     },
-    moodSubtitle: {
+    moodCardSubtitle: {
         fontSize: 13,
-        color: "#94A3B8",
-        fontWeight: "400",
-        fontStyle: "italic",
+        color: "#1F2937",
+        marginTop: 6,
     },
-    streakBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        backgroundColor: "#FEF3C7",
-        paddingHorizontal: 8,
-        paddingVertical: 5,
-        borderRadius: 10,
+    // Circle Progress Styles
+    // Compact Quote
+    // Wellness Grid
+    wellnessCardsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
     },
-    streakText: {
-        fontSize: 11,
-        fontWeight: "700",
-        color: "#D97706",
+    wellnessCardItem: {
+        width: '48%',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        padding: 16,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
     },
-    moodRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 18,
-    },
-    moodItem: {
-        alignItems: "center",
-        gap: 8,
-        flex: 1,
-    },
-    moodCircle: {
+    wellnessIconLarge: {
         width: 56,
         height: 56,
-        borderRadius: 16,
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-    },
-    moodEmoji: {
-        fontSize: 28,
-    },
-    moodLabel: {
-        fontSize: 11,
-        fontWeight: "600",
-        color: "#64748B",
-        letterSpacing: 0.2,
-    },
-    insightBtn: {
-        flexDirection: "row",
+        borderRadius: 14,
         alignItems: "center",
         justifyContent: "center",
-        gap: 8,
-        paddingVertical: 13,
-        backgroundColor: "#F8FAFC",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
+        marginBottom: 12,
     },
-    insightText: {
-        fontSize: 13,
+    wellnessCardLabel: {
+        fontSize: 12,
         fontWeight: "600",
-        color: "#64748B",
-        fontStyle: "italic",
+        color: "#6B7280",
+        marginBottom: 8,
     },
-
-    // Quick Actions - Premium
-    quickActionsSection: {
-        marginBottom: 16,
+    wellnessCardValue: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#1F2937",
+        marginBottom: 12,
+    },
+    wellnessCardGoal: {
+        fontSize: 10,
+        color: "#9CA3AF",
+        marginTop: 6,
+    },
+    progressBarLarge: {
+        width: "100%",
+        height: 6,
+        backgroundColor: "#E5E7EB",
+        borderRadius: 3,
+        overflow: "hidden",
+    },
+    progressFillLarge: {
+        height: "100%",
+        borderRadius: 3,
+    },
+    sectionDivider: {
+        height: 2,
+        backgroundColor: "#CBD5E1",
+        marginVertical: 10,
+    },
+    section: {
+        marginBottom: 28,
     },
     sectionHeader: {
         flexDirection: "row",
-        alignItems: "center",
         justifyContent: "space-between",
+        alignItems: "center",
         marginBottom: 16,
         paddingHorizontal: 4,
-    },
-    sectionHeaderTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#1E293B",
-        letterSpacing: -0.3,
-    },
-    quickActionsGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 12,
-    },
-    quickActionCard: {
-        width: (SCREEN_WIDTH - 32 - 12) / 2,
-        height: 140,
-        borderRadius: 20,
-        overflow: "hidden",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 6,
-    },
-    quickActionGradient: {
-        flex: 1,
-        padding: 18,
-        justifyContent: "space-between",
-        position: "relative",
-    },
-    quickActionIconCircle: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: "rgba(255, 255, 255, 0.25)",
-        justifyContent: "center",
-        alignItems: "center",
-        alignSelf: "flex-start",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        elevation: 3,
-    },
-    quickActionContent: {
-        gap: 3,
-    },
-    quickActionTitle: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#FFFFFF",
-        letterSpacing: 0.3,
-    },
-    quickActionSubtitle: {
-        fontSize: 12,
-        fontWeight: "500",
-        color: "rgba(255, 255, 255, 0.85)",
-        letterSpacing: 0.2,
-    },
-    quickActionShimmer: {
-        position: "absolute",
-        top: 0,
-        right: 0,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: "rgba(255, 255, 255, 0.1)",
-        transform: [{ translateX: 20 }, { translateY: -20 }],
-    },
-
-    // Journal
-    journalCard: {
-        borderRadius: 20,
-        overflow: "hidden",
-        backgroundColor: "#87CEAA",
-        borderWidth: 1,
-        borderColor: "#6BAA8A",
-        marginHorizontal: SCREEN_WIDTH * 0.075,
-    },
-    journalBg: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 130,
-        overflow: "hidden",
-    },
-    journalSky: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 70,
-        backgroundColor: "#B5E5C9",
-    },
-    mountain: {
-        position: "absolute",
-        width: 0,
-        height: 0,
-        backgroundColor: "transparent",
-        borderStyle: "solid",
-        borderLeftColor: "transparent",
-        borderRightColor: "transparent",
-    },
-    tree: {
-        position: "absolute",
-        alignItems: "center",
-    },
-    treeTop: {
-        width: 0,
-        height: 0,
-        borderLeftWidth: 15,
-        borderRightWidth: 15,
-        borderBottomWidth: 30,
-        borderLeftColor: "transparent",
-        borderRightColor: "transparent",
-        borderBottomColor: "#2D5A3D",
-    },
-    treeTrunk: {
-        width: 6,
-        height: 10,
-        backgroundColor: "#8B4513",
-    },
-    journalContent: {
-        paddingTop: 90,
-        paddingHorizontal: 20,
-        alignItems: "center",
-    },
-    journalNotebook: {
-        backgroundColor: "#FFF9F0",
-        width: 130,
-        padding: 18,
-        borderRadius: 8,
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 2, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-        elevation: 4,
-    },
-    journalLabel: {
-        fontSize: 9,
-        fontWeight: "600",
-        color: "#94A3B8",
-        letterSpacing: 2,
-    },
-    journalTitle: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#6366F1",
-        marginBottom: 10,
-    },
-    journalLine: {
-        width: "100%",
-        height: 1,
-        backgroundColor: "#E2E8F0",
-        marginVertical: 5,
-    },
-    journalBottom: {
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-        alignItems: "center",
-    },
-    journalQuestion: {
-        fontSize: 10,
-        fontWeight: "600",
-        color: "#1E293B",
-        letterSpacing: 0.5,
-        textTransform: "uppercase",
-        marginBottom: 6,
-    },
-    journalPrompt: {
-        fontSize: 15,
-        color: "#334155",
-        textAlign: "center",
-        lineHeight: 22,
-        marginBottom: 14,
-        fontWeight: "300",
-        fontStyle: "italic",
-    },
-    journalBtn: {
-        backgroundColor: "#FFFFFF",
-        paddingHorizontal: 22,
-        paddingVertical: 10,
-        borderRadius: 20,
-    },
-    journalBtnText: {
-        fontSize: 11,
-        fontWeight: "700",
-        color: "#6366F1",
-        letterSpacing: 0.5,
-    },
-
-    // Therapist Section
-    therapistSection: {
-        marginBottom: 8,
     },
     sectionTitle: {
         fontSize: 20,
         fontWeight: "700",
-        color: "#1E293B",
-        marginBottom: 8,
-        letterSpacing: -0.3,
+        color: "#1F2937",
+        letterSpacing: 0.5,
     },
     sectionSubtitle: {
+        fontSize: 13,
+        fontWeight: "500",
+        color: "#9CA3AF",
+    },
+    analyticsGrid: {
+        flexDirection: "row",
+        gap: 14,
+        marginBottom: 16,
+    },
+    analyticsCard: {
+        flex: 1,
+        backgroundColor: "#FFFFFF",
+        borderRadius: 12,
+        padding: 18,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+        borderWidth: 1,
+        borderColor: "#F3F4F6",
+    },
+    analyticsLabel: {
+        fontSize: 12,
+        color: "#6B7280",
+        marginTop: 4,
+        textAlign: "center",
+    },
+    // Floating Chat Button
+    floatingChatButton: {
+        position: "absolute",
+        right: 20,
+        bottom: 95,
+        alignItems: "center",
+        zIndex: 999,
+    },
+    floatingChatGradient: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        justifyContent: "center",
+        alignItems: "center",
+        shadowColor: "#4A9B7F",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 6,
+    },
+    // Quick Actions
+    // Wellness Tips
+    // Wellness Tools
+    // Chat tooltip
+    chatTooltip: {
+        position: "absolute",
+        bottom: 100,
+        right: 20,
+        backgroundColor: "#4A9B7F",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    tooltipArrow: {
+        position: "absolute",
+        bottom: -8,
+        right: 20,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderTopWidth: 8,
+        borderLeftColor: "transparent",
+        borderRightColor: "transparent",
+        borderTopColor: "#4A9B7F",
+    },
+    tooltipText: {
+        color: "#FFFFFF",
         fontSize: 14,
-        color: "#64748B",
-        fontWeight: "400",
-        lineHeight: 20,
+        fontWeight: "600",
+    },
+    // Today's Focus Card
+    // Wellness Progress
+    // Mindfulness Card
+    // New 2-Column Layout
+    // Streak Goal Card (redesigned for left column)
+    // Level Card
+    // Activity Summary Card
+    // New Streak Goal Card Styles
+    streakGoalCardNew: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 14,
+        padding: 20,
+        marginBottom: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: "#F3F4F6",
+    },
+    streakHeaderRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
         marginBottom: 20,
     },
-    therapistScroll: {
-        paddingLeft: SCREEN_WIDTH * 0.12,
-        paddingRight: SCREEN_WIDTH * 0.15,
-        gap: 12,
+    streakLabelNew: {
+        fontSize: 12,
+        color: "#6B7280",
+        fontWeight: "600",
+        marginBottom: 8,
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
     },
-    therapistCardWrapper: {
-        width: SCREEN_WIDTH * 0.70,
-        alignItems: "center",
-    },
-    therapistCard: {
-        width: "100%",
+    streakValueRow: {
         flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#FFFFFF",
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-        gap: 12,
-    },
-    therapistImgWrapper: {
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    therapistImgBorder: {
-        width: 74,
-        height: 74,
-        borderRadius: 37,
-        padding: 3,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    therapistImg: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        backgroundColor: "#FFFFFF",
-    },
-    therapistInfo: {
-        flex: 1,
+        alignItems: "baseline",
         gap: 6,
     },
-    therapistName: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#1E293B",
-        marginBottom: 2,
+    streakNumberNew: {
+        fontSize: 36,
+        fontWeight: "800",
+        color: "#F59E0B",
+        lineHeight: 40,
     },
-    therapistDetail: {
+    streakDaysText: {
+        fontSize: 14,
+        color: "#9CA3AF",
+        fontWeight: "500",
+    },
+    weeklyCalendarNew: {
         flexDirection: "row",
+        justifyContent: "space-between",
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
+    },
+    dayContainerNew: {
         alignItems: "center",
         gap: 8,
     },
-    therapistDetailText: {
-        fontSize: 12,
-        color: "#475569",
-        fontWeight: "400",
-        flex: 1,
+    dayLabelNew: {
+        fontSize: 11,
+        fontWeight: "600",
+        color: "#6B7280",
     },
-    chatBtn: {
-        backgroundColor: "#0D9488",
-        paddingHorizontal: 28,
-        paddingVertical: 14,
-        borderRadius: 28,
-        marginTop: 18,
-        shadowColor: "#0D9488",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    chatBtnText: {
-        fontSize: 13,
-        fontWeight: "700",
-        color: "#FFFFFF",
-        letterSpacing: 1,
-    },
-
-    // Wellness
-    wellnessGrid: {
-        gap: 14,
-    },
-    wellnessItem: {
-        flexDirection: "row",
+    dayCircleNew: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "#F3F4F6",
         alignItems: "center",
-        gap: 14,
-        backgroundColor: "#F8FAFC",
-        padding: 14,
-        borderRadius: 14,
-    },
-    wellnessIcon: {
-        width: 50,
-        height: 50,
-        borderRadius: 15,
         justifyContent: "center",
-        alignItems: "center",
     },
-    wellnessInfo: {
+    dayCircleActiveNew: {
+        backgroundColor: "#10B981",
+    },
+    // New Activity Summary Card Styles
+    // Daily Motivation Card
+    motivationCard: {
+        backgroundColor: "#FFFBEB",
+        borderRadius: 14,
+        padding: 18,
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: "#FEF3C7",
+    },
+    motivationIconWrapper: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: "#FEF3C7",
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: 2,
+    },
+    motivationContent: {
         flex: 1,
     },
-    wellnessValue: {
-        fontSize: 17,
+    motivationLabel: {
+        fontSize: 11,
+        color: "#D97706",
         fontWeight: "700",
-        color: "#1E293B",
+        marginBottom: 6,
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
     },
-    wellnessLabel: {
-        fontSize: 12,
-        color: "#64748B",
-        fontWeight: "400",
+    motivationText: {
+        fontSize: 13,
+        color: "#78350F",
+        lineHeight: 18,
         fontStyle: "italic",
+        fontWeight: "500",
     },
-    progressBar: {
-        width: 70,
-        height: 8,
-        backgroundColor: "#E2E8F0",
-        borderRadius: 4,
+    // Community Card
+    communityCard: {
+        backgroundColor: "#FCE7F3",
+        borderRadius: 16,
+        padding: 28,
+        minHeight: 280,
         overflow: "hidden",
+        position: "relative",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 6,
+        borderWidth: 1,
+        borderColor: "#FBCFE8",
     },
-    progressFill: {
-        height: "100%",
-        borderRadius: 4,
+    communityShapeCircle1: {
+        position: "absolute",
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        backgroundColor: "rgba(236, 72, 153, 0.1)",
+        top: -50,
+        right: -40,
     },
-
-    // Goals
-    goalsRow: {
+    communityShapeCircle2: {
+        position: "absolute",
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: "rgba(236, 72, 153, 0.08)",
+        bottom: -30,
+        left: 20,
+    },
+    communityShapeSquare: {
+        position: "absolute",
+        width: 70,
+        height: 70,
+        borderRadius: 14,
+        backgroundColor: "rgba(236, 72, 153, 0.12)",
+        top: 120,
+        left: -25,
+        transform: [{ rotate: "15deg" }],
+    },
+    communityContent: {
+        position: "relative",
+        zIndex: 2,
+        flex: 1,
+        justifyContent: "space-between",
+    },
+    communityHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 20,
+    },
+    communityEmojis: {
+        fontSize: 40,
+    },
+    communityIconBadge: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: "#FFFFFF",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    communityTitle: {
+        fontSize: 26,
+        fontWeight: "800",
+        color: "#831843",
+        marginBottom: 12,
+        letterSpacing: -0.5,
+        lineHeight: 32,
+    },
+    communitySubtitle: {
+        fontSize: 15,
+        color: "#9F1239",
+        lineHeight: 22,
+        marginBottom: 24,
+        fontWeight: "500",
+    },
+    communityButton: {
         flexDirection: "row",
         alignItems: "center",
+        backgroundColor: "#EC4899",
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        borderRadius: 12,
+        alignSelf: "flex-start",
+        gap: 8,
+    },
+    communityButtonText: {
+        color: "#FFFFFF",
+        fontSize: 15,
+        fontWeight: "700",
+    },
+    // Progress Overview Card
+    // Quick Stats Card (deprecated)
+    // My Mood Card
+    // Weekly Insight Card
+    // Daily Quote Card (new compact version for left column)
+    // Mood Character Card (large square on right)
+    // Therapist Cards
+    // Therapist Cards - Redesigned
+    therapistCard: {
+        width: 280,
+        backgroundColor: '#EFF6FF', // Light blueish bg
+        borderRadius: 16,
+        padding: 16,
+        marginRight: 16,
+        borderWidth: 1.5,
+        borderColor: '#64748B', // Dark thin border
+    },
+    therapistContentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 16,
     },
-    goalsIconBox: {
-        width: 54,
-        height: 54,
-        borderRadius: 16,
-        backgroundColor: "#EEF2FF",
-        justifyContent: "center",
-        alignItems: "center",
+    therapistLeft: {
+        position: 'relative',
+        width: 70,
+        height: 70,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    goalsText: {
+    therapistImageDecor: {
+        position: 'absolute',
+        bottom: 0,
+        left: -5,
+        width: 50,
+        height: 35,
+        backgroundColor: '#EA580C', // Orange
+        borderTopLeftRadius: 25,
+        borderTopRightRadius: 25,
+        transform: [{ rotate: '-45deg' }],
+        opacity: 0.9,
+    },
+    therapistImage: {
+        width: 65,
+        height: 65,
+        borderRadius: 33,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        zIndex: 2,
+    },
+    therapistInfo: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    therapistName: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1E293B',
         flex: 1,
     },
-    goalsTitle: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#1E293B",
-        marginBottom: 2,
+    therapistArrow: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    goalsSubtitle: {
+    therapistDetailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 4,
+    },
+    therapistDetailText: {
+        fontSize: 12,
+        color: '#475569',
+        fontWeight: '500',
+        flex: 1,
+    },
+    // Quick Actions - New Styles
+    quickActionsGridNew: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    quickActionContent: {
+        position: 'relative',
+        zIndex: 2,
+        padding: 16,
+        minHeight: 120,
+        justifyContent: 'flex-end',
+    },
+    quickActionIconNew: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    quickActionTitleNew: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1F2937',
+        letterSpacing: 0.5,
+    },
+    // Quick Actions - Clean Professional Design
+    // Featured Notes Card
+    // Journal Styles
+    seeAllText: {
         fontSize: 13,
-        color: "#64748B",
-        fontWeight: "300",
-        fontStyle: "italic",
+        color: '#4A9B7F',
+        fontWeight: '600',
     },
-
-    // Community
-    communityCard: {
-        borderRadius: 22,
-        overflow: "hidden",
-        shadowColor: "#6366F1",
+    journalMainCard: {
+        height: 220,
+        borderRadius: 24,
+        backgroundColor: '#FEF3C7',
+        overflow: 'hidden',
+        marginBottom: 20,
+        position: 'relative',
+        shadowColor: '#F59E0B',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.2,
         shadowRadius: 12,
         elevation: 6,
     },
-    communityGradient: {
-        padding: 28,
-        alignItems: "center",
+    journalAbstractBg: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
     },
-    handsRow: {
-        flexDirection: "row",
-        gap: 14,
-        marginBottom: 20,
+    journalCloud: {
+        position: 'absolute',
+        flexDirection: 'row',
+        opacity: 0.6,
     },
-    handShape: {
-        width: 36,
-        height: 54,
-        borderRadius: 18,
-        transform: [{ rotate: "8deg" }],
-        shadowColor: "#000",
+    cloudPart: {
+        backgroundColor: '#FFFBEB',
+        borderRadius: 20,
+    },
+    journalSun: {
+        position: 'absolute',
+        top: 25,
+        right: 30,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    sunGlow: {
+        position: 'absolute',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#FDE68A',
+        opacity: 0.4,
+    },
+    journalSunEmoji: {
+        fontSize: 32,
+        zIndex: 2,
+    },
+    treeGroup: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+    },
+    journalTree: {
+        position: 'absolute',
+        textShadowColor: 'rgba(0,0,0,0.1)',
+        textShadowOffset: { width: 2, height: 2 },
+        textShadowRadius: 3,
+    },
+    journalHills: {
+        position: 'absolute',
+        bottom: 0,
+        width: '100%',
+        height: 70,
+        flexDirection: 'row',
+    },
+    journalHill: {
+        position: 'absolute',
+        width: 140,
+        height: 70,
+        borderTopLeftRadius: 70,
+        borderTopRightRadius: 70,
+    },
+    journalContent: {
+        position: 'relative',
+        zIndex: 10,
+        padding: 20,
+        paddingTop: 24,
+        justifyContent: 'flex-start',
+    },
+    journalTextBadge: {
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        padding: 16,
+        borderRadius: 16,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowRadius: 8,
+        elevation: 3,
     },
-    communityTitle: {
+    journalCardTitle: {
         fontSize: 18,
-        fontWeight: "800",
-        color: "#1E293B",
-        marginBottom: 6,
+        fontWeight: '800',
+        color: '#78350F',
+        marginBottom: 4,
         letterSpacing: -0.3,
     },
-    communitySubtitle: {
-        fontSize: 14,
-        color: "#64748B",
-        marginBottom: 18,
-        fontWeight: "300",
-        fontStyle: "italic",
+    journalCardSubtitle: {
+        fontSize: 12,
+        color: '#92400E',
+        fontWeight: '500',
+        lineHeight: 16,
     },
-    communityBtn: {
-        backgroundColor: "#6366F1",
-        paddingHorizontal: 32,
-        paddingVertical: 14,
-        borderRadius: 25,
-        shadowColor: "#6366F1",
+    quickJournalSection: {
+        marginTop: 4,
+    },
+    quickJournalTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 12,
+    },
+    quickJournalScroll: {
+        paddingRight: 16,
+        gap: 12,
+    },
+    quickJournalCard: {
+        width: 160,
+        borderRadius: 16,
+        padding: 16,
+        minHeight: 160,
+        justifyContent: 'space-between',
+        marginRight: 0,
+    },
+    quickJournalEmoji: {
+        fontSize: 32,
+        marginBottom: 8,
+    },
+    quickJournalLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#374151',
+        marginBottom: 8,
+    },
+    quickJournalPrompt: {
+        fontSize: 13,
+        color: '#6B7280',
+        lineHeight: 18,
+        marginBottom: 12,
+        flex: 1,
+    },
+    quickJournalTag: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#9CA3AF',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    // New Mood Slider Styles
+    moodCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 12,
+    },
+    moodCardEmoji: {
+        fontSize: 42,
+    },
+    sliderContainerNew: {
+        marginTop: 16,
+    },
+    sliderTrackNew: {
+        position: 'relative',
+        height: 60,
+        borderRadius: 30,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: '#1F2937',
+    },
+    sliderTrackGradient: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        borderRadius: 30,
+    },
+    sliderTextContainerNew: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    sliderTextNew: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1F2937',
+        letterSpacing: 0.5,
+    },
+    sliderArrowNew: {
+        fontSize: 18,
+        color: '#1F2937',
+        fontWeight: '700',
+    },
+    sliderThumbNew: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: 60,
+        height: 60,
+        zIndex: 3,
+    },
+    sliderThumbGlowNew: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        borderRadius: 30,
+        backgroundColor: '#1F2937',
+        opacity: 0.2,
+        transform: [{ scale: 1.2 }],
+    },
+    sliderThumbInner: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#4A9B7F',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
+        elevation: 8,
+    },
+    // Mini Stats Row
+    miniStatsRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 12,
+        flexWrap: 'wrap',
+    },
+    miniStatCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    miniStatCardFire: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        shadowColor: '#FF6B35',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.4,
+        shadowRadius: 4,
         elevation: 4,
     },
-    communityBtnText: {
+    miniStatText: {
         fontSize: 13,
-        fontWeight: "700",
-        color: "#FFFFFF",
-        letterSpacing: 0.8,
+        fontWeight: '600',
+        color: '#1F2937',
     },
-
-    // Appointments
-    appointmentRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: "#F1F5F9",
+    miniStatTextFire: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1F2937',
     },
-    appointmentIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: "#EEF2FF",
-        justifyContent: "center",
-        alignItems: "center",
+    // Abstract Quick Actions Styles
+    quickActionAbstractCard: {
+        width: '48%',
+        height: 160,
+        borderRadius: 24,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    appointmentInfo: {
+    quickActionGradient: {
         flex: 1,
+        padding: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
     },
-    appointmentDoc: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#1E293B",
+    decorCircle: {
+        position: 'absolute',
+        borderRadius: 1000,
     },
-    appointmentTime: {
+    decorStar: {
+        position: 'absolute',
+        fontSize: 16,
+    },
+    quickActionContent: {
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    quickActionIconNew: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 4,
+    },
+    quickActionTitleNew: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1F2937',
+        marginBottom: 4,
+        letterSpacing: 0.3,
+    },
+    quickActionSubNew: {
         fontSize: 12,
-        color: "#64748B",
+        color: '#6B7280',
+        fontWeight: '600',
     },
-
-    // Modal
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 24,
-    },
-    modalContent: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 20,
-        padding: 24,
-        width: "100%",
-        maxWidth: 320,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#1E293B",
-        marginBottom: 16,
-        textAlign: "center",
-    },
-    langOption: {
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderRadius: 12,
-        marginBottom: 8,
-        backgroundColor: "#F8FAFC",
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-    },
-    langOptionActive: {
-        backgroundColor: "#EEF2FF",
-        borderColor: "#6366F1",
-    },
-    langText: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#475569",
-        textAlign: "center",
-    },
-    langTextActive: {
-        color: "#6366F1",
-    },
-    modalCancel: {
-        marginTop: 8,
-        paddingVertical: 12,
-        alignItems: "center",
-    },
-    modalCancelText: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#64748B",
+    quickActionsGridNew: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
     },
 });
